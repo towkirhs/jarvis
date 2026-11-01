@@ -11,33 +11,36 @@ import android.media.AudioAttributes
 import android.media.RingtoneManager
 import android.os.Build
 
-object AlarmLog {
-    private const val PREFS = "jarcis_alarm_log"
-
-    fun add(context: Context, line: String) {
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val old = prefs.getString("log", "") ?: ""
-        prefs.edit().putString("log", if (old.isEmpty()) line else "$old\n$line").commit()
-    }
-
-    fun read(context: Context): String =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("log", "") ?: ""
-}
-
 class AlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val id = intent.getIntExtra("id", 0)
-        val label = intent.getStringExtra("label") ?: "Alarm"
+        val id = intent.getIntExtra("id", -1)
+        val entry = AlarmScheduler.entry(context, id) ?: return
+        val kind = entry.getString("kind")
+        val label = entry.getString("label")
         AlarmLog.add(context, "F|$id|${System.currentTimeMillis()}")
 
+        if (entry.getBoolean("repeat")) {
+            AlarmScheduler.schedule(context, id, AlarmScheduler.nextDaily(entry.getLong("millis")), kind, label, true)
+        } else {
+            AlarmScheduler.remove(context, id)
+        }
+
+        val isAlarm = kind == "alarm"
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+        val sound = RingtoneManager.getDefaultUri(
+            if (isAlarm) RingtoneManager.TYPE_ALARM else RingtoneManager.TYPE_NOTIFICATION
+        )
+        val channelId = if (isAlarm) "alarm" else "notice"
         if (Build.VERSION.SDK_INT >= 26) {
-            val channel = NotificationChannel("alarm", "Alarms", NotificationManager.IMPORTANCE_HIGH)
+            val channel = NotificationChannel(
+                channelId,
+                if (isAlarm) "Alarms" else "Reminders",
+                if (isAlarm) NotificationManager.IMPORTANCE_HIGH else NotificationManager.IMPORTANCE_DEFAULT
+            )
             channel.setSound(
                 sound,
                 AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ALARM)
+                    .setUsage(if (isAlarm) AudioAttributes.USAGE_ALARM else AudioAttributes.USAGE_NOTIFICATION)
                     .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                     .build()
             )
@@ -46,17 +49,18 @@ class AlarmReceiver : BroadcastReceiver() {
         val open = PendingIntent.getActivity(
             context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE
         )
-        val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(context, "alarm")
+        val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(context, channelId)
         else Notification.Builder(context).setSound(sound)
         val notification = builder
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-            .setContentTitle("Alarm")
+            .setContentTitle(if (isAlarm) "Alarm" else "Jarvis")
             .setContentText(label)
-            .setCategory(Notification.CATEGORY_ALARM)
+            .setStyle(Notification.BigTextStyle().bigText(label))
+            .setCategory(if (isAlarm) Notification.CATEGORY_ALARM else Notification.CATEGORY_REMINDER)
             .setContentIntent(open)
             .setAutoCancel(true)
             .build()
-        notification.flags = notification.flags or Notification.FLAG_INSISTENT
+        if (isAlarm) notification.flags = notification.flags or Notification.FLAG_INSISTENT
         manager.notify(id, notification)
     }
 }

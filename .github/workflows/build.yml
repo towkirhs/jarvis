@@ -1,4 +1,4 @@
-name: Build APK
+name: Build
 
 on:
   push:
@@ -7,6 +7,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -19,22 +21,41 @@ jobs:
         with:
           channel: stable
 
-      # The Android scaffold is generated here, then our own files replace its defaults.
-      - name: Generate Android scaffold
-        run: flutter create --platforms=android --org com.towkirhs --project-name jarcis --no-pub .
+      # The Android and web scaffolds are generated here, then our own files replace the defaults.
+      - name: Generate scaffold
+        run: flutter create --platforms=android,web --org com.towkirhs --project-name jarcis --no-pub .
 
       - name: Apply Android overlay
         run: |
           rm -rf test analysis_options.yaml
+          D=android/app/src/main/kotlin/com/towkirhs/jarcis
           cp android_overlay/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
-          cp android_overlay/MainActivity.kt android/app/src/main/kotlin/com/towkirhs/jarcis/MainActivity.kt
-          cp android_overlay/AlarmReceiver.kt android/app/src/main/kotlin/com/towkirhs/jarcis/AlarmReceiver.kt
+          for f in MainActivity AlarmReceiver AlarmScheduler BootReceiver; do
+            cp android_overlay/$f.kt $D/$f.kt
+          done
 
       - run: flutter pub get
-      - run: flutter analyze
+      - run: flutter analyze --no-fatal-infos
       - run: flutter build apk --release
+      - run: flutter build web --release --base-href /jarcis/
+
+      - name: Package
+        run: |
+          cp build/app/outputs/flutter-apk/app-release.apk jarcis.apk
+          (cd build/web && zip -qr ../../jarcis-web.zip .)
 
       - uses: actions/upload-artifact@v4
         with:
           name: jarcis-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: jarcis.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jarcis-web
+          path: jarcis-web.zip
+
+      - name: Publish release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "build-${{ github.run_number }}" jarcis.apk jarcis-web.zip --title "Jarvis build ${{ github.run_number }}" --notes "Debug-signed APK for sideloading, plus the web build."

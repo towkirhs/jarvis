@@ -1,130 +1,132 @@
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'dart:async';
 
-void main() => runApp(const JarcisApp());
+import 'package:flutter/material.dart';
+
+import 'brain.dart';
+import 'habits_screen.dart';
+import 'home_screen.dart';
+import 'items_screen.dart';
+import 'journal_screen.dart';
+import 'native.dart';
+import 'pages.dart';
+import 'store.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final store = Store();
+  await store.load();
+  Native.init();
+  runApp(JarcisApp(store: store));
+}
 
 class JarcisApp extends StatelessWidget {
-  const JarcisApp({super.key});
+  const JarcisApp({super.key, required this.store});
+  final Store store;
 
   @override
   Widget build(BuildContext context) => MaterialApp(
         title: 'Jarvis',
         theme: ThemeData(colorSchemeSeed: Colors.indigo, useMaterial3: true),
-        home: const SpikePage(),
+        darkTheme: ThemeData(
+          colorSchemeSeed: Colors.indigo,
+          brightness: Brightness.dark,
+          useMaterial3: true,
+        ),
+        home: Shell(store: store),
       );
 }
 
-/// Phase 1 spike: prove exact alarms ring and shared text arrives.
-class SpikePage extends StatefulWidget {
-  const SpikePage({super.key});
+class Shell extends StatefulWidget {
+  const Shell({super.key, required this.store});
+  final Store store;
 
   @override
-  State<SpikePage> createState() => _SpikePageState();
+  State<Shell> createState() => _ShellState();
 }
 
-class _SpikePageState extends State<SpikePage> {
-  static const _channel = MethodChannel('jarcis/spike');
-  static final _timePattern =
-      RegExp(r'(\d{1,2}):(\d{2})\s*(am|pm)?', caseSensitive: false);
+class _ShellState extends State<Shell> with WidgetsBindingObserver {
+  int _tab = 0;
+  Timer? _timer;
+  String? _summaryTried;
 
-  String _shared = '(nothing shared yet)';
-  String _message = '';
-  List<String> _rows = [];
+  Store get s => widget.store;
 
   @override
   void initState() {
     super.initState();
-    _channel.setMethodCallHandler((call) async {
-      if (call.method == 'sharedText') _onShared(call.arguments as String);
-    });
-    _start();
+    WidgetsBinding.instance.addObserver(this);
+    Native.onShared = _onShared;
+    _boot();
+    _timer = Timer.periodic(const Duration(minutes: 1), (_) => _tick());
   }
 
-  Future<void> _start() async {
-    await _channel.invokeMethod('requestNotificationPermission');
-    final text = await _channel.invokeMethod<String>('takeSharedText');
-    if (text != null) await _onShared(text);
-    await _refresh();
+  @override
+  void dispose() {
+    _timer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _tick();
+  }
+
+  Future<void> _boot() async {
+    await Native.requestNotificationPermission();
+    await s.ensureDaily();
+    final shared = await Native.takeSharedText();
+    if (shared != null) await _onShared(shared);
+    await _tick();
   }
 
   Future<void> _onShared(String text) async {
-    setState(() => _shared = text);
-    final match = _timePattern.firstMatch(text);
-    if (match == null) {
-      setState(() => _message = 'No time like 3:15 found in the shared text.');
-      return;
-    }
-    var hour = int.parse(match.group(1)!);
-    final minute = int.parse(match.group(2)!);
-    final suffix = match.group(3)?.toLowerCase();
-    if (suffix == 'pm' && hour < 12) hour += 12;
-    if (suffix == 'am' && hour == 12) hour = 0;
-    if (hour > 23 || minute > 59) {
-      setState(() => _message = 'Time out of range: $hour:$minute');
-      return;
-    }
+    if (mounted) setState(() => _tab = 0);
+    await Brain.capture(s, text, source: 'share');
+  }
+
+  /// Runs every minute while the app is open: retries waiting notes and writes the evening summary.
+  Future<void> _tick() async {
+    await Brain.drain(s);
     final now = DateTime.now();
-    var when = DateTime(now.year, now.month, now.day, hour, minute);
-    if (!when.isAfter(now)) when = when.add(const Duration(days: 1));
-    await _schedule(when, text);
-  }
-
-  Future<void> _schedule(DateTime when, String label) async {
-    final millis = when.millisecondsSinceEpoch;
-    await _channel.invokeMethod('schedule', {
-      'id': (millis ~/ 1000) % 1000000000,
-      'millis': millis,
-      'label': label,
-    });
-    setState(() => _message = 'Alarm set for ${_clock(when)}');
-    await _refresh();
-  }
-
-  Future<void> _refresh() async {
-    final raw = await _channel.invokeMethod<String>('getLog') ?? '';
-    final scheduled = <String, List<String>>{};
-    final fired = <String, int>{};
-    for (final line in raw.split('\n')) {
-      final p = line.split('|');
-      if (p.length >= 3 && p[0] == 'S') scheduled[p[1]] = p;
-      if (p.length >= 3 && p[0] == 'F') fired[p[1]] = int.parse(p[2]);
+    final today = dayKey(now);
+    if (now.hour >= 21 &&
+        s.apiKey.isNotEmpty &&
+        s.summaries[today] == null &&
+        _summaryTried != today &&
+        s.capturesOn(today).isNotEmpty) {
+      _summaryTried = today;
+      try {
+        await Brain.summarize(s, today);
+      } catch (_) {
+        // The Journal tab has a button to try again.
+      }
     }
-    final rows = <String>[];
-    for (final entry in scheduled.entries.toList().reversed) {
-      final target = int.parse(entry.value[2]);
-      final at = DateTime.fromMillisecondsSinceEpoch(target);
-      final f = fired[entry.key];
-      rows.add(f == null
-          ? '${_clock(at)}  not fired yet'
-          : '${_clock(at)}  fired ${((f - target) / 1000).toStringAsFixed(1)}s after');
-    }
-    setState(() => _rows = rows);
   }
-
-  String _clock(DateTime t) => t.toString().substring(11, 19);
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: const Text('Jarvis spike')),
-        body: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            const Text('Last shared text', style: TextStyle(fontWeight: FontWeight.bold)),
-            Text(_shared),
-            const SizedBox(height: 8),
-            Text(_message),
-            const SizedBox(height: 16),
-            Wrap(spacing: 8, children: [
-              FilledButton(
-                onPressed: () => _schedule(
-                    DateTime.now().add(const Duration(minutes: 1)), 'test alarm'),
-                child: const Text('Ring in 1 minute'),
-              ),
-              OutlinedButton(onPressed: _refresh, child: const Text('Refresh log')),
-            ]),
-            const SizedBox(height: 16),
-            const Text('Alarm log (newest first)', style: TextStyle(fontWeight: FontWeight.bold)),
-            for (final r in _rows) Text(r),
+        body: SafeArea(
+          child: IndexedStack(
+            index: _tab,
+            children: [
+              HomeScreen(store: s),
+              ItemsScreen(store: s),
+              JournalScreen(store: s),
+              HabitsScreen(store: s),
+              MoreScreen(store: s),
+            ],
+          ),
+        ),
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: _tab,
+          onDestinationSelected: (i) => setState(() => _tab = i),
+          destinations: const [
+            NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
+            NavigationDestination(icon: Icon(Icons.checklist), label: 'Plan'),
+            NavigationDestination(icon: Icon(Icons.menu_book_outlined), selectedIcon: Icon(Icons.menu_book), label: 'Journal'),
+            NavigationDestination(icon: Icon(Icons.local_fire_department_outlined), selectedIcon: Icon(Icons.local_fire_department), label: 'Habits'),
+            NavigationDestination(icon: Icon(Icons.more_horiz), label: 'More'),
           ],
         ),
       );
