@@ -1,0 +1,39 @@
+name: Build APK
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      # The Android scaffold is generated here, then our own files replace its defaults.
+      - name: Generate Android scaffold
+        run: flutter create --platforms=android --org com.towkirhs --project-name jarcis --no-pub .
+
+      - name: Apply Android overlay
+        run: |
+          cp android_overlay/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
+          cp android_overlay/MainActivity.kt android/app/src/main/kotlin/com/towkirhs/jarcis/MainActivity.kt
+          cp android_overlay/AlarmReceiver.kt android/app/src/main/kotlin/com/towkirhs/jarcis/AlarmReceiver.kt
+
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter build apk --release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jarcis-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
