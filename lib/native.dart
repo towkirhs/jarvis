@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 
@@ -16,6 +18,14 @@ class Native {
 
   static Future<String?> takeSharedText() async =>
       kIsWeb ? null : await _ch.invokeMethod<String>('takeSharedText');
+
+  /// Dictations sent by the Handy app while Jarvis was closed.
+  static Future<List<String>> takeNotes() async {
+    if (kIsWeb) return [];
+    final raw = await _ch.invokeMethod<String>('takeNotes');
+    if (raw == null) return [];
+    return (jsonDecode(raw) as List).map((e) => e.toString()).toList();
+  }
 
   static Future<void> requestNotificationPermission() async {
     if (!kIsWeb) await _ch.invokeMethod('requestNotificationPermission');

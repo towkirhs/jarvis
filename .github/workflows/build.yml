@@ -30,7 +30,7 @@ jobs:
           rm -rf test analysis_options.yaml
           D=android/app/src/main/kotlin/com/towkirhs/jarcis
           cp android_overlay/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
-          for f in MainActivity AlarmReceiver AlarmScheduler BootReceiver; do
+          for f in MainActivity AlarmReceiver AlarmScheduler BootReceiver NoteReceiver; do
             cp android_overlay/$f.kt $D/$f.kt
           done
 

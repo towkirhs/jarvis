@@ -87,6 +87,9 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
 
   /// Runs every minute while the app is open: retries waiting notes and writes the evening summary.
   Future<void> _tick() async {
+    for (final note in await Native.takeNotes()) {
+      await Brain.capture(s, note, source: 'handy');
+    }
     await Brain.drain(s);
     final now = DateTime.now();
     final today = dayKey(now);

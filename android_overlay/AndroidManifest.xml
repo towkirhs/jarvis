@@ -29,6 +29,11 @@
             </intent-filter>
         </activity>
         <receiver android:name=".AlarmReceiver" android:exported="false"/>
+        <receiver android:name=".NoteReceiver" android:exported="true">
+          <intent-filter>
+            <action android:name="com.towkirhs.jarcis.NEW_NOTE" />
+          </intent-filter>
+        </receiver>
         <receiver android:name=".BootReceiver" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED"/>

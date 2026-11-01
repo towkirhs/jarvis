@@ -43,6 +43,7 @@ class MainActivity : FlutterActivity() {
                     AlarmScheduler.cancel(this, call.argument<Number>("id")!!.toInt())
                     result.success(null)
                 }
+                "takeNotes" -> result.success(NoteQueue.take(this))
                 "getLog" -> result.success(AlarmLog.read(this))
                 else -> result.notImplemented()
             }
