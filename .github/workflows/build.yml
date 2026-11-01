@@ -25,6 +25,7 @@ jobs:
 
       - name: Apply Android overlay
         run: |
+          rm -rf test analysis_options.yaml
           cp android_overlay/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
           cp android_overlay/MainActivity.kt android/app/src/main/kotlin/com/towkirhs/jarcis/MainActivity.kt
           cp android_overlay/AlarmReceiver.kt android/app/src/main/kotlin/com/towkirhs/jarcis/AlarmReceiver.kt
