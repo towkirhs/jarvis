@@ -25,7 +25,12 @@ class Gemini {
       }),
     );
     if (res.statusCode != 200) {
-      throw Exception('Gemini error ${res.statusCode}');
+      var why = '';
+      try {
+        why = (jsonDecode(res.body)['error']['message'] as String?) ?? '';
+      } catch (_) {}
+      if (why.length > 160) why = why.substring(0, 160);
+      throw Exception('Gemini error ${res.statusCode}${why.isEmpty ? '' : ': $why'}');
     }
     final data = jsonDecode(res.body) as Map<String, dynamic>;
     return data['candidates'][0]['content']['parts'][0]['text'] as String;
