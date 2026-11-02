@@ -7,11 +7,13 @@ import 'package:flutter/services.dart';
 class Native {
   static const _ch = MethodChannel('jarcis/native');
   static void Function(String text)? onShared;
+  static void Function()? onNotesWaiting;
 
   static void init() {
     if (kIsWeb) return;
     _ch.setMethodCallHandler((call) async {
       if (call.method == 'sharedText') onShared?.call(call.arguments as String);
+      if (call.method == 'notesWaiting') onNotesWaiting?.call();
       return null;
     });
   }
@@ -26,6 +28,9 @@ class Native {
     if (raw == null) return [];
     return (jsonDecode(raw) as List).map((e) => e.toString()).toList();
   }
+
+  /// Tells Android the background run is finished, so it can shut down.
+  static Future<void> backgroundDone() => _ch.invokeMethod('backgroundDone');
 
   static Future<void> requestNotificationPermission() async {
     if (!kIsWeb) await _ch.invokeMethod('requestNotificationPermission');

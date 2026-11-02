@@ -5,12 +5,18 @@ import android.content.Context
 import android.content.Intent
 import org.json.JSONArray
 
-/** Receives finished dictations from the Handy app and queues them until Jarvis is open. */
+/** Receives dictations from the Handy app, queues them, and gets them processed right away. */
 class NoteReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val text = intent.getStringExtra("text")?.trim() ?: return
         if (text.isEmpty()) return
         NoteQueue.add(context, text)
+        val app = MainActivity.live
+        if (app != null) {
+            app.invokeMethod("notesWaiting", null) // the open app processes it
+        } else {
+            BackgroundRunner.run(context, goAsync())
+        }
     }
 }
 

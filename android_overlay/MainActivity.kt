@@ -16,6 +16,7 @@ class MainActivity : FlutterActivity() {
         pendingShared = sharedTextFrom(intent)
         val ch = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "jarcis/native")
         channel = ch
+        live = ch
         ch.setMethodCallHandler { call, result ->
             when (call.method) {
                 "takeSharedText" -> {
@@ -28,26 +29,14 @@ class MainActivity : FlutterActivity() {
                     }
                     result.success(null)
                 }
-                "schedule" -> {
-                    AlarmScheduler.schedule(
-                        this,
-                        call.argument<Number>("id")!!.toInt(),
-                        call.argument<Number>("millis")!!.toLong(),
-                        call.argument<String>("kind") ?: "notice",
-                        call.argument<String>("label") ?: "Reminder",
-                        call.argument<Boolean>("repeatDaily") ?: false
-                    )
-                    result.success(null)
-                }
-                "cancel" -> {
-                    AlarmScheduler.cancel(this, call.argument<Number>("id")!!.toInt())
-                    result.success(null)
-                }
-                "takeNotes" -> result.success(NoteQueue.take(this))
-                "getLog" -> result.success(AlarmLog.read(this))
-                else -> result.notImplemented()
+                else -> if (!NativeChannel.handle(this, call, result)) result.notImplemented()
             }
         }
+    }
+
+    override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        if (live === channel) live = null
+        super.cleanUpFlutterEngine(flutterEngine)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -59,5 +48,10 @@ class MainActivity : FlutterActivity() {
         if (intent?.action != Intent.ACTION_SEND) return null
         if (intent.type?.startsWith("text/") != true) return null
         return intent.getStringExtra(Intent.EXTRA_TEXT)
+    }
+
+    companion object {
+        /** The open app's channel, or null when the app's screen isn't alive. */
+        var live: MethodChannel? = null
     }
 }

@@ -19,6 +19,27 @@ Future<void> main() async {
   runApp(JarcisApp(store: store));
 }
 
+/// Started by Android when Handy sends a note while the app is closed: process it, then exit.
+@pragma('vm:entry-point')
+Future<void> backgroundMain() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  try {
+    final store = Store();
+    await store.load();
+    while (true) {
+      final notes = await Native.takeNotes();
+      if (notes.isEmpty) break;
+      for (final note in notes) {
+        await Brain.capture(store, note, source: 'handy');
+      }
+    }
+    // save() doesn't wait for the disk write; give it a moment before the engine is destroyed.
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+  } finally {
+    await Native.backgroundDone();
+  }
+}
+
 class JarcisApp extends StatelessWidget {
   const JarcisApp({super.key, required this.store});
   final Store store;
@@ -56,6 +77,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     Native.onShared = _onShared;
+    Native.onNotesWaiting = _tick;
     _boot();
     _timer = Timer.periodic(const Duration(minutes: 1), (_) => _tick());
   }
