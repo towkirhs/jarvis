@@ -104,7 +104,11 @@ object AlarmScheduler {
             val show = PendingIntent.getActivity(
                 context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE
             )
-            manager.setAlarmClock(AlarmManager.AlarmClockInfo(millis, show), fire)
+            try {
+                manager.setAlarmClock(AlarmManager.AlarmClockInfo(millis, show), fire)
+            } catch (e: SecurityException) {
+                manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, millis, fire)
+            }
         } else {
             manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, millis, fire)
         }
