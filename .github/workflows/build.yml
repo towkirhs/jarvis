@@ -37,7 +37,7 @@ jobs:
       # A fixed signing key (kept as a repository secret) lets each new APK install over the last one.
       - name: Use fixed signing key
         env:
-          KS: ${{ secrets.JARVIS || secrets.JARCIS_KEYSTORE_B64 }}
+          KS: ${{ secrets.JARVIS_KEYSTORE_B64 || secrets.JARCIS_KEYSTORE_B64 || secrets.JARVIS }}
         run: |
           if [ -n "$KS" ]; then
             mkdir -p ~/.android
