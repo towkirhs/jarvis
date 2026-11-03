@@ -34,22 +34,40 @@ jobs:
             cp android_overlay/$f.kt $D/$f.kt
           done
 
-      # A fixed signing key (kept as a repository secret) lets each new APK install over the last one.
+      # Sign every release with the same key (a repository secret), so each new APK installs over the last one.
       - name: Use fixed signing key
         env:
           KS: ${{ secrets.JARVIS_KEYSTORE_B64 || secrets.JARCIS_KEYSTORE_B64 || secrets.JARVIS }}
         run: |
-          if [ -n "$KS" ]; then
-            mkdir -p ~/.android
-            echo "$KS" | base64 -d > ~/.android/debug.keystore
-          else
-            echo "No JARCIS_KEYSTORE_B64 secret: APK will get a random key and will not update the installed app."
+          if [ -z "$KS" ]; then
+            echo "No signing key secret: APK will get a random key and will not update the installed app."
+            exit 0
           fi
+          echo "$KS" | base64 -d > "$RUNNER_TEMP/jarvis.keystore"
+          cat >> android/app/build.gradle.kts <<EOF2
+          android {
+              signingConfigs {
+                  create("fixed") {
+                      storeFile = file("$RUNNER_TEMP/jarvis.keystore")
+                      storePassword = "android"
+                      keyAlias = "androiddebugkey"
+                      keyPassword = "android"
+                  }
+              }
+              buildTypes {
+                  getByName("release") { signingConfig = signingConfigs.getByName("fixed") }
+              }
+          }
+          EOF2
 
       - run: flutter pub get
       - run: flutter analyze --no-fatal-infos
       - run: flutter build apk --release
       - run: flutter build web --release --base-href /jarvis/
+
+      - name: Show signing certificate
+        run: |
+          "$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)/apksigner" verify --print-certs build/app/outputs/flutter-apk/app-release.apk | grep SHA-256
 
       - name: Package
         run: |
