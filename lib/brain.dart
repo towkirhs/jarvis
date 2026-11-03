@@ -114,8 +114,9 @@ class Brain {
       c['msg'] = msgs.isEmpty ? 'Saved to your journal.' : msgs.join('\n');
       c['status'] = 'done';
     } catch (e) {
-      // Keep whatever was already created undoable, and let the user retry the note.
-      c['actionId'] = undo.isEmpty ? null : s.logAction('Partly applied: ${c['raw']}', undo);
+      // Remove whatever was already created, so Retry starts clean instead of making duplicates.
+      if (undo.isNotEmpty) await s.undo(s.logAction('Rolled back: ${c['raw']}', undo));
+      c['actionId'] = null;
       c['status'] = 'failed';
       c['msg'] = 'Could not apply the AI answer ($e). Tap Retry.';
     }
@@ -213,6 +214,15 @@ class Brain {
     final type = p['type'].toString();
     final title = ((p['title'] as String?) ?? '').trim();
     final when = whenFrom(p['date'] as String?, p['time'] as String?);
+
+    if (type == 'task' || type == 'event' || type == 'alarm') {
+      final same = s.list('items').any((i) =>
+          i['status'] == 'open' &&
+          i['kind'] == type &&
+          i['when'] == when &&
+          (i['title'] as String).trim().toLowerCase() == title.toLowerCase());
+      if (same) return 'Already have: $title';
+    }
 
     if (type == 'task') {
       final est = (p['estimateMinutes'] as num?)?.toInt();
@@ -374,7 +384,11 @@ Rules:
 - A promise is a commitment made to another person. A decision is a choice the person made.
 - "delay" moves an existing item; give the new date or time.
 - Small talk, or anything that is not about plans, tasks, habits, promises, decisions or reflections, is type "ignore".
-- One note can hold several items.
+- One note can hold several items, but one real-world thing is ONE item. A class or appointment at a time is one "event" (it already gets a reminder); do not also add a task or alarm for it unless the person separately asks to be woken or reminded.
+- If the note is about something already in the open items list, do not create it again: use "delay" if its time changed, otherwise "ignore".
+- Never output two items with the same title and time.
+- If the same thing happens on several dates, output one item per date.
+- Notes may be in English, Bengali, or Bengali written in English letters (for example "kal" = tomorrow, "porshu" = day after tomorrow, "tarikh" = date, "tar por" = after that, "sondhay" = evening, "sokal" = morning). Understand them. Write "title" in short plain English; keep "cleaned" in the language the person used.
 
 Note: """$note"""''';
   }
