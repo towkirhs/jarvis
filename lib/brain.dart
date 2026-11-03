@@ -140,6 +140,10 @@ class Brain {
     if (type == 'habit_log' && findHabit(s, p['habit'] as String?) == null) {
       return 'no habit with that name';
     }
+    if (type == 'habit_new') {
+      if (((p['habit'] as String?) ?? '').trim().isEmpty) return 'no habit name';
+      if (p['times'] == null) return 'how often?';
+    }
     if (type == 'promise' && date == null) return 'no deadline given';
     return null;
   }
@@ -259,12 +263,22 @@ class Brain {
       final h = findHabit(s, p['habit'] as String?);
       if (h == null) return null;
       final day = (p['date'] as String?) ?? dayKey(DateTime.now());
-      final before = s.streakWeeks(h);
+      final done = p['done'] != false;
+      final before = s.streakPeriods(h);
       undo.add({'op': 'put', 'col': 'habits', 'rec': copyRec(h)});
-      (h['logs'] as Rec)[day] = 'yes';
-      final after = s.streakWeeks(h);
-      if (after > before) await s.boost('${h['name']}: $after week streak');
-      return 'Logged ${h['name']}';
+      (h['logs'] as Rec)[day] = done ? 'yes' : 'no';
+      final after = s.streakPeriods(h);
+      if (done && after > before) await s.boost('${h['name']}: $after ${h['per']} streak');
+      return '${done ? 'Logged' : 'Skipped'} ${h['name']}';
+    }
+    if (type == 'habit_new') {
+      final name = ((p['habit'] as String?) ?? title).trim();
+      final existing = findHabit(s, name);
+      if (existing != null) return 'Already tracking ${existing['name']}';
+      final per = p['per'] == 'month' ? 'month' : 'week';
+      final times = (p['times'] as num?)?.toInt() ?? 3;
+      await s.addHabit(name, times, per: per, remind: p['time'] as String?, undo: undo);
+      return 'New habit: $name, $times times a $per';
     }
     if (type == 'promise') {
       final person = ((p['person'] as String?) ?? 'someone').trim();
@@ -368,19 +382,20 @@ Open items the person already has (use these for delays): ${open.isEmpty ? 'none
 Habits the person tracks: ${habits.isEmpty ? 'none' : habits}
 
 Return ONLY JSON in this shape:
-{"cleaned": string, "topics": [string], "items": [ {"type": string, "title": string, "date": string or null, "time": string or null, "target": string or null, "person": string or null, "reason": string or null, "habit": string or null, "estimateMinutes": integer or null, "category": string or null, "confidence": number} ]}
+{"cleaned": string, "topics": [string], "items": [ {"type": string, "title": string, "date": string or null, "time": string or null, "target": string or null, "person": string or null, "reason": string or null, "habit": string or null, "estimateMinutes": integer or null, "category": string or null, "times": integer or null, "per": "week" or "month" or null, "done": boolean or null, "confidence": number} ]}
 
 "cleaned": the note with grammar fixed, same meaning, first person, nothing added.
 "topics": 1 to 4 lowercase single words about what the note covers.
-"type" is one of: task, event, alarm, delay, habit_log, promise, decision, note, ignore.
+"type" is one of: task, event, alarm, delay, habit_log, habit_new, promise, decision, note, ignore.
 "date" is YYYY-MM-DD and "time" is HH:MM in 24 hours, both local. For a promise, "date" is the deadline.
-"target" is, for a delay, the title of the existing open item it refers to. "habit" is, for habit_log, the tracked habit name. "person" is, for a promise, who it was made to. "reason" is, for a decision, why the person decided.
+"target" is, for a delay, the title of the existing open item it refers to. "habit" is, for habit_log, the tracked habit name, and for habit_new, a short name for the new habit. "done" is, for habit_log, true if they did it and false if they say they skipped it. "times" and "per" are, for habit_new, the target, like 3 per week or 12 per month ("daily" = 7 per week); "time" is its reminder time if one was said. "person" is, for a promise, who it was made to. "reason" is, for a decision, why the person decided.
 "category" is one lowercase word for the kind of work, such as report, email, call, errand.
 "confidence" is 0 to 1.
 
 Rules:
 - Never invent a date or time that was not said. If it is unclear ("later", "soon"), set time to null and lower the confidence.
 - A meeting or appointment at a time is "event". Use "alarm" only when the person asks to be woken or reminded at a time.
+- A habit is something repeated over weeks (gym, reading, praying, studying). Reporting that it was done or skipped is "habit_log" with the day it happened, never a task. Saying they want to start doing something regularly is "habit_new". A one-off thing to do is a task.
 - A promise is a commitment made to another person. A decision is a choice the person made.
 - "delay" moves an existing item; give the new date or time.
 - Small talk, or anything that is not about plans, tasks, habits, promises, decisions or reflections, is type "ignore".

@@ -56,6 +56,12 @@ class Store extends ChangeNotifier {
     _s.putIfAbsent('summaries', () => <String, dynamic>{});
     _s.putIfAbsent('boosts', () => <String, dynamic>{});
     _s.putIfAbsent('next', () => 100);
+    // Habits used to have only a weekly target ('perWeek').
+    for (final h in list('habits')) {
+      h['times'] ??= h['perWeek'] ?? 3;
+      h['per'] ??= 'week';
+      h['color'] ??= 0;
+    }
     _s.putIfAbsent(
       'settings',
       () => <String, dynamic>{'model': 'gemini-2.5-flash-lite', 'prefilter': true, 'cap': 6},
@@ -110,6 +116,7 @@ class Store extends ChangeNotifier {
 
   /// Makes the phone's alarm schedule match one item or promise.
   Future<void> syncRecord(String col, Rec r) async {
+    if (col == 'habits') return _syncHabitReminder(r);
     final nid = r['nid'] as int?;
     if (nid == null) return;
     final at = col == 'items' ? r['when'] as int? : r['remindAt'] as int?;
@@ -142,7 +149,32 @@ class Store extends ChangeNotifier {
     await daily(2, 21, 0, 'Evening check-in: log your habits and close out the day.');
   }
 
+  /// A habit's optional daily reminder at 'remind' (HH:MM).
+  Future<void> _syncHabitReminder(Rec h) async {
+    final rid = h['rid'] as int?;
+    if (rid == null) return;
+    final t = h['remind'] as String?;
+    if (t == null) {
+      await Native.cancel(rid);
+      return;
+    }
+    final hm = t.split(':');
+    final now = DateTime.now();
+    var at = DateTime(now.year, now.month, now.day, int.parse(hm[0]), int.parse(hm[1]));
+    if (!at.isAfter(now)) at = DateTime(now.year, now.month, now.day + 1, at.hour, at.minute);
+    await Native.schedule(
+      id: rid,
+      millis: at.millisecondsSinceEpoch,
+      kind: 'notice',
+      label: 'Time for ${h['name']}',
+      repeatDaily: true,
+    );
+  }
+
   Future<void> resyncAll() async {
+    for (final h in list('habits')) {
+      await syncRecord('habits', h);
+    }
     for (final it in list('items')) {
       await syncRecord('items', it);
     }
@@ -200,7 +232,7 @@ class Store extends ChangeNotifier {
         } else {
           col.add(old);
         }
-        if (op['col'] == 'items' || op['col'] == 'promises') {
+        if (op['col'] == 'items' || op['col'] == 'promises' || op['col'] == 'habits') {
           await syncRecord(op['col'] as String, old);
         }
       }
@@ -213,7 +245,7 @@ class Store extends ChangeNotifier {
   Future<void> updateRec(String col, Rec r, String desc, void Function(Rec) mutate) async {
     final old = copyRec(r);
     mutate(r);
-    if (col == 'items' || col == 'promises') await syncRecord(col, r);
+    if (col == 'items' || col == 'promises' || col == 'habits') await syncRecord(col, r);
     logAction(desc, [
       {'op': 'put', 'col': col, 'rec': old},
     ]);
@@ -223,6 +255,8 @@ class Store extends ChangeNotifier {
   void removeRec(String col, Rec r, String desc) {
     final old = copyRec(r);
     list(col).removeWhere((x) => x['id'] == r['id']);
+    final rid = r['rid'] as int?;
+    if (col == 'habits' && rid != null) Native.cancel(rid);
     logAction(desc, [
       {'op': 'put', 'col': col, 'rec': old},
     ]);
@@ -345,50 +379,81 @@ class Store extends ChangeNotifier {
 
   // ---------- habits ----------
 
-  Rec addHabit(String name, int perWeek) {
+  /// times per 'week' or 'month'; remind is an optional daily reminder time HH:MM.
+  Future<Rec> addHabit(String name, int times, {String per = 'week', String? remind, List<Rec>? undo}) async {
     final h = <String, dynamic>{
-      'id': nextId(), 'name': name, 'perWeek': perWeek, 'logs': <String, dynamic>{},
+      'id': nextId(),
+      'name': name,
+      'times': times,
+      'per': per,
+      'color': list('habits').length,
+      'remind': remind,
+      'rid': remind == null ? null : nextId(),
+      'logs': <String, dynamic>{},
     };
     list('habits').add(h);
+    undo?.add({'op': 'rm', 'col': 'habits', 'id': h['id'], 'nid': h['rid']});
+    await syncRecord('habits', h);
     save();
     return h;
   }
 
   DateTime mondayOf(DateTime d) => DateTime(d.year, d.month, d.day - (d.weekday - 1));
 
-  int weekCount(Rec h, DateTime monday) {
+  /// First day of the week or month (the habit's period) that contains d.
+  DateTime periodStart(Rec h, DateTime d) =>
+      h['per'] == 'month' ? DateTime(d.year, d.month, 1) : mondayOf(d);
+
+  DateTime _nextPeriod(Rec h, DateTime start) => h['per'] == 'month'
+      ? DateTime(start.year, start.month + 1, 1)
+      : DateTime(start.year, start.month, start.day + 7);
+
+  DateTime _prevPeriod(Rec h, DateTime start) => h['per'] == 'month'
+      ? DateTime(start.year, start.month - 1, 1)
+      : DateTime(start.year, start.month, start.day - 7);
+
+  /// Times done in the period starting at start.
+  int periodCount(Rec h, DateTime start) {
     final logs = h['logs'] as Rec;
+    final end = _nextPeriod(h, start);
     var c = 0;
-    for (var i = 0; i < 7; i++) {
-      if (logs[dayKey(DateTime(monday.year, monday.month, monday.day + i))] == 'yes') c++;
+    for (var d = start; d.isBefore(end); d = DateTime(d.year, d.month, d.day + 1)) {
+      if (logs[dayKey(d)] == 'yes') c++;
     }
     return c;
   }
 
-  /// Consecutive weeks in which the habit reached its weekly target.
-  int streakWeeks(Rec h) {
-    final target = h['perWeek'] as int;
-    final thisMonday = mondayOf(DateTime.now());
-    var streak = weekCount(h, thisMonday) >= target ? 1 : 0;
-    var m = DateTime(thisMonday.year, thisMonday.month, thisMonday.day - 7);
-    while (weekCount(h, m) >= target) {
+  /// Consecutive weeks (or months) in which the habit reached its target.
+  int streakPeriods(Rec h) {
+    final target = h['times'] as int;
+    final now = periodStart(h, DateTime.now());
+    var streak = periodCount(h, now) >= target ? 1 : 0;
+    var p = _prevPeriod(h, now);
+    while (periodCount(h, p) >= target) {
       streak++;
-      m = DateTime(m.year, m.month, m.day - 7);
+      p = _prevPeriod(h, p);
     }
     return streak;
   }
 
-  Future<void> logHabit(Rec h, String day, String value) async {
-    final before = streakWeeks(h);
+  /// value: 'yes', 'no' (said they skipped it), or null (clear the day).
+  Future<void> logHabit(Rec h, String day, String? value) async {
+    final before = streakPeriods(h);
     final old = copyRec(h);
-    (h['logs'] as Rec)[day] = value;
-    logAction('${value == 'yes' ? 'Logged' : 'Skipped'} ${h['name']}', [
+    final logs = h['logs'] as Rec;
+    if (value == null) {
+      logs.remove(day);
+    } else {
+      logs[day] = value;
+    }
+    final verb = value == 'yes' ? 'Logged' : (value == 'no' ? 'Skipped' : 'Cleared');
+    logAction('$verb ${h['name']} on $day', [
       {'op': 'put', 'col': 'habits', 'rec': old},
     ]);
     save();
-    final after = streakWeeks(h);
+    final after = streakPeriods(h);
     if (value == 'yes' && after > before) {
-      await boost('${h['name']}: $after week streak');
+      await boost('${h['name']}: $after ${h['per']} streak');
     }
   }
 

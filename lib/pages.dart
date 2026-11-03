@@ -110,6 +110,14 @@ class InboxPage extends StatelessWidget {
       if (chosen == null) return;
       target = chosen['title'] as String;
     }
+    if (type == 'habit_new') {
+      // Let the person fill in or fix the details, then the review item is done.
+      final h = await showAddHabit(context, store, name: (p['habit'] as String?) ?? '');
+      if (h == null) return;
+      store.list('inbox').removeWhere((r) => r['id'] == e['id']);
+      store.save();
+      return;
+    }
     if (type == 'habit_log' && Brain.findHabit(store, p['habit'] as String?) == null) {
       if (!context.mounted) return;
       final h = await showAddHabit(context, store, name: (p['habit'] as String?) ?? '');
@@ -317,7 +325,6 @@ class InsightsPage extends StatelessWidget {
         body: ListenableBuilder(
           listenable: store,
           builder: (context, _) {
-            final monday = store.mondayOf(DateTime.now());
             final postponed = store.list('items').where((i) => ((i['postponed'] as int?) ?? 0) > 0).toList()
               ..sort((a, b) => (b['postponed'] as int).compareTo(a['postponed'] as int));
             final byCat = <String, List<double>>{};
@@ -344,7 +351,10 @@ class InsightsPage extends StatelessWidget {
                 Text('Habits this week', style: style),
                 if (store.list('habits').isEmpty) const Text('No habits yet.'),
                 for (final h in store.list('habits'))
-                  Text('${h['name']}: ${store.weekCount(h, monday)}/${h['perWeek']}, streak ${store.streakWeeks(h)} weeks'),
+                  Text(
+                    '${h['name']}: ${store.periodCount(h, store.periodStart(h, DateTime.now()))}/${h['times']} '
+                    'this ${h['per']}, streak ${store.streakPeriods(h)}',
+                  ),
                 const SizedBox(height: 16),
                 Text('How long things really take', style: style),
                 if (byCat.isEmpty) const Text('Start and finish tasks with an estimate to see this.'),
