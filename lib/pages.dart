@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'brain.dart';
+import 'countdown_screen.dart';
 import 'habits_screen.dart';
 import 'native.dart';
 import 'store.dart';
@@ -36,6 +37,12 @@ class MoreScreen extends StatelessWidget {
                 leading: const Icon(Icons.history_edu),
                 title: const Text('Decisions'),
                 onTap: () => open(DecisionsPage(store: store)),
+              ),
+              ListTile(
+                leading: const Icon(Icons.hourglass_bottom),
+                title: const Text('Countdowns'),
+                subtitle: Text('${store.list('countdowns').length} saved'),
+                onTap: () => open(CountdownPage(store: store)),
               ),
               ListTile(
                 leading: const Icon(Icons.insights),
@@ -123,6 +130,18 @@ class InboxPage extends StatelessWidget {
       final h = await showAddHabit(context, store, name: (p['habit'] as String?) ?? '');
       if (h == null) return;
       habit = h['name'] as String;
+    }
+    if (type == 'countdown' && p['date'] == null) {
+      if (!context.mounted) return;
+      final now = DateTime.now();
+      final d = await showDatePicker(
+        context: context,
+        initialDate: now,
+        firstDate: DateTime(1900),
+        lastDate: DateTime(2100),
+      );
+      if (d == null) return;
+      date = dayKey(d);
     }
     if (type == 'promise' && p['date'] == null) {
       if (!context.mounted) return;
@@ -342,7 +361,9 @@ class InsightsPage extends StatelessWidget {
             return ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                Text('Last 7 days: $notes notes', style: style),
+                Text('Last 7 days: $notes notes, '
+                    '${store.list('items').where((i) => i['status'] == 'done' && ((i['doneAt'] as int?) ?? 0) >= weekAgo).length} tasks done',
+                    style: style),
                 const SizedBox(height: 16),
                 Text('Postponed most', style: style),
                 if (postponed.isEmpty) const Text('Nothing postponed.'),

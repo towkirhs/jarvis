@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'brain.dart';
+import 'focus_screen.dart';
 import 'habits_screen.dart';
 import 'home_screen.dart';
 import 'items_screen.dart';
@@ -137,6 +138,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
             children: [
               HomeScreen(store: s),
               ItemsScreen(store: s),
+              FocusScreen(store: s),
               JournalScreen(store: s),
               HabitsScreen(store: s),
               MoreScreen(store: s),
@@ -149,6 +151,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
           destinations: const [
             NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
             NavigationDestination(icon: Icon(Icons.checklist), label: 'Plan'),
+            NavigationDestination(icon: Icon(Icons.timer_outlined), selectedIcon: Icon(Icons.timer), label: 'Focus'),
             NavigationDestination(icon: Icon(Icons.menu_book_outlined), selectedIcon: Icon(Icons.menu_book), label: 'Journal'),
             NavigationDestination(icon: Icon(Icons.local_fire_department_outlined), selectedIcon: Icon(Icons.local_fire_department), label: 'Habits'),
             NavigationDestination(icon: Icon(Icons.more_horiz), label: 'More'),

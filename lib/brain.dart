@@ -140,6 +140,7 @@ class Brain {
     if (type == 'habit_log' && findHabit(s, p['habit'] as String?) == null) {
       return 'no habit with that name';
     }
+    if (type == 'countdown' && date == null) return 'no date given';
     if (type == 'habit_new') {
       if (((p['habit'] as String?) ?? '').trim().isEmpty) return 'no habit name';
       if (p['times'] == null) return 'how often?';
@@ -228,10 +229,21 @@ class Brain {
       if (same) return 'Already have: $title';
     }
 
+    const priorities = {'low': 1, 'medium': 2, 'high': 3};
+    final extra = <String, dynamic>{
+      'desc': p['description'],
+      'priority': priorities[p['priority']] ?? 0,
+      'tags': ((p['tags'] as List?) ?? []).map((e) => e.toString()).toList(),
+      'list': ((p['list'] as String?) ?? '').trim().isEmpty ? 'Inbox' : (p['list'] as String).trim(),
+      'repeat': when == null ? null : (['daily', 'weekly', 'monthly', 'yearly'].contains(p['repeat']) ? p['repeat'] : null),
+      'dur': (p['durationMinutes'] as num?)?.toInt(),
+    };
+
     if (type == 'task') {
       final est = (p['estimateMinutes'] as num?)?.toInt();
       final cat = p['category'] as String?;
-      await s.addItem(kind: 'task', title: title, when: when, est: est, cat: cat, captureId: capId, undo: undo);
+      extra['dur'] = null;
+      await s.addItem(kind: 'task', title: title, when: when, est: est, cat: cat, captureId: capId, undo: undo, extra: extra);
       final sug = s.estimateSuggestion(cat, est);
       final tail = sug == null
           ? ''
@@ -239,7 +251,7 @@ class Brain {
       return 'Task: $title${when == null ? '' : ' (${niceWhen(when)})'}$tail';
     }
     if (type == 'event' || type == 'alarm') {
-      await s.addItem(kind: type, title: title, when: when, captureId: capId, undo: undo);
+      await s.addItem(kind: type, title: title, when: when, captureId: capId, undo: undo, extra: extra);
       return '${type == 'alarm' ? 'Alarm' : 'Event'}: $title${when == null ? '' : ' (${niceWhen(when)})'}';
     }
     if (type == 'delay') {
@@ -270,6 +282,11 @@ class Brain {
       final after = s.streakPeriods(h);
       if (done && after > before) await s.boost('${h['name']}: $after ${h['per']} streak');
       return '${done ? 'Logged' : 'Skipped'} ${h['name']}';
+    }
+    if (type == 'countdown') {
+      final kind = ['birthday', 'anniversary', 'holiday'].contains(p['category']) ? p['category'] as String : 'countdown';
+      await s.addCountdown(title, p['date'] as String, kind, undo: undo);
+      return 'Countdown: $title (${p['date']})';
     }
     if (type == 'habit_new') {
       final name = ((p['habit'] as String?) ?? title).trim();
@@ -382,11 +399,11 @@ Open items the person already has (use these for delays): ${open.isEmpty ? 'none
 Habits the person tracks: ${habits.isEmpty ? 'none' : habits}
 
 Return ONLY JSON in this shape:
-{"cleaned": string, "topics": [string], "items": [ {"type": string, "title": string, "date": string or null, "time": string or null, "target": string or null, "person": string or null, "reason": string or null, "habit": string or null, "estimateMinutes": integer or null, "category": string or null, "times": integer or null, "per": "week" or "month" or null, "done": boolean or null, "confidence": number} ]}
+{"cleaned": string, "topics": [string], "items": [ {"type": string, "title": string, "date": string or null, "time": string or null, "target": string or null, "person": string or null, "reason": string or null, "habit": string or null, "estimateMinutes": integer or null, "category": string or null, "times": integer or null, "per": "week" or "month" or null, "done": boolean or null, "description": string or null, "priority": "high" or "medium" or "low" or null, "tags": [string] or null, "list": string or null, "repeat": "daily" or "weekly" or "monthly" or "yearly" or null, "durationMinutes": integer or null, "confidence": number} ]}
 
 "cleaned": the note with grammar fixed, same meaning, first person, nothing added.
 "topics": 1 to 4 lowercase single words about what the note covers.
-"type" is one of: task, event, alarm, delay, habit_log, habit_new, promise, decision, note, ignore.
+"type" is one of: task, event, alarm, delay, habit_log, habit_new, countdown, promise, decision, note, ignore.
 "date" is YYYY-MM-DD and "time" is HH:MM in 24 hours, both local. For a promise, "date" is the deadline.
 "target" is, for a delay, the title of the existing open item it refers to. "habit" is, for habit_log, the tracked habit name, and for habit_new, a short name for the new habit. "done" is, for habit_log, true if they did it and false if they say they skipped it. "times" and "per" are, for habit_new, the target, like 3 per week or 12 per month ("daily" = 7 per week); "time" is its reminder time if one was said. "person" is, for a promise, who it was made to. "reason" is, for a decision, why the person decided.
 "category" is one lowercase word for the kind of work, such as report, email, call, errand.
@@ -396,6 +413,8 @@ Rules:
 - Never invent a date or time that was not said. If it is unclear ("later", "soon"), set time to null and lower the confidence.
 - A meeting or appointment at a time is "event". Use "alarm" only when the person asks to be woken or reminded at a time.
 - A habit is something repeated over weeks (gym, reading, praying, studying). Reporting that it was done or skipped is "habit_log" with the day it happened, never a task. Saying they want to start doing something regularly is "habit_new". A one-off thing to do is a task.
+- "priority": "high" for urgent or important things the person stresses, otherwise only if they say it. "tags" and "list" only if they name them (like "add to my study list", "tag it exam"). "repeat" only for things said to repeat ("every day", "every Monday" = weekly). "durationMinutes" is how long an event lasts. "description" holds extra details that do not fit the title.
+- "countdown" is a date to count down to or remember every year: a birthday, an anniversary, a holiday, or an exam or trip the person wants a countdown for. "category" is "birthday", "anniversary", "holiday" or "countdown", and "date" is required.
 - A promise is a commitment made to another person. A decision is a choice the person made.
 - "delay" moves an existing item; give the new date or time.
 - Small talk, or anything that is not about plans, tasks, habits, promises, decisions or reflections, is type "ignore".

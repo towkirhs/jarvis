@@ -38,7 +38,7 @@ class Store extends ChangeNotifier {
   String apiKey = '';
 
   static const _collections = [
-    'captures', 'items', 'habits', 'promises', 'decisions', 'inbox', 'actions',
+    'captures', 'items', 'habits', 'promises', 'decisions', 'inbox', 'actions', 'countdowns', 'focus',
   ];
 
   Future<void> load() async {
@@ -117,6 +117,7 @@ class Store extends ChangeNotifier {
   /// Makes the phone's alarm schedule match one item or promise.
   Future<void> syncRecord(String col, Rec r) async {
     if (col == 'habits') return _syncHabitReminder(r);
+    if (col == 'countdowns') return _syncCountdown(r);
     final nid = r['nid'] as int?;
     if (nid == null) return;
     final at = col == 'items' ? r['when'] as int? : r['remindAt'] as int?;
@@ -171,7 +172,49 @@ class Store extends ChangeNotifier {
     );
   }
 
+  /// A countdown reminds at 9:00 on its (next) day.
+  Future<void> _syncCountdown(Rec c) async {
+    final nid = c['nid'] as int?;
+    if (nid == null) return;
+    final day = countdownNext(c);
+    final at = DateTime(day.year, day.month, day.day, 9);
+    if (!at.isAfter(DateTime.now())) {
+      await Native.cancel(nid);
+      return;
+    }
+    await Native.schedule(id: nid, millis: at.millisecondsSinceEpoch, kind: 'notice', label: 'Today: ${c['title']}');
+  }
+
+  /// The countdown's date, or for a yearly one (birthday, anniversary) its next occurrence from today.
+  DateTime countdownNext(Rec c) {
+    final d = DateTime.parse(c['date'] as String);
+    if (c['yearly'] != true) return d;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final thisYear = DateTime(now.year, d.month, d.day);
+    return thisYear.isBefore(today) ? DateTime(now.year + 1, d.month, d.day) : thisYear;
+  }
+
+  Future<Rec> addCountdown(String title, String date, String kind, {List<Rec>? undo}) async {
+    final c = <String, dynamic>{
+      'id': nextId(),
+      'title': title,
+      'date': date,
+      'kind': kind,
+      'yearly': kind == 'birthday' || kind == 'anniversary',
+      'nid': nextId(),
+    };
+    list('countdowns').add(c);
+    undo?.add({'op': 'rm', 'col': 'countdowns', 'id': c['id'], 'nid': c['nid']});
+    await syncRecord('countdowns', c);
+    save();
+    return c;
+  }
+
   Future<void> resyncAll() async {
+    for (final c in list('countdowns')) {
+      await syncRecord('countdowns', c);
+    }
     for (final h in list('habits')) {
       await syncRecord('habits', h);
     }
@@ -232,7 +275,7 @@ class Store extends ChangeNotifier {
         } else {
           col.add(old);
         }
-        if (op['col'] == 'items' || op['col'] == 'promises' || op['col'] == 'habits') {
+        if (op['col'] != 'actions') {
           await syncRecord(op['col'] as String, old);
         }
       }
@@ -245,7 +288,7 @@ class Store extends ChangeNotifier {
   Future<void> updateRec(String col, Rec r, String desc, void Function(Rec) mutate) async {
     final old = copyRec(r);
     mutate(r);
-    if (col == 'items' || col == 'promises' || col == 'habits') await syncRecord(col, r);
+    await syncRecord(col, r);
     logAction(desc, [
       {'op': 'put', 'col': col, 'rec': old},
     ]);
@@ -255,8 +298,8 @@ class Store extends ChangeNotifier {
   void removeRec(String col, Rec r, String desc) {
     final old = copyRec(r);
     list(col).removeWhere((x) => x['id'] == r['id']);
-    final rid = r['rid'] as int?;
-    if (col == 'habits' && rid != null) Native.cancel(rid);
+    final rid = (col == 'habits' ? r['rid'] : r['nid']) as int?;
+    if (rid != null) Native.cancel(rid);
     logAction(desc, [
       {'op': 'put', 'col': col, 'rec': old},
     ]);
@@ -271,8 +314,9 @@ class Store extends ChangeNotifier {
     int? when,
     int? est,
     String? cat,
-    required int captureId,
+    int? captureId,
     required List<Rec> undo,
+    Rec extra = const {},
   }) async {
     final id = nextId();
     final nid = when != null ? nextId() : null;
@@ -280,6 +324,8 @@ class Store extends ChangeNotifier {
       'id': id, 'kind': kind, 'title': title, 'when': when, 'status': 'open', 'nid': nid,
       'est': est, 'cat': cat, 'startedAt': null, 'doneAt': null, 'actual': null,
       'postponed': 0, 'captureId': captureId,
+      'desc': null, 'priority': 0, 'tags': <String>[], 'list': 'Inbox', 'repeat': null, 'dur': null,
+      ...extra,
     };
     list('items').add(it);
     undo.add({'op': 'rm', 'col': 'items', 'id': id, 'nid': nid});
@@ -345,7 +391,46 @@ class Store extends ChangeNotifier {
 
   // ---------- items: done, start, estimates ----------
 
+  /// The next time after [when] for a repeat of 'daily', 'weekly', 'monthly' or 'yearly', in the future.
+  static int nextRepeat(int when, String repeat) {
+    var d = fromMs(when);
+    final now = DateTime.now();
+    do {
+      d = switch (repeat) {
+        'daily' => DateTime(d.year, d.month, d.day + 1, d.hour, d.minute),
+        'weekly' => DateTime(d.year, d.month, d.day + 7, d.hour, d.minute),
+        'monthly' => DateTime(d.year, d.month + 1, d.day, d.hour, d.minute),
+        _ => DateTime(d.year + 1, d.month, d.day, d.hour, d.minute),
+      };
+    } while (!d.isAfter(now));
+    return d.millisecondsSinceEpoch;
+  }
+
   Future<void> markDone(Rec it) async {
+    final when = it['when'] as int?;
+    final repeat = it['repeat'] as String?;
+    if (repeat != null && when != null) {
+      // Keep a done copy for the record, and move the repeating item to its next time.
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final done = copyRec(it)
+        ..['id'] = nextId()
+        ..['status'] = 'done'
+        ..['doneAt'] = now
+        ..['repeat'] = null
+        ..['nid'] = null;
+      final old = copyRec(it);
+      list('items').add(done);
+      it['when'] = nextRepeat(when, repeat);
+      it['startedAt'] = null;
+      await syncRecord('items', it);
+      logAction('Done: ${it['title']} (next ${niceWhen(it['when'] as int)})', [
+        {'op': 'rm', 'col': 'items', 'id': done['id']},
+        {'op': 'put', 'col': 'items', 'rec': old},
+      ]);
+      save();
+      await boost('Done: ${it['title']}');
+      return;
+    }
     await updateRec('items', it, 'Done: ${it['title']}', (r) {
       final now = DateTime.now().millisecondsSinceEpoch;
       r['status'] = 'done';
@@ -454,6 +539,70 @@ class Store extends ChangeNotifier {
     final after = streakPeriods(h);
     if (value == 'yes' && after > before) {
       await boost('${h['name']}: $after ${h['per']} streak');
+    }
+  }
+
+  // ---------- focus (pomodoro and stopwatch) ----------
+
+  /// The running focus session, or null. Kept in storage so it survives the app being closed.
+  Rec? get focusActive => _s['focusActive'] as Rec?;
+
+  /// mode 'pomo' counts down [minutes]; 'watch' counts up. A break is a pomo that is not recorded.
+  Future<void> startFocus({required String mode, int minutes = 25, int? taskId, String label = 'Focus', bool isBreak = false}) async {
+    final start = DateTime.now().millisecondsSinceEpoch;
+    final f = <String, dynamic>{
+      'mode': mode,
+      'start': start,
+      'minutes': minutes,
+      'taskId': taskId,
+      'label': label,
+      'break': isBreak,
+      'nid': nextId(),
+    };
+    _s['focusActive'] = f;
+    if (mode == 'pomo') {
+      await Native.schedule(
+        id: f['nid'] as int,
+        millis: start + minutes * 60000,
+        kind: 'notice',
+        label: isBreak ? 'Break is over' : 'Focus done: $label',
+      );
+    }
+    save();
+  }
+
+  /// Ends the running session and records it (breaks and sessions under a minute are not kept).
+  Future<void> stopFocus() async {
+    final f = focusActive;
+    if (f == null) return;
+    _s['focusActive'] = null;
+    await Native.cancel(f['nid'] as int);
+    final start = f['start'] as int;
+    var end = DateTime.now().millisecondsSinceEpoch;
+    final planned = start + (f['minutes'] as int) * 60000;
+    if (f['mode'] == 'pomo' && end > planned) end = planned;
+    final minutes = ((end - start) / 60000).floor();
+    if (f['break'] != true && minutes >= 1) {
+      list('focus').add({
+        'id': nextId(),
+        'start': start,
+        'end': end,
+        'minutes': minutes,
+        'mode': f['mode'],
+        'pomo': f['mode'] == 'pomo' && end >= planned,
+        'taskId': f['taskId'],
+        'label': f['label'],
+      });
+    }
+    save();
+  }
+
+  /// Finishes a pomodoro whose time is up. Called every second while the app is open.
+  Future<void> checkFocus() async {
+    final f = focusActive;
+    if (f == null || f['mode'] != 'pomo') return;
+    if (DateTime.now().millisecondsSinceEpoch >= (f['start'] as int) + (f['minutes'] as int) * 60000) {
+      await stopFocus();
     }
   }
 

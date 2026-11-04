@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'brain.dart';
+import 'countdown_screen.dart';
 import 'pages.dart';
 import 'store.dart';
 
@@ -152,6 +153,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   TextButton(onPressed: () => s.logHabit(h, today, 'no'), child: const Text('No')),
                 ],
               ),
+          ]),
+        if (s.list('countdowns').any((c) => daysLeft(s, c) >= 0))
+          _card(context, 'Countdowns', [
+            for (final c in (s.list('countdowns').where((c) => daysLeft(s, c) >= 0).toList()
+                  ..sort((a, b) => daysLeft(s, a).compareTo(daysLeft(s, b))))
+                .take(3))
+              Text('${c['title']}: ${daysText(daysLeft(s, c))}'),
           ]),
         _card(context, 'Coming up today', [
           if (todays.isEmpty) const Text('Nothing else planned for today.'),
