@@ -10,15 +10,21 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
     private var channel: MethodChannel? = null
     private var pendingShared: String? = null
+    private var pendingLaunch: String? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         pendingShared = sharedTextFrom(intent)
+        pendingLaunch = intent?.getStringExtra("jarvis_capture")
         val ch = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "jarcis/native")
         channel = ch
         live = ch
         ch.setMethodCallHandler { call, result ->
             when (call.method) {
+                "takeLaunchAction" -> {
+                    result.success(pendingLaunch)
+                    pendingLaunch = null
+                }
                 "takeSharedText" -> {
                     result.success(pendingShared)
                     pendingShared = null
@@ -42,6 +48,7 @@ class MainActivity : FlutterActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         sharedTextFrom(intent)?.let { channel?.invokeMethod("sharedText", it) }
+        intent.getStringExtra("jarvis_capture")?.let { channel?.invokeMethod("launchAction", it) }
     }
 
     private fun sharedTextFrom(intent: Intent?): String? {

@@ -521,6 +521,16 @@ class Store extends ChangeNotifier {
     return streak;
   }
 
+  /// Habits still to do today: not logged today and target for this week/month not yet reached.
+  List<Rec> habitsDueToday() {
+    final now = DateTime.now();
+    final today = dayKey(now);
+    return list('habits')
+        .where((h) =>
+            (h['logs'] as Rec)[today] == null && periodCount(h, periodStart(h, now)) < (h['times'] as int))
+        .toList();
+  }
+
   /// value: 'yes', 'no' (said they skipped it), or null (clear the day).
   Future<void> logHabit(Rec h, String day, String? value) async {
     final before = streakPeriods(h);

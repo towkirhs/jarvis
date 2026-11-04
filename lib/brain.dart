@@ -1,4 +1,7 @@
 import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:image_picker/image_picker.dart';
 
 import 'gemini.dart';
 import 'store.dart';
@@ -17,8 +20,9 @@ class Brain {
       t.trim().split(RegExp(r'\s+')).length >= 3 && _intent.hasMatch(t);
 
   /// Saves a note first, so nothing is ever lost, then tries to process it.
-  static Future<void> capture(Store s, String raw, {String source = 'in-app'}) async {
-    final skip = s.settings['prefilter'] == true && !looksLikeUpdate(raw);
+  /// [image] is the path of a photo to read along with the note.
+  static Future<void> capture(Store s, String raw, {String source = 'in-app', String? image}) async {
+    final skip = image == null && s.settings['prefilter'] == true && !looksLikeUpdate(raw);
     s.list('captures').add({
       'id': s.nextId(),
       'ts': DateTime.now().millisecondsSinceEpoch,
@@ -30,6 +34,7 @@ class Brain {
       'actionId': null,
       'past': <String>[],
       'source': source,
+      'image': image,
     });
     s.save();
     if (!skip) await drain(s);
@@ -66,7 +71,22 @@ class Brain {
     }
     String text;
     try {
-      text = await Gemini.generate(s, _parserPrompt(s, c['raw'] as String), json: true);
+      Uint8List? bytes;
+      final path = c['image'] as String?;
+      if (path != null) {
+        try {
+          bytes = await XFile(path).readAsBytes();
+        } catch (_) {
+          // The photo is gone (cleared from cache); go on with the text.
+        }
+      }
+      text = await Gemini.generate(
+        s,
+        _parserPrompt(s, c['raw'] as String, photo: bytes != null),
+        json: true,
+        image: bytes,
+        mime: path != null && path.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg',
+      );
     } catch (e) {
       c['msg'] = 'Waiting for the AI: $e';
       s.save();
@@ -389,7 +409,7 @@ class Brain {
 
   // ---------- prompt ----------
 
-  static String _parserPrompt(Store s, String note) {
+  static String _parserPrompt(Store s, String note, {bool photo = false}) {
     final now = DateTime.now();
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
     final open = s.list('items').where((i) => i['status'] == 'open').map((i) => '"${i['title']}"').join(', ');
@@ -424,6 +444,6 @@ Rules:
 - If the same thing happens on several dates, output one item per date.
 - Notes may be in English, Bengali, or Bengali written in English letters (for example "kal" = tomorrow, "porshu" = day after tomorrow, "tarikh" = date, "tar por" = after that, "sondhay" = evening, "sokal" = morning). Understand them. Write "title" in short plain English; keep "cleaned" in the language the person used.
 
-Note: """$note"""''';
+${photo ? 'The note comes with a photo. Read everything useful in it (a class routine, exam schedule, poster, handwritten list, receipt, screenshot) and turn it into items. In "cleaned", after the note text, add one short line describing the photo.\n' : ''}Note: """$note"""''';
   }
 }

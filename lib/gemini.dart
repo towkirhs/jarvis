@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -6,7 +7,8 @@ import 'store.dart';
 
 class Gemini {
   /// Sends one prompt and returns the text answer. With json: true the model is asked for JSON.
-  static Future<String> generate(Store s, String prompt, {required bool json}) async {
+  /// An optional [image] (JPEG/PNG bytes) is sent along with the prompt.
+  static Future<String> generate(Store s, String prompt, {required bool json, Uint8List? image, String mime = 'image/jpeg'}) async {
     final model = (s.settings['model'] as String?) ?? 'gemini-2.5-flash-lite';
     final res = await http.post(
       Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent'),
@@ -16,6 +18,7 @@ class Gemini {
           {
             'parts': [
               {'text': prompt},
+              if (image != null) {'inline_data': {'mime_type': mime, 'data': base64Encode(image)}},
             ],
           },
         ],

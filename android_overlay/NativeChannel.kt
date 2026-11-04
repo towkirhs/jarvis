@@ -25,6 +25,7 @@ object NativeChannel {
                 result.success(null)
             }
             "takeNotes" -> result.success(NoteQueue.take(context))
+            "takeDone" -> result.success(DoneQueue.take(context))
             "getLog" -> result.success(AlarmLog.read(context))
             else -> return false
         }

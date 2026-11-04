@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'brain.dart';
+import 'capture_page.dart';
 import 'focus_screen.dart';
 import 'habits_screen.dart';
 import 'home_screen.dart';
@@ -79,6 +80,8 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     Native.onShared = _onShared;
     Native.onNotesWaiting = _tick;
+    Native.onDoneWaiting = _tick;
+    Native.onLaunchAction = _openCapture;
     _boot();
     _timer = Timer.periodic(const Duration(minutes: 1), (_) => _tick());
   }
@@ -100,7 +103,33 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     await s.ensureDaily();
     final shared = await Native.takeSharedText();
     if (shared != null) await _onShared(shared);
+    final launch = await Native.takeLaunchAction();
+    if (launch != null) _openCapture(launch);
     await _tick();
+  }
+
+  /// Opened from Handy's Jarvis bubble: 'text' or 'photo'.
+  void _openCapture(String action) {
+    if (!mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => CapturePage(store: s, startWithPhoto: action == 'photo')),
+    );
+  }
+
+  /// Applies Done taps from notifications: finishes the item, logs the habit, or keeps the promise.
+  Future<void> _applyDone() async {
+    final today = dayKey(DateTime.now());
+    for (final nid in await Native.takeDone()) {
+      for (final it in s.list('items').where((i) => i['nid'] == nid && i['status'] == 'open').toList()) {
+        await s.markDone(it);
+      }
+      for (final h in s.list('habits').where((h) => h['rid'] == nid).toList()) {
+        await s.logHabit(h, today, 'yes');
+      }
+      for (final p in s.list('promises').where((p) => p['nid'] == nid && p['status'] == 'open').toList()) {
+        await s.updateRec('promises', p, 'Kept promise to ${p['person']}', (r) => r['status'] = 'done');
+      }
+    }
   }
 
   Future<void> _onShared(String text) async {
@@ -110,6 +139,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
 
   /// Runs every minute while the app is open: retries waiting notes and writes the evening summary.
   Future<void> _tick() async {
+    await _applyDone();
     for (final note in await Native.takeNotes()) {
       await Brain.capture(s, note, source: 'handy');
     }

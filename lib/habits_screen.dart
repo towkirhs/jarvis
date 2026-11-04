@@ -117,6 +117,41 @@ Future<Rec?> showAddHabit(BuildContext context, Store store, {String name = '', 
   );
 }
 
+/// A habit shown as one of today's tasks: tick it done, or mark it skipped.
+class HabitTodayRow extends StatelessWidget {
+  const HabitTodayRow({super.key, required this.store, required this.habit});
+  final Store store;
+  final Rec habit;
+
+  @override
+  Widget build(BuildContext context) {
+    final today = dayKey(DateTime.now());
+    final h = habit;
+    final done = store.periodCount(h, store.periodStart(h, DateTime.now()));
+    return Card(
+      child: ListTile(
+        dense: true,
+        leading: IconButton(
+          tooltip: 'Done',
+          icon: Icon(Icons.check_circle_outline, color: Color(habitColor(h))),
+          onPressed: () => store.logHabit(h, today, 'yes'),
+        ),
+        title: Text(h['name'] as String),
+        subtitle: Text('Habit  ·  $done/${h['times']} this ${h['per']}${h['remind'] == null ? '' : '  ·  ${h['remind']}'}'),
+        trailing: IconButton(
+          tooltip: 'Skip today',
+          icon: const Icon(Icons.close),
+          onPressed: () => store.logHabit(h, today, 'no'),
+        ),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => HabitPage(store: store, id: h['id'] as int)),
+        ),
+      ),
+    );
+  }
+}
+
 /// Cycles a day: blank -> done -> skipped -> blank. Blank means "not said", which never counts as a miss.
 void _cycle(Store store, Rec h, String day) {
   final v = (h['logs'] as Rec)[day];

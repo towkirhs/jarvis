@@ -8,12 +8,16 @@ class Native {
   static const _ch = MethodChannel('jarcis/native');
   static void Function(String text)? onShared;
   static void Function()? onNotesWaiting;
+  static void Function()? onDoneWaiting;
+  static void Function(String action)? onLaunchAction;
 
   static void init() {
     if (kIsWeb) return;
     _ch.setMethodCallHandler((call) async {
       if (call.method == 'sharedText') onShared?.call(call.arguments as String);
       if (call.method == 'notesWaiting') onNotesWaiting?.call();
+      if (call.method == 'doneWaiting') onDoneWaiting?.call();
+      if (call.method == 'launchAction') onLaunchAction?.call(call.arguments as String);
       return null;
     });
   }
@@ -27,6 +31,18 @@ class Native {
     final raw = await _ch.invokeMethod<String>('takeNotes');
     if (raw == null) return [];
     return (jsonDecode(raw) as List).map((e) => e.toString()).toList();
+  }
+
+  /// What Handy's Jarvis bubble asked to open ('text' or 'photo'), if the app was started for that.
+  static Future<String?> takeLaunchAction() async =>
+      kIsWeb ? null : await _ch.invokeMethod<String>('takeLaunchAction');
+
+  /// Notification ids the person tapped Done on.
+  static Future<List<int>> takeDone() async {
+    if (kIsWeb) return [];
+    final raw = await _ch.invokeMethod<String>('takeDone');
+    if (raw == null) return [];
+    return (jsonDecode(raw) as List).map((e) => (e as num).toInt()).toList();
   }
 
   /// Tells Android the background run is finished, so it can shut down.

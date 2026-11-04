@@ -59,8 +59,22 @@ class AlarmReceiver : BroadcastReceiver() {
             .setCategory(if (isAlarm) Notification.CATEGORY_ALARM else Notification.CATEGORY_REMINDER)
             .setContentIntent(open)
             .setAutoCancel(true)
+            .addAction(0, "Done", action(context, ActionReceiver.ACTION_DONE, id, kind, label))
+            .addAction(0, "Snooze 10 min", action(context, ActionReceiver.ACTION_SNOOZE, id, kind, label))
             .build()
         if (isAlarm) notification.flags = notification.flags or Notification.FLAG_INSISTENT
         manager.notify(id, notification)
     }
+
+    private fun action(context: Context, action: String, id: Int, kind: String, label: String): PendingIntent =
+        PendingIntent.getBroadcast(
+            context,
+            id * 2 + (if (action == ActionReceiver.ACTION_DONE) 0 else 1),
+            Intent(context, ActionReceiver::class.java)
+                .setAction(action)
+                .putExtra("id", id)
+                .putExtra("kind", kind)
+                .putExtra("label", label),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
 }

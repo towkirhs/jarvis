@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
 import 'brain.dart';
+import 'capture_page.dart';
 import 'countdown_screen.dart';
+import 'habits_screen.dart';
+import 'items_screen.dart';
 import 'pages.dart';
 import 'store.dart';
 
@@ -79,9 +82,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return w != null && w >= nowMs && dayKey(fromMs(w)) == today;
     }).toList()
       ..sort((a, b) => (a['when'] as int).compareTo(b['when'] as int));
-    final ask = now.hour >= 20
-        ? s.list('habits').where((h) => (h['logs'] as Rec)[today] == null).toList()
-        : <Rec>[];
+    final habits = s.habitsDueToday();
     final inbox = s.list('inbox').length;
     final recent = s.list('captures').reversed.take(8).toList();
     final warn = _overbooked(todays);
@@ -107,6 +108,14 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             const SizedBox(width: 8),
+            IconButton(
+              tooltip: 'Photo',
+              icon: const Icon(Icons.add_a_photo_outlined),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => CapturePage(store: s, startWithPhoto: true)),
+              ),
+            ),
             IconButton.filled(onPressed: _send, icon: const Icon(Icons.send)),
           ],
         ),
@@ -141,18 +150,11 @@ class _HomeScreenState extends State<HomeScreen> {
         if (warn != null) _card(context, 'Heads up', [Text(warn)], color: scheme.errorContainer),
         if (behind.isNotEmpty)
           _card(context, 'Behind schedule', [
-            for (final i in behind) Text('${i['title']} (was ${niceWhen(i['when'] as int)})'),
+            for (final i in behind) ItemTile(store: s, it: i, dense: true),
           ], color: scheme.errorContainer),
-        if (ask.isNotEmpty)
-          _card(context, 'Evening check-in', [
-            for (final h in ask)
-              Row(
-                children: [
-                  Expanded(child: Text('Did you do ${h['name']} today?')),
-                  TextButton(onPressed: () => s.logHabit(h, today, 'yes'), child: const Text('Yes')),
-                  TextButton(onPressed: () => s.logHabit(h, today, 'no'), child: const Text('No')),
-                ],
-              ),
+        if (habits.isNotEmpty)
+          _card(context, 'Habits today', [
+            for (final h in habits) HabitTodayRow(store: s, habit: h),
           ]),
         if (s.list('countdowns').any((c) => daysLeft(s, c) >= 0))
           _card(context, 'Countdowns', [
@@ -163,7 +165,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ]),
         _card(context, 'Coming up today', [
           if (todays.isEmpty) const Text('Nothing else planned for today.'),
-          for (final i in todays) Text('${clock(i['when'] as int)}  ${i['title']}'),
+          for (final i in todays) ItemTile(store: s, it: i, dense: true),
         ]),
         const SizedBox(height: 8),
         Text('Recent notes', style: Theme.of(context).textTheme.titleMedium),

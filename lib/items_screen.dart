@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import 'habits_screen.dart';
 import 'store.dart';
 import 'task_sheet.dart';
 
@@ -120,14 +121,19 @@ class ItemTile extends StatelessWidget {
                         (r) => r['startedAt'] = DateTime.now().millisecondsSinceEpoch,
                       ),
                     ),
-                  if (open && !dense)
-                    IconButton(
-                      tooltip: 'Cancel',
-                      icon: const Icon(Icons.close),
-                      onPressed: () => store.updateRec(
-                        'items', it, 'Cancelled: ${it['title']}', (r) => r['status'] = 'cancelled',
-                      ),
-                    ),
+                  PopupMenuButton<String>(
+                    tooltip: 'More',
+                    onSelected: (v) => _itemAction(context, store, it, v),
+                    itemBuilder: (_) => [
+                      if (open) const PopupMenuItem(value: 'done', child: Text('Done')),
+                      const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                      if (open && w != null) const PopupMenuItem(value: 'snooze', child: Text('Snooze 1 hour')),
+                      if (open) const PopupMenuItem(value: 'tomorrow', child: Text('Move to tomorrow')),
+                      if (!open) const PopupMenuItem(value: 'reopen', child: Text('Mark not done')),
+                      if (open) const PopupMenuItem(value: 'archive', child: Text('Archive')),
+                      const PopupMenuItem(value: 'delete', child: Text('Delete')),
+                    ],
+                  ),
                 ],
               ),
               if (sug != null && sug.est != est && !dense)
@@ -152,6 +158,40 @@ class ItemTile extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+Future<void> _itemAction(BuildContext context, Store store, Rec it, String v) async {
+  {
+    final w = it['when'] as int?;
+    switch (v) {
+      case 'done':
+        await store.markDone(it);
+      case 'edit':
+        await showTaskSheet(context, store, item: it);
+      case 'snooze':
+        await store.updateRec('items', it, 'Snoozed: ${it['title']}', (r) {
+          final base = max(w!, DateTime.now().millisecondsSinceEpoch);
+          r['when'] = base + 3600000;
+        });
+      case 'tomorrow':
+        await store.updateRec('items', it, 'Moved to tomorrow: ${it['title']}', (r) {
+          final d = w != null ? fromMs(w) : DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day, 9);
+          final now = DateTime.now();
+          r['when'] = DateTime(now.year, now.month, now.day + 1, d.hour, d.minute).millisecondsSinceEpoch;
+          r['postponed'] = ((r['postponed'] as int?) ?? 0) + 1;
+          r['nid'] ??= store.nextId();
+        });
+      case 'reopen':
+        await store.updateRec('items', it, 'Reopened: ${it['title']}', (r) {
+          r['status'] = 'open';
+          r['doneAt'] = null;
+        });
+      case 'archive':
+        await store.updateRec('items', it, 'Archived: ${it['title']}', (r) => r['status'] = 'cancelled');
+      case 'delete':
+        store.removeRec('items', it, 'Deleted: ${it['title']}');
+    }
   }
 }
 
@@ -213,6 +253,8 @@ class _ListViewState extends State<_ListView> {
                 ),
               ),
               const SizedBox(height: 8),
+              if (_filter == 'All' || _filter == 'Today')
+                for (final h in s.habitsDueToday()) HabitTodayRow(store: s, habit: h),
               if (open.isEmpty) const Padding(padding: EdgeInsets.all(16), child: Text('Nothing here. Tap + or tell Jarvis.')),
               for (final it in open) ItemTile(store: s, it: it),
               if (done.isNotEmpty) ...[
