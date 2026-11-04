@@ -12,6 +12,7 @@ import 'journal_screen.dart';
 import 'native.dart';
 import 'pages.dart';
 import 'store.dart';
+import 'theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -47,15 +48,22 @@ class JarcisApp extends StatelessWidget {
   final Store store;
 
   @override
-  Widget build(BuildContext context) => MaterialApp(
-        title: 'Jarvis',
-        theme: ThemeData(colorSchemeSeed: Colors.indigo, useMaterial3: true),
-        darkTheme: ThemeData(
-          colorSchemeSeed: Colors.indigo,
-          brightness: Brightness.dark,
-          useMaterial3: true,
-        ),
-        home: Shell(store: store),
+  Widget build(BuildContext context) => ListenableBuilder(
+        listenable: store,
+        builder: (context, _) {
+          final pick = (store.settings['theme'] as String?) ?? 'system';
+          return MaterialApp(
+            title: 'Jarvis',
+            theme: pick == 'latte' ? latteTheme : defaultLight,
+            darkTheme: defaultDark,
+            themeMode: switch (pick) {
+              'light' || 'latte' => ThemeMode.light,
+              'dark' => ThemeMode.dark,
+              _ => ThemeMode.system,
+            },
+            home: Shell(store: store),
+          );
+        },
       );
 }
 

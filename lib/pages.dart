@@ -6,6 +6,7 @@ import 'countdown_screen.dart';
 import 'habits_screen.dart';
 import 'native.dart';
 import 'store.dart';
+import 'theme.dart';
 
 class MoreScreen extends StatelessWidget {
   const MoreScreen({super.key, required this.store});
@@ -500,6 +501,20 @@ class _SettingsPageState extends State<SettingsPage> {
               child: FilledButton(onPressed: _saveAi, child: const Text('Save')),
             ),
             const Divider(height: 32),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Theme'),
+              trailing: DropdownButton<String>(
+                value: (s.settings['theme'] as String?) ?? 'system',
+                items: [for (final e in themeNames.entries) DropdownMenuItem(value: e.key, child: Text(e.value))],
+                onChanged: (v) {
+                  if (v == null) return;
+                  s.settings['theme'] = v;
+                  s.save();
+                  setState(() {});
+                },
+              ),
+            ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Keep small talk on this phone'),
