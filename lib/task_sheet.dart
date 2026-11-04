@@ -24,9 +24,8 @@ Future<void> showTaskSheet(BuildContext context, Store s, {Rec? item, DateTime? 
   final w = item?['when'] as int?;
   DateTime? date = w != null ? fromMs(w) : day;
   TimeOfDay? time = w != null ? TimeOfDay.fromDateTime(fromMs(w)) : null;
-  final minutes = TextEditingController(
-    text: '${(kind == 'task' ? item?['est'] : item?['dur']) ?? ''}',
-  );
+  final oldMinutes = kind == 'task' ? (item?['est']) : (item?['dur']);
+  final minutes = TextEditingController(text: '${oldMinutes ?? ''}');
 
   return showModalBottomSheet<void>(
     context: context,
