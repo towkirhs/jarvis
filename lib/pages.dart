@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import 'brain.dart';
 import 'countdown_screen.dart';
+import 'money.dart';
 import 'habits_screen.dart';
 import 'native.dart';
 import 'store.dart';
@@ -38,6 +39,12 @@ class MoreScreen extends StatelessWidget {
                 leading: const Icon(Icons.history_edu),
                 title: const Text('Decisions'),
                 onTap: () => open(DecisionsPage(store: store)),
+              ),
+              ListTile(
+                leading: const Icon(Icons.account_balance_wallet_outlined),
+                title: const Text('Money'),
+                subtitle: const Text('Income, expenses and accounts'),
+                onTap: () => open(MoneyPage(store: store)),
               ),
               ListTile(
                 leading: const Icon(Icons.hourglass_bottom),
@@ -501,6 +508,21 @@ class _SettingsPageState extends State<SettingsPage> {
               child: FilledButton(onPressed: _saveAi, child: const Text('Save')),
             ),
             const Divider(height: 32),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Currency sign'),
+              trailing: SizedBox(
+                width: 60,
+                child: TextFormField(
+                  initialValue: s.currency,
+                  textAlign: TextAlign.center,
+                  onChanged: (v) {
+                    s.settings['currency'] = v.trim();
+                    s.save();
+                  },
+                ),
+              ),
+            ),
             ListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Theme'),

@@ -5,6 +5,7 @@ import 'capture_page.dart';
 import 'countdown_screen.dart';
 import 'habits_screen.dart';
 import 'items_screen.dart';
+import 'money.dart';
 import 'pages.dart';
 import 'store.dart';
 
@@ -163,6 +164,22 @@ class _HomeScreenState extends State<HomeScreen> {
                 .take(3))
               Text('${c['title']}: ${daysText(daysLeft(s, c))}'),
           ]),
+        if (s.list('tx').isNotEmpty)
+          Builder(builder: (context) {
+            num spentToday = 0;
+            num spentMonth = 0;
+            for (final t in s.list('tx').where((t) => t['type'] == 'expense')) {
+              final d = fromMs(t['ts'] as int);
+              if (d.year == now.year && d.month == now.month) spentMonth += t['amount'] as num;
+              if (dayKey(d) == today) spentToday += t['amount'] as num;
+            }
+            return InkWell(
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => MoneyPage(store: s))),
+              child: _card(context, 'Money', [
+                Text('Spent today ${s.money(spentToday)}  ·  this month ${s.money(spentMonth)}'),
+              ]),
+            );
+          }),
         _card(context, 'Coming up today', [
           if (todays.isEmpty) const Text('Nothing else planned for today.'),
           for (final i in todays) ItemTile(store: s, it: i, dense: true),

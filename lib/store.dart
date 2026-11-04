@@ -38,7 +38,7 @@ class Store extends ChangeNotifier {
   String apiKey = '';
 
   static const _collections = [
-    'captures', 'items', 'habits', 'promises', 'decisions', 'inbox', 'actions', 'countdowns', 'focus',
+    'captures', 'items', 'habits', 'promises', 'decisions', 'inbox', 'actions', 'countdowns', 'focus', 'tx',
   ];
 
   Future<void> load() async {
@@ -53,6 +53,11 @@ class Store extends ChangeNotifier {
     for (final c in _collections) {
       _s.putIfAbsent(c, () => <dynamic>[]);
     }
+    _s.putIfAbsent('accounts', () => <dynamic>[
+          {'id': 3, 'name': 'Cash', 'group': 'Cash', 'initial': 0},
+          {'id': 4, 'name': 'Bank', 'group': 'Bank', 'initial': 0},
+          {'id': 5, 'name': 'bKash', 'group': 'Mobile wallet', 'initial': 0},
+        ]);
     _s.putIfAbsent('summaries', () => <String, dynamic>{});
     _s.putIfAbsent('boosts', () => <String, dynamic>{});
     _s.putIfAbsent('next', () => 100);
@@ -614,6 +619,68 @@ class Store extends ChangeNotifier {
     if (DateTime.now().millisecondsSinceEpoch >= (f['start'] as int) + (f['minutes'] as int) * 60000) {
       await stopFocus();
     }
+  }
+
+  // ---------- money ----------
+
+  String get currency => (settings['currency'] as String?) ?? '৳';
+
+  /// type is 'income', 'expense' or 'transfer'; a transfer moves money from account to toAccount.
+  Rec addTx({
+    required String type,
+    required num amount,
+    required String category,
+    required String account,
+    String? toAccount,
+    String? note,
+    String? desc,
+    List<String> tags = const [],
+    int? ts,
+    int? captureId,
+    List<Rec>? undo,
+  }) {
+    final r = <String, dynamic>{
+      'id': nextId(),
+      'type': type,
+      'amount': amount,
+      'cat': category,
+      'account': account,
+      'toAccount': toAccount,
+      'note': note,
+      'desc': desc,
+      'tags': tags,
+      'ts': ts ?? DateTime.now().millisecondsSinceEpoch,
+      'captureId': captureId,
+    };
+    list('tx').add(r);
+    undo?.add({'op': 'rm', 'col': 'tx', 'id': r['id']});
+    save();
+    return r;
+  }
+
+  /// Opening amount plus everything that went in and out of the account.
+  num balance(Rec account) {
+    final name = account['name'];
+    num b = (account['initial'] as num?) ?? 0;
+    for (final t in list('tx')) {
+      final a = t['amount'] as num;
+      if (t['type'] == 'income' && t['account'] == name) b += a;
+      if (t['type'] == 'expense' && t['account'] == name) b -= a;
+      if (t['type'] == 'transfer') {
+        if (t['account'] == name) b -= a;
+        if (t['toAccount'] == name) b += a;
+      }
+    }
+    return b;
+  }
+
+  /// Formats an amount like 1,234.50 with the currency sign.
+  String money(num v) {
+    final neg = v < 0;
+    final parts = v.abs().toStringAsFixed(2).split('.');
+    final whole = parts[0].replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+$)'), (m) => '${m[1]},');
+    final frac = parts[1] == '00' ? '' : '.${parts[1]}';
+    return '${neg ? '-' : ''}$currency$whole$frac';
   }
 
   // ---------- journal ----------

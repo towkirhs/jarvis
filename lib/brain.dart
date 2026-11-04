@@ -11,7 +11,7 @@ class Brain {
   static bool _busy = false;
 
   static final _intent = RegExp(
-    r'\b(\d{1,2}:\d{2}|\d{1,2}\s*(am|pm)|tomorrow|today|tonight|meeting|remind|alarm|deadline|appointment|call|send|email|buy|submit|finish|complete|need to|have to|must|should|will|going to|promise|decided|decide|plan|push|delay|move|cancel|postpone|did|went|ran|done|gym|read|study|workout|behind|late|schedule|task|todo)\b',
+    r'\b(\d{1,2}:\d{2}|\d{1,2}\s*(am|pm)|tomorrow|today|tonight|meeting|remind|alarm|deadline|appointment|call|send|email|buy|submit|finish|complete|need to|have to|must|should|will|going to|promise|decided|decide|plan|push|delay|move|cancel|postpone|did|went|ran|done|gym|read|study|workout|behind|late|schedule|task|todo|spent|spend|paid|pay|bought|cost|taka|tk|salary|income|received|got|transfer|bkash|nagad|expense|birthday|exam)\b',
     caseSensitive: false,
   );
 
@@ -161,6 +161,7 @@ class Brain {
       return 'no habit with that name';
     }
     if (type == 'countdown' && date == null) return 'no date given';
+    if (type == 'money' && p['amount'] is! num) return 'no amount';
     if (type == 'habit_new') {
       if (((p['habit'] as String?) ?? '').trim().isEmpty) return 'no habit name';
       if (p['times'] == null) return 'how often?';
@@ -303,6 +304,33 @@ class Brain {
       if (done && after > before) await s.boost('${h['name']}: $after ${h['per']} streak');
       return '${done ? 'Logged' : 'Skipped'} ${h['name']}';
     }
+    if (type == 'money') {
+      final kind = ['income', 'transfer'].contains(p['moneyType']) ? p['moneyType'] as String : 'expense';
+      String pickAccount(String? said, String fallback) {
+        if (said == null) return fallback;
+        for (final a in s.list('accounts')) {
+          if ((a['name'] as String).toLowerCase() == said.toLowerCase().trim()) return a['name'] as String;
+        }
+        return fallback;
+      }
+      final accounts = s.list('accounts');
+      final first = accounts.isEmpty ? 'Cash' : accounts.first['name'] as String;
+      final account = pickAccount(p['account'] as String?, first);
+      final amount = p['amount'] as num;
+      s.addTx(
+        type: kind,
+        amount: amount,
+        category: kind == 'transfer' ? 'Transfer' : ((p['category'] as String?) ?? 'Other'),
+        account: account,
+        toAccount: kind == 'transfer' ? pickAccount(p['toAccount'] as String?, first) : null,
+        note: title.isEmpty ? null : title,
+        tags: ((p['tags'] as List?) ?? []).map((e) => e.toString()).toList(),
+        ts: when,
+        captureId: capId,
+        undo: undo,
+      );
+      return '${kind == 'income' ? 'Income' : (kind == 'transfer' ? 'Transfer' : 'Spent')}: ${s.money(amount)} $title';
+    }
     if (type == 'countdown') {
       final kind = ['birthday', 'anniversary', 'holiday'].contains(p['category']) ? p['category'] as String : 'countdown';
       await s.addCountdown(title, p['date'] as String, kind, undo: undo);
@@ -417,13 +445,14 @@ class Brain {
     return '''You turn a person's spoken notes into structured data. Today is ${days[now.weekday - 1]} ${dayKey(now)}, local time ${two(now.hour)}:${two(now.minute)}.
 Open items the person already has (use these for delays): ${open.isEmpty ? 'none' : open}
 Habits the person tracks: ${habits.isEmpty ? 'none' : habits}
+Money accounts: ${s.list('accounts').map((a) => a['name']).join(', ')}
 
 Return ONLY JSON in this shape:
-{"cleaned": string, "topics": [string], "items": [ {"type": string, "title": string, "date": string or null, "time": string or null, "target": string or null, "person": string or null, "reason": string or null, "habit": string or null, "estimateMinutes": integer or null, "category": string or null, "times": integer or null, "per": "week" or "month" or null, "done": boolean or null, "description": string or null, "priority": "high" or "medium" or "low" or null, "tags": [string] or null, "list": string or null, "repeat": "daily" or "weekly" or "monthly" or "yearly" or null, "durationMinutes": integer or null, "confidence": number} ]}
+{"cleaned": string, "topics": [string], "items": [ {"type": string, "title": string, "date": string or null, "time": string or null, "target": string or null, "person": string or null, "reason": string or null, "habit": string or null, "estimateMinutes": integer or null, "category": string or null, "times": integer or null, "per": "week" or "month" or null, "done": boolean or null, "description": string or null, "priority": "high" or "medium" or "low" or null, "tags": [string] or null, "list": string or null, "repeat": "daily" or "weekly" or "monthly" or "yearly" or null, "durationMinutes": integer or null, "amount": number or null, "moneyType": "income" or "expense" or "transfer" or null, "account": string or null, "toAccount": string or null, "confidence": number} ]}
 
 "cleaned": the note with grammar fixed, same meaning, first person, nothing added.
 "topics": 1 to 4 lowercase single words about what the note covers.
-"type" is one of: task, event, alarm, delay, habit_log, habit_new, countdown, promise, decision, note, ignore.
+"type" is one of: task, event, alarm, delay, habit_log, habit_new, countdown, money, promise, decision, note, ignore.
 "date" is YYYY-MM-DD and "time" is HH:MM in 24 hours, both local. For a promise, "date" is the deadline.
 "target" is, for a delay, the title of the existing open item it refers to. "habit" is, for habit_log, the tracked habit name, and for habit_new, a short name for the new habit. "done" is, for habit_log, true if they did it and false if they say they skipped it. "times" and "per" are, for habit_new, the target, like 3 per week or 12 per month ("daily" = 7 per week); "time" is its reminder time if one was said. "person" is, for a promise, who it was made to. "reason" is, for a decision, why the person decided.
 "category" is one lowercase word for the kind of work, such as report, email, call, errand.
@@ -435,6 +464,7 @@ Rules:
 - A habit is something repeated over weeks (gym, reading, praying, studying). Reporting that it was done or skipped is "habit_log" with the day it happened, never a task. Saying they want to start doing something regularly is "habit_new". A one-off thing to do is a task.
 - "priority": "high" for urgent or important things the person stresses, otherwise only if they say it. "tags" and "list" only if they name them (like "add to my study list", "tag it exam"). "repeat" only for things said to repeat ("every day", "every Monday" = weekly). "durationMinutes" is how long an event lasts. "description" holds extra details that do not fit the title.
 - "countdown" is a date to count down to or remember every year: a birthday, an anniversary, a holiday, or an exam or trip the person wants a countdown for. "category" is "birthday", "anniversary", "holiday" or "countdown", and "date" is required.
+- "money" is money spent, received or moved: "spent 250 on lunch", "got 5000 tuition fee", "sent 1000 from bank to bKash", or a receipt in a photo. "amount" is the number, "moneyType" is expense, income or transfer, "title" is a short note (what it was for), "category" is one word like Food, Transport, Shopping, Bills, Education, Health, Entertainment, Gifts, Salary, Tuition. "account" and "toAccount" only if named. "date"/"time" only if it was not today.
 - A promise is a commitment made to another person. A decision is a choice the person made.
 - "delay" moves an existing item; give the new date or time.
 - Small talk, or anything that is not about plans, tasks, habits, promises, decisions or reflections, is type "ignore".
