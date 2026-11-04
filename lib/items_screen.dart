@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 
 import 'store.dart';
@@ -234,111 +236,386 @@ class _CalendarView extends StatefulWidget {
 
 class _CalendarViewState extends State<_CalendarView> {
   DateTime _day = DateTime.now();
+  bool _grid = true;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
         listenable: widget.store,
         builder: (context, _) {
           final s = widget.store;
-          final monday = s.mondayOf(_day);
-          final week = [for (var i = 0; i < 7; i++) DateTime(monday.year, monday.month, monday.day + i)];
-          final key = dayKey(_day);
-          final todayKey = dayKey(DateTime.now());
-          final items = s.list('items').where((i) {
-            final w = i['when'] as int?;
-            return w != null && i['status'] != 'cancelled' && dayKey(fromMs(w)) == key;
-          }).toList()
-            ..sort(_byWhen);
-          final countdowns = s.list('countdowns').where((c) => dayKey(s.countdownNext(c)) == key).toList();
-          final scheme = Theme.of(context).colorScheme;
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 80),
+          return Column(
             children: [
-              Row(
-                children: [
-                  Text('${_months[_day.month - 1]} ${_day.year}', style: Theme.of(context).textTheme.titleLarge),
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.chevron_left),
-                    onPressed: () => setState(() => _day = DateTime(_day.year, _day.month, _day.day - 7)),
-                  ),
-                  TextButton(onPressed: () => setState(() => _day = DateTime.now()), child: const Text('Today')),
-                  IconButton(
-                    icon: const Icon(Icons.chevron_right),
-                    onPressed: () => setState(() => _day = DateTime(_day.year, _day.month, _day.day + 7)),
-                  ),
-                ],
-              ),
-              Row(
-                children: [
-                  for (final d in week)
-                    Expanded(
-                      child: InkWell(
-                        onTap: () => setState(() => _day = d),
-                        borderRadius: BorderRadius.circular(24),
-                        child: Column(
-                          children: [
-                            Text(_weekdays[d.weekday - 1], style: Theme.of(context).textTheme.labelSmall),
-                            const SizedBox(height: 4),
-                            CircleAvatar(
-                              radius: 18,
-                              backgroundColor: dayKey(d) == key ? scheme.primary : Colors.transparent,
-                              child: Text(
-                                '${d.day}',
-                                style: TextStyle(
-                                  color: dayKey(d) == key
-                                      ? scheme.onPrimary
-                                      : (dayKey(d) == todayKey ? scheme.primary : null),
-                                  fontWeight: dayKey(d) == todayKey ? FontWeight.bold : null,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            // A dot when the day has something on it.
-                            Container(
-                              width: 5,
-                              height: 5,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: s.list('items').any((i) {
-                                  final w = i['when'] as int?;
-                                  return w != null && i['status'] == 'open' && dayKey(fromMs(w)) == dayKey(d);
-                                })
-                                    ? scheme.primary
-                                    : Colors.transparent,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 4, 4, 0),
+                child: Row(
+                  children: [
+                    Text('${_months[_day.month - 1]} ${_day.year}', style: Theme.of(context).textTheme.titleLarge),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.chevron_left),
+                      onPressed: () => setState(() => _day = DateTime(_day.year, _day.month, _day.day - 7)),
                     ),
-                ],
+                    TextButton(onPressed: () => setState(() => _day = DateTime.now()), child: const Text('Today')),
+                    IconButton(
+                      icon: const Icon(Icons.chevron_right),
+                      onPressed: () => setState(() => _day = DateTime(_day.year, _day.month, _day.day + 7)),
+                    ),
+                    IconButton(
+                      tooltip: _grid ? 'Day list' : 'Week grid',
+                      icon: Icon(_grid ? Icons.view_agenda_outlined : Icons.calendar_view_week),
+                      onPressed: () => setState(() => _grid = !_grid),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 12),
-              if (countdowns.isNotEmpty)
-                Card(
-                  child: Column(
-                    children: [
-                      for (final c in countdowns)
-                        ListTile(leading: const Icon(Icons.hourglass_bottom), title: Text(c['title'] as String)),
-                    ],
-                  ),
-                ),
-              if (items.isEmpty && countdowns.isEmpty)
-                const Padding(padding: EdgeInsets.all(16), child: Text('Nothing on this day.')),
-              for (final it in items) ItemTile(store: s, it: it, dense: true),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  icon: const Icon(Icons.add),
-                  label: Text('Add on $key'),
-                  onPressed: () => showTaskSheet(context, s, day: _day),
-                ),
+              Expanded(
+                child: _grid
+                    ? WeekGrid(
+                        store: s,
+                        monday: s.mondayOf(_day),
+                        onDayTap: (d) => setState(() {
+                          _day = d;
+                          _grid = false;
+                        }),
+                      )
+                    : _dayList(context, s),
               ),
             ],
           );
         },
       );
+
+  Widget _dayList(BuildContext context, Store s) {
+    final monday = s.mondayOf(_day);
+    final week = [for (var i = 0; i < 7; i++) DateTime(monday.year, monday.month, monday.day + i)];
+    final key = dayKey(_day);
+    final todayKey = dayKey(DateTime.now());
+    final items = s.list('items').where((i) {
+      final w = i['when'] as int?;
+      return w != null && i['status'] != 'cancelled' && dayKey(fromMs(w)) == key;
+    }).toList()
+      ..sort(_byWhen);
+    final countdowns = s.list('countdowns').where((c) => dayKey(s.countdownNext(c)) == key).toList();
+    final scheme = Theme.of(context).colorScheme;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 80),
+      children: [
+        Row(
+          children: [
+            for (final d in week)
+              Expanded(
+                child: InkWell(
+                  onTap: () => setState(() => _day = d),
+                  borderRadius: BorderRadius.circular(24),
+                  child: Column(
+                    children: [
+                      Text(_weekdays[d.weekday - 1], style: Theme.of(context).textTheme.labelSmall),
+                      const SizedBox(height: 4),
+                      CircleAvatar(
+                        radius: 18,
+                        backgroundColor: dayKey(d) == key ? scheme.primary : Colors.transparent,
+                        child: Text(
+                          '${d.day}',
+                          style: TextStyle(
+                            color: dayKey(d) == key ? scheme.onPrimary : (dayKey(d) == todayKey ? scheme.primary : null),
+                            fontWeight: dayKey(d) == todayKey ? FontWeight.bold : null,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (countdowns.isNotEmpty)
+          Card(
+            child: Column(
+              children: [
+                for (final c in countdowns)
+                  ListTile(leading: const Icon(Icons.hourglass_bottom), title: Text(c['title'] as String)),
+              ],
+            ),
+          ),
+        if (items.isEmpty && countdowns.isEmpty) const Padding(padding: EdgeInsets.all(16), child: Text('Nothing on this day.')),
+        for (final it in items) ItemTile(store: s, it: it, dense: true),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            icon: const Icon(Icons.add),
+            label: Text('Add on $key'),
+            onPressed: () => showTaskSheet(context, s, day: _day),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Google Calendar style week: one column per day, one row per hour, items drawn as blocks.
+/// Tap an empty slot to add an event there; tap a block to edit it.
+class WeekGrid extends StatefulWidget {
+  const WeekGrid({super.key, required this.store, required this.monday, required this.onDayTap});
+  final Store store;
+  final DateTime monday;
+  final void Function(DateTime day) onDayTap;
+
+  @override
+  State<WeekGrid> createState() => _WeekGridState();
+}
+
+class _WeekGridState extends State<WeekGrid> {
+  static const _hourH = 60.0;
+  static const _gutter = 44.0;
+  late final ScrollController _scroll =
+      ScrollController(initialScrollOffset: _hourH * ((DateTime.now().hour - 2).clamp(0, 16)));
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  Color _color(Rec it, ColorScheme scheme) {
+    final p = (it['priority'] as int?) ?? 0;
+    if (p > 0) return priorityColors[p];
+    return switch (it['kind']) {
+      'alarm' => Colors.deepOrange,
+      'task' => scheme.tertiary,
+      _ => scheme.primary,
+    };
+  }
+
+  /// Places overlapping blocks side by side: returns (lane, lanes) for each item.
+  Map<int, (int, int)> _lanes(List<Rec> items) {
+    final out = <int, (int, int)>{};
+    var group = <Rec>[];
+    var groupEnd = 0;
+    final laneEnds = <int>[];
+    void close() {
+      final n = laneEnds.length;
+      for (final it in group) {
+        out[it['id'] as int] = (out[it['id'] as int]!.$1, n);
+      }
+      group = [];
+      laneEnds.clear();
+    }
+
+    for (final it in items) {
+      final st = it['when'] as int;
+      final en = st + _minutes(it) * 60000;
+      if (group.isNotEmpty && st >= groupEnd) close();
+      var lane = laneEnds.indexWhere((e) => e <= st);
+      if (lane < 0) {
+        lane = laneEnds.length;
+        laneEnds.add(en);
+      } else {
+        laneEnds[lane] = en;
+      }
+      out[it['id'] as int] = (lane, 1);
+      group.add(it);
+      if (en > groupEnd || group.length == 1) groupEnd = en > groupEnd ? en : groupEnd;
+    }
+    if (group.isNotEmpty) close();
+    return out;
+  }
+
+  int _minutes(Rec it) => ((it['dur'] ?? it['est'] ?? 60) as int).clamp(15, 24 * 60);
+
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.store;
+    final scheme = Theme.of(context).colorScheme;
+    final days = [for (var i = 0; i < 7; i++) DateTime(widget.monday.year, widget.monday.month, widget.monday.day + i)];
+    final now = DateTime.now();
+    final todayKey = dayKey(now);
+    final grid = scheme.outlineVariant.withValues(alpha: 0.4);
+
+    return LayoutBuilder(builder: (context, box) {
+      final colW = (box.maxWidth - _gutter) / 7;
+      return Column(
+        children: [
+          // Day names and dates.
+          Row(
+            children: [
+              const SizedBox(width: _gutter),
+              for (final d in days)
+                SizedBox(
+                  width: colW,
+                  child: InkWell(
+                    onTap: () => widget.onDayTap(d),
+                    child: Column(
+                      children: [
+                        Text(_weekdays[d.weekday - 1],
+                            style: TextStyle(fontSize: 12, color: dayKey(d) == todayKey ? scheme.primary : null)),
+                        CircleAvatar(
+                          radius: 16,
+                          backgroundColor: dayKey(d) == todayKey ? scheme.primary : Colors.transparent,
+                          child: Text('${d.day}',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: dayKey(d) == todayKey ? scheme.onPrimary : scheme.onSurface,
+                              )),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          // All-day row: countdowns that fall on each day.
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(width: _gutter),
+              for (final d in days)
+                SizedBox(
+                  width: colW,
+                  child: Column(
+                    children: [
+                      for (final c in s.list('countdowns').where((c) => dayKey(s.countdownNext(c)) == dayKey(d)))
+                        Container(
+                          margin: const EdgeInsets.all(1),
+                          padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
+                          width: double.infinity,
+                          decoration: BoxDecoration(color: Colors.teal, borderRadius: BorderRadius.circular(4)),
+                          child: Text(c['title'] as String,
+                              maxLines: 1, overflow: TextOverflow.clip, style: const TextStyle(fontSize: 11, color: Colors.white)),
+                        ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Expanded(
+            child: SingleChildScrollView(
+              controller: _scroll,
+              padding: const EdgeInsets.only(bottom: 80),
+              child: SizedBox(
+                height: _hourH * 24,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: _gutter,
+                      child: Stack(
+                        children: [
+                          for (var h = 1; h < 24; h++)
+                            Positioned(
+                              top: h * _hourH - 7,
+                              right: 6,
+                              child: Text(
+                                h == 12 ? '12 pm' : (h < 12 ? '$h am' : '${h - 12} pm'),
+                                style: Theme.of(context).textTheme.labelSmall,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    for (final d in days) _dayColumn(context, s, d, colW, grid, scheme, now),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    });
+  }
+
+  Widget _dayColumn(BuildContext context, Store s, DateTime d, double colW, Color grid, ColorScheme scheme, DateTime now) {
+    final key = dayKey(d);
+    final items = s.list('items').where((i) {
+      final w = i['when'] as int?;
+      return w != null && i['status'] != 'cancelled' && dayKey(fromMs(w)) == key;
+    }).toList()
+      ..sort(_byWhen);
+    final lanes = _lanes(items);
+    final isToday = key == dayKey(now);
+
+    return SizedBox(
+      width: colW,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapUp: (e) {
+          // Snap to the half hour that was tapped.
+          final halfHours = (e.localPosition.dy / (_hourH / 2)).floor().clamp(0, 47);
+          showTaskSheet(
+            context,
+            s,
+            day: d,
+            at: TimeOfDay(hour: halfHours ~/ 2, minute: (halfHours % 2) * 30),
+            newKind: 'event',
+          );
+        },
+        child: Stack(
+          children: [
+            for (var h = 0; h < 24; h++)
+              Positioned(
+                top: h * _hourH,
+                left: 0,
+                right: 0,
+                child: Container(
+                  height: _hourH,
+                  decoration: BoxDecoration(
+                    border: Border(top: BorderSide(color: grid), left: BorderSide(color: grid)),
+                  ),
+                ),
+              ),
+            for (final it in items)
+              Builder(builder: (context) {
+                final st = fromMs(it['when'] as int);
+                final top = (st.hour * 60 + st.minute) / 60 * _hourH;
+                final height = min(max(_minutes(it) / 60 * _hourH, 18.0), _hourH * 24 - top + 18);
+                final (lane, n) = lanes[it['id'] as int]!;
+                final w = colW / n;
+                final c = _color(it, scheme);
+                final done = it['status'] == 'done';
+                return Positioned(
+                  top: top,
+                  left: lane * w + 1,
+                  width: w - 2,
+                  height: height - 1,
+                  child: GestureDetector(
+                    onTap: () => showTaskSheet(context, s, item: it),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: c.withValues(alpha: done ? 0.35 : 0.9),
+                        borderRadius: BorderRadius.circular(5),
+                      ),
+                      child: Text(
+                        '${it['kind'] == 'alarm' ? '⏰ ' : ''}${it['title']}',
+                        overflow: TextOverflow.clip,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.white,
+                          decoration: done ? TextDecoration.lineThrough : null,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            if (isToday)
+              Positioned(
+                top: (now.hour * 60 + now.minute) / 60 * _hourH - 1,
+                left: 0,
+                right: 0,
+                child: Row(
+                  children: [
+                    Container(width: 8, height: 8, decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle)),
+                    Expanded(child: Container(height: 2, color: Colors.red)),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// Eisenhower Matrix. Priority decides the quadrant: High = urgent and important,

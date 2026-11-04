@@ -12,18 +12,18 @@ List<String> allLists(Store s) {
   return names.toList();
 }
 
-/// Adds a task (or edits [item]) by hand. [day] presets the date for a new one.
-Future<void> showTaskSheet(BuildContext context, Store s, {Rec? item, DateTime? day}) {
+/// Adds a task (or edits [item]) by hand. [day], [at] and [newKind] preset a new one.
+Future<void> showTaskSheet(BuildContext context, Store s, {Rec? item, DateTime? day, TimeOfDay? at, String? newKind}) {
   final title = TextEditingController(text: item?['title'] as String? ?? '');
   final desc = TextEditingController(text: item?['desc'] as String? ?? '');
   final tags = TextEditingController(text: ((item?['tags'] as List?) ?? []).join(', '));
   final listCtrl = TextEditingController(text: (item?['list'] as String?) ?? 'Inbox');
-  var kind = (item?['kind'] as String?) ?? 'task';
+  var kind = (item?['kind'] as String?) ?? newKind ?? 'task';
   var priority = (item?['priority'] as int?) ?? 0;
   var repeat = item?['repeat'] as String?;
   final w = item?['when'] as int?;
   DateTime? date = w != null ? fromMs(w) : day;
-  TimeOfDay? time = w != null ? TimeOfDay.fromDateTime(fromMs(w)) : null;
+  TimeOfDay? time = w != null ? TimeOfDay.fromDateTime(fromMs(w)) : at;
   final oldMinutes = kind == 'task' ? (item?['est']) : (item?['dur']);
   final minutes = TextEditingController(text: '${oldMinutes ?? ''}');
 
