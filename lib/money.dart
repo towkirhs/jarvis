@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import 'money_io.dart';
 import 'store.dart';
 
 const expenseCats = ['Food', 'Transport', 'Shopping', 'Bills', 'Education', 'Health', 'Entertainment', 'Gifts', 'Other'];
@@ -260,6 +261,21 @@ class _MoneyPageState extends State<MoneyPage> {
                 IconButton(icon: const Icon(Icons.chevron_right), onPressed: () => _shift(1)),
               ],
             ),
+            actions: [
+              PopupMenuButton<String>(
+                tooltip: 'Export and import',
+                icon: const Icon(Icons.import_export),
+                onSelected: (v) => _io(context, v),
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'month-csv', child: Text('Export this month (CSV)')),
+                  PopupMenuItem(value: 'month-xlsx', child: Text('Export this month (Excel)')),
+                  PopupMenuItem(value: 'all-csv', child: Text('Export everything (CSV)')),
+                  PopupMenuItem(value: 'all-xlsx', child: Text('Export everything (Excel)')),
+                  PopupMenuDivider(),
+                  PopupMenuItem(value: 'import', child: Text('Import CSV or Excel')),
+                ],
+              ),
+            ],
             bottom: const TabBar(
               isScrollable: true,
               tabs: [Tab(text: 'Daily'), Tab(text: 'Calendar'), Tab(text: 'Monthly'), Tab(text: 'Stats'), Tab(text: 'Accounts')],
@@ -296,6 +312,26 @@ class _MoneyPageState extends State<MoneyPage> {
           ),
         ),
       );
+
+  Future<void> _io(BuildContext context, String v) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      if (v == 'import') {
+        final r = await MoneyIO.import(s);
+        if (r == null) return;
+        messenger.showSnackBar(SnackBar(content: Text('Imported ${r.$1} transactions, skipped ${r.$2} (duplicates or unreadable).')));
+        return;
+      }
+      final all = v.startsWith('all');
+      final txs = s.list('tx').where((t) => all || _inMonth(t, _month)).toList()
+        ..sort((a, b) => (a['ts'] as int).compareTo(b['ts'] as int));
+      final name = all ? 'jarvis-money' : 'jarvis-money-${_month.year}-${two(_month.month)}';
+      final ok = await MoneyIO.export(s, txs, xlsx: v.endsWith('xlsx'), name: name);
+      if (ok) messenger.showSnackBar(SnackBar(content: Text('Exported ${txs.length} transactions.')));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Could not do that: $e')));
+    }
+  }
 
   Widget _summary(BuildContext context, num inc, num exp) {
     Widget col(String label, num v, Color? c) => Expanded(

@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'brain.dart';
 import 'capture_page.dart';
-import 'focus_screen.dart';
+import 'money.dart';
 import 'habits_screen.dart';
 import 'home_screen.dart';
 import 'items_screen.dart';
@@ -176,7 +176,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
             children: [
               HomeScreen(store: s),
               ItemsScreen(store: s),
-              FocusScreen(store: s),
+              MoneyPage(store: s),
               JournalScreen(store: s),
               HabitsScreen(store: s),
               MoreScreen(store: s),
@@ -189,7 +189,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
           destinations: const [
             NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
             NavigationDestination(icon: Icon(Icons.checklist), label: 'Plan'),
-            NavigationDestination(icon: Icon(Icons.timer_outlined), selectedIcon: Icon(Icons.timer), label: 'Focus'),
+            NavigationDestination(icon: Icon(Icons.account_balance_wallet_outlined), selectedIcon: Icon(Icons.account_balance_wallet), label: 'Money'),
             NavigationDestination(icon: Icon(Icons.menu_book_outlined), selectedIcon: Icon(Icons.menu_book), label: 'Journal'),
             NavigationDestination(icon: Icon(Icons.local_fire_department_outlined), selectedIcon: Icon(Icons.local_fire_department), label: 'Habits'),
             NavigationDestination(icon: Icon(Icons.more_horiz), label: 'More'),

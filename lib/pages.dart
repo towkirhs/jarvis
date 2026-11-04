@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 
 import 'brain.dart';
 import 'countdown_screen.dart';
-import 'money.dart';
+import 'focus_screen.dart';
 import 'habits_screen.dart';
 import 'native.dart';
 import 'store.dart';
@@ -41,10 +41,13 @@ class MoreScreen extends StatelessWidget {
                 onTap: () => open(DecisionsPage(store: store)),
               ),
               ListTile(
-                leading: const Icon(Icons.account_balance_wallet_outlined),
-                title: const Text('Money'),
-                subtitle: const Text('Income, expenses and accounts'),
-                onTap: () => open(MoneyPage(store: store)),
+                leading: const Icon(Icons.timer_outlined),
+                title: const Text('Focus'),
+                subtitle: Text(store.focusActive == null ? 'Pomodoro and stopwatch' : 'Running now'),
+                onTap: () => open(Scaffold(
+                  appBar: AppBar(title: const Text('Focus')),
+                  body: FocusScreen(store: store),
+                )),
               ),
               ListTile(
                 leading: const Icon(Icons.hourglass_bottom),
