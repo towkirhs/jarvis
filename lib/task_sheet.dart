@@ -25,7 +25,11 @@ Future<void> showTaskSheet(BuildContext context, Store s, {Rec? item, DateTime? 
   DateTime? date = w != null ? fromMs(w) : day;
   TimeOfDay? time = w != null ? TimeOfDay.fromDateTime(fromMs(w)) : at;
   final oldMinutes = kind == 'task' ? (item?['est']) : (item?['dur']);
-  final minutes = TextEditingController(text: '${oldMinutes ?? ''}');
+  // Whole and half hours of an hour or more are shown in hours.
+  var unit = oldMinutes is int && oldMinutes >= 60 && oldMinutes % 30 == 0 ? 'h' : 'min';
+  final minutes = TextEditingController(
+    text: oldMinutes == null ? '' : (unit == 'h' ? '${(oldMinutes as int) / 60}'.replaceAll('.0', '') : '$oldMinutes'),
+  );
 
   return showModalBottomSheet<void>(
     context: context,
@@ -56,7 +60,8 @@ Future<void> showTaskSheet(BuildContext context, Store s, {Rec? item, DateTime? 
             when = DateTime(date!.year, date!.month, date!.day, time?.hour ?? 9, time?.minute ?? 0)
                 .millisecondsSinceEpoch;
           }
-          final mins = int.tryParse(minutes.text.trim());
+          final amount = double.tryParse(minutes.text.trim());
+          final mins = amount == null ? null : (unit == 'h' ? amount * 60 : amount).round();
           final fields = <String, dynamic>{
             'desc': desc.text.trim().isEmpty ? null : desc.text.trim(),
             'priority': priority,
@@ -186,15 +191,23 @@ Future<void> showTaskSheet(BuildContext context, Store s, {Rec? item, DateTime? 
                     ),
                     const SizedBox(width: 12),
                     SizedBox(
-                      width: 110,
+                      width: 80,
                       child: TextField(
                         controller: minutes,
-                        keyboardType: TextInputType.number,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         decoration: InputDecoration(
-                          labelText: kind == 'task' ? 'Estimate, min' : 'Duration, min',
+                          labelText: kind == 'task' ? 'Estimate' : 'Duration',
                           isDense: true,
                         ),
                       ),
+                    ),
+                    DropdownButton<String>(
+                      value: unit,
+                      items: const [
+                        DropdownMenuItem(value: 'min', child: Text('min')),
+                        DropdownMenuItem(value: 'h', child: Text('hours')),
+                      ],
+                      onChanged: (v) => setS(() => unit = v ?? unit),
                     ),
                   ],
                 ),

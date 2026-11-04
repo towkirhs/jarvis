@@ -73,8 +73,8 @@ class ItemTile extends StatelessWidget {
     final details = [
       if (w != null) niceWhen(w),
       if (it['repeat'] != null) repeatNames[it['repeat']]!,
-      if (est != null) '$est min',
-      if (it['dur'] != null) '${it['dur']} min',
+      if (est != null) fmtMinutes(est),
+      if (it['dur'] != null) fmtMinutes(it['dur'] as int),
       if (postponed > 0) 'postponed ${postponed}x',
       if (started) 'started',
       if ((it['list'] ?? 'Inbox') != 'Inbox') '${it['list']}',

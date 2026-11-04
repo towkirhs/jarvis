@@ -399,34 +399,74 @@ class Brain {
 
   // ---------- journal summary and questions ----------
 
+  static const moodNames = ['', 'awful', 'bad', 'okay', 'good', 'great'];
+
+  /// Everything known about a day, as lines for the AI.
+  static String _dayText(Store s, String day) {
+    final lines = <String>[
+      for (final e in s.entriesOn(day))
+        '${clock(e['ts'] as int)} wrote${e['mood'] == null ? '' : ' (mood ${moodNames[e['mood'] as int]})'}'
+            '${((e['tags'] as List?) ?? []).isEmpty ? '' : ' [${(e['tags'] as List).join(', ')}]'}: ${e['text']}',
+      for (final c in s.capturesOn(day)) '${clock(c['ts'] as int)} said: ${c['cleaned']}',
+      ...s.dayFacts(day),
+    ];
+    return lines.join('\n');
+  }
+
   static Future<void> summarize(Store s, String day) async {
-    final caps = s.capturesOn(day);
-    if (caps.isEmpty) return;
-    final notes = caps.map((c) => '${clock(c['ts'] as int)} ${c['cleaned']}').join('\n');
-    final text = await Gemini.generate(
+    final text = _dayText(s, day);
+    if (text.isEmpty) return;
+    final out = await Gemini.generate(
       s,
-      'Write a short journal entry in first person, past tense, natural and warm, from these notes of one day. '
-      'Use only what is in the notes. Do not add feelings, facts or advice.\nNotes:\n$notes',
+      'Write a short journal entry in first person, past tense, natural and warm, about this one day, '
+      'from the person\'s own writing, notes and what they did. Use only what is given. '
+      'Do not add feelings, facts or advice.\nThe day:\n$text',
       json: false,
     );
-    s.summaries[day] = text.trim();
+    s.summaries[day] = out.trim();
     s.save();
+  }
+
+  /// A look back at the last 7 days: highlights, how mood moved with what they did, one small suggestion.
+  static Future<String> reflectWeek(Store s) async {
+    final now = DateTime.now();
+    final days = [for (var i = 6; i >= 0; i--) dayKey(DateTime(now.year, now.month, now.day - i))];
+    final text = [
+      for (final d in days)
+        if (_dayText(s, d).isNotEmpty) '== $d ==\n${_dayText(s, d)}',
+    ].join('\n');
+    if (text.isEmpty) return 'Nothing written or done in the last 7 days yet.';
+    final out = (await Gemini.generate(
+      s,
+      'You help a person reflect on their week. From their journal, notes, moods and activities below, write: '
+      '1) three short highlights, 2) patterns you can actually see (for example which activities came with better '
+      'or worse moods), 3) one small, kind suggestion for next week. Speak to them as "you". Use only what is '
+      'given; if there is too little to see a pattern, say so. Keep it under 200 words.\nThe week:\n$text',
+      json: false,
+    )).trim();
+    s.summaries['week:${days.first}'] = out;
+    s.save();
+    return out;
   }
 
   static Future<String> ask(Store s, String question) async {
     final q = _words(question);
-    final scored = <MapEntry<Rec, int>>[];
+    final scored = <MapEntry<String, int>>[];
     for (final c in s.list('captures')) {
       if (c['status'] != 'done') continue;
       final score = _words(c['cleaned'].toString()).intersection(q).length;
-      if (score > 0) scored.add(MapEntry(c, score));
+      if (score > 0) scored.add(MapEntry('${dayKey(fromMs(c['ts'] as int))}: ${c['cleaned']}', score));
+    }
+    for (final e in s.list('entries')) {
+      final score = _words('${e['text']} ${((e['tags'] as List?) ?? []).join(' ')}').intersection(q).length;
+      if (score > 0) {
+        final mood = e['mood'] == null ? '' : ' (mood ${moodNames[e['mood'] as int]})';
+        scored.add(MapEntry('${dayKey(fromMs(e['ts'] as int))}$mood: ${e['text']}', score));
+      }
     }
     if (scored.isEmpty) return 'I found nothing in your journal about that.';
     scored.sort((a, b) => b.value.compareTo(a.value));
-    final notes = scored.take(15).map((e) {
-      final c = e.key;
-      return '${dayKey(fromMs(c['ts'] as int))}: ${c['cleaned']}';
-    }).join('\n');
+    final notes = scored.take(15).map((e) => e.key).join('\n');
     return (await Gemini.generate(
       s,
       'Answer the question using only these journal entries. Mention dates. '

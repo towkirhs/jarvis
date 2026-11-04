@@ -21,6 +21,9 @@ String clock(int ms) {
   return '${two(d.hour)}:${two(d.minute)}';
 }
 
+/// 45 -> "45 min", 90 -> "1h 30m", 120 -> "2h".
+String fmtMinutes(int m) => m < 60 ? '$m min' : '${m ~/ 60}h${m % 60 == 0 ? '' : ' ${m % 60}m'}';
+
 String niceWhen(int ms) {
   final d = fromMs(ms);
   final now = DateTime.now();
@@ -38,7 +41,7 @@ class Store extends ChangeNotifier {
   String apiKey = '';
 
   static const _collections = [
-    'captures', 'items', 'habits', 'promises', 'decisions', 'inbox', 'actions', 'countdowns', 'focus', 'tx',
+    'captures', 'items', 'habits', 'promises', 'decisions', 'inbox', 'actions', 'countdowns', 'focus', 'tx', 'entries',
   ];
 
   Future<void> load() async {
@@ -689,22 +692,88 @@ class Store extends ChangeNotifier {
       .where((c) => c['status'] == 'done' && dayKey(fromMs(c['ts'] as int)) == day)
       .toList();
 
+  /// Written journal entries of a day, oldest first.
+  List<Rec> entriesOn(String day) =>
+      list('entries').where((e) => dayKey(fromMs(e['ts'] as int)) == day).toList()
+        ..sort((a, b) => (a['ts'] as int).compareTo(b['ts'] as int));
+
+  /// The day's mood (1 awful to 5 great): the last entry that has one.
+  int? dayMood(String day) {
+    int? m;
+    for (final e in entriesOn(day)) {
+      if (e['mood'] != null) m = e['mood'] as int;
+    }
+    return m;
+  }
+
+  /// Days with a written entry or a processed note, newest first.
   List<String> journalDays() {
     final days = <String>{};
     for (final c in list('captures')) {
       if (c['status'] == 'done') days.add(dayKey(fromMs(c['ts'] as int)));
     }
+    for (final e in list('entries')) {
+      days.add(dayKey(fromMs(e['ts'] as int)));
+    }
     return days.toList()..sort((a, b) => b.compareTo(a));
   }
 
-  /// Notes written on today's month and day in earlier years.
-  List<Rec> onThisDay() {
+  /// Days in a row, up to today (or yesterday, so the streak survives until tonight), with something written.
+  int journalStreak() {
+    final days = journalDays().toSet();
     final now = DateTime.now();
-    return list('captures').where((c) {
-      if (c['status'] != 'done') return false;
-      final d = fromMs(c['ts'] as int);
+    var d = DateTime(now.year, now.month, now.day);
+    if (!days.contains(dayKey(d))) d = DateTime(d.year, d.month, d.day - 1);
+    var n = 0;
+    while (days.contains(dayKey(d))) {
+      n++;
+      d = DateTime(d.year, d.month, d.day - 1);
+    }
+    return n;
+  }
+
+  /// What the rest of Jarvis knows about a day, for the "Your day" card and the AI.
+  List<String> dayFacts(String day) {
+    bool on(int? ms) => ms != null && dayKey(fromMs(ms)) == day;
+    final done = list('items').where((i) => i['status'] == 'done' && on(i['doneAt'] as int?)).map((i) => i['title']).toList();
+    final events = list('items')
+        .where((i) => i['kind'] == 'event' && i['status'] != 'cancelled' && on(i['when'] as int?))
+        .map((i) => i['title'])
+        .toList();
+    final habits = list('habits').where((h) => (h['logs'] as Rec)[day] == 'yes').map((h) => h['name']).toList();
+    final skipped = list('habits').where((h) => (h['logs'] as Rec)[day] == 'no').map((h) => h['name']).toList();
+    final focus = list('focus').where((f) => on(f['start'] as int)).fold<int>(0, (a, f) => a + (f['minutes'] as int));
+    num spent = 0;
+    num earned = 0;
+    for (final t in list('tx').where((t) => on(t['ts'] as int))) {
+      if (t['type'] == 'expense') spent += t['amount'] as num;
+      if (t['type'] == 'income') earned += t['amount'] as num;
+    }
+    return [
+      if (done.isNotEmpty) 'Finished: ${done.join(', ')}',
+      if (events.isNotEmpty) 'Events: ${events.join(', ')}',
+      if (habits.isNotEmpty) 'Habits done: ${habits.join(', ')}',
+      if (skipped.isNotEmpty) 'Habits skipped: ${skipped.join(', ')}',
+      if (focus > 0) 'Focused ${focus ~/ 60}h ${focus % 60}m',
+      if (spent > 0) 'Spent ${money(spent)}',
+      if (earned > 0) 'Received ${money(earned)}',
+    ];
+  }
+
+  /// Notes and entries from today's month and day in earlier years, as (year, text).
+  List<(int, String)> onThisDay() {
+    final now = DateTime.now();
+    bool match(int ms) {
+      final d = fromMs(ms);
       return d.year < now.year && d.month == now.month && d.day == now.day;
-    }).toList();
+    }
+
+    return [
+      for (final c in list('captures'))
+        if (c['status'] == 'done' && match(c['ts'] as int)) (fromMs(c['ts'] as int).year, c['cleaned'] as String),
+      for (final e in list('entries'))
+        if (match(e['ts'] as int)) (fromMs(e['ts'] as int).year, e['text'] as String),
+    ];
   }
 
   // ---------- backup ----------

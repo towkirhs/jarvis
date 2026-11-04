@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 
@@ -295,9 +296,9 @@ class FocusStatsPage extends StatelessWidget {
             tile('Total pomo', '$totalPomo', ''),
             tile('Total focus', _hm(totalMin), ''),
           ]),
-          section('This week', _WeekBars(store: s, color: color)),
-          section('Timeline (this week)', SizedBox(height: 220, child: CustomPaint(painter: _TimelinePainter(_weekSessions(s), color), size: Size.infinite))),
-          section('Most focused time', _HourBars(store: s, color: color)),
+          _Trends(store: s, color: color),
+          _Timeline(store: s, color: color),
+          _MostFocused(store: s, color: color),
           section('Year grid ${now.year}', _YearGrid(store: s, color: color)),
           section(
             'Focus ranking',
@@ -334,47 +335,247 @@ class FocusStatsPage extends StatelessWidget {
   }
 }
 
-List<Rec> _weekSessions(Store s) {
-  final monday = s.mondayOf(DateTime.now());
-  return s.list('focus').where((f) => !fromMs(f['start'] as int).isBefore(monday)).toList();
+/// A card with a title and a "‹ label ›" switcher.
+class _NavCard extends StatelessWidget {
+  const _NavCard({required this.title, required this.label, required this.onPrev, required this.onNext, required this.child});
+  final String title;
+  final String label;
+  final VoidCallback onPrev;
+  final VoidCallback? onNext;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Card(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 8, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Text(title, style: Theme.of(context).textTheme.titleMedium),
+                const Spacer(),
+                IconButton(icon: const Icon(Icons.chevron_left), onPressed: onPrev),
+                Text(label),
+                IconButton(icon: const Icon(Icons.chevron_right), onPressed: onNext),
+              ]),
+              child,
+            ],
+          ),
+        ),
+      );
 }
 
-class _WeekBars extends StatelessWidget {
-  const _WeekBars({required this.store, required this.color});
+int _minutesBetween(Store s, DateTime from, DateTime to) => s
+    .list('focus')
+    .where((f) {
+      final st = fromMs(f['start'] as int);
+      return !st.isBefore(from) && st.isBefore(to);
+    })
+    .fold<int>(0, (a, f) => a + (f['minutes'] as int));
+
+/// Focus per day (week or month view) or per month (year view), with the daily average.
+class _Trends extends StatefulWidget {
+  const _Trends({required this.store, required this.color});
   final Store store;
   final Color color;
 
   @override
+  State<_Trends> createState() => _TrendsState();
+}
+
+class _TrendsState extends State<_Trends> {
+  String _mode = 'week';
+  int _offset = 0;
+
+  @override
   Widget build(BuildContext context) {
-    final monday = store.mondayOf(DateTime.now());
-    final mins = [for (var i = 0; i < 7; i++) _dayStats(store, DateTime(monday.year, monday.month, monday.day + i)).$2];
-    final top = mins.fold<int>(1, (a, b) => b > a ? b : a);
-    final today = DateTime.now().weekday;
-    final avg = (mins.take(today).fold<int>(0, (a, b) => a + b) / today).round();
-    return Column(
-      children: [
-        SizedBox(
-          height: 120,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              for (var i = 0; i < 7; i++)
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.end,
+    final s = widget.store;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    late DateTime start;
+    late DateTime end;
+    late String label;
+    final bars = <(String, int)>[];
+    if (_mode == 'week') {
+      final monday = s.mondayOf(today);
+      start = DateTime(monday.year, monday.month, monday.day + 7 * _offset);
+      end = DateTime(start.year, start.month, start.day + 7);
+      label = _offset == 0 ? 'This week' : (_offset == -1 ? 'Last week' : '${start.day} ${_months[start.month - 1]}');
+      for (var i = 0; i < 7; i++) {
+        final d = DateTime(start.year, start.month, start.day + i);
+        bars.add((_weekdays[i].substring(0, 2), _minutesBetween(s, d, DateTime(d.year, d.month, d.day + 1))));
+      }
+    } else if (_mode == 'month') {
+      start = DateTime(now.year, now.month + _offset);
+      end = DateTime(start.year, start.month + 1);
+      label = '${_months[start.month - 1]} ${start.year}';
+      for (var d = start; d.isBefore(end); d = DateTime(d.year, d.month, d.day + 1)) {
+        bars.add((d.day % 5 == 1 ? '${d.day}' : '', _minutesBetween(s, d, DateTime(d.year, d.month, d.day + 1))));
+      }
+    } else {
+      start = DateTime(now.year + _offset);
+      end = DateTime(start.year + 1);
+      label = '${start.year}';
+      for (var m = 0; m < 12; m++) {
+        final a = DateTime(start.year, m + 1);
+        bars.add((_months[m].substring(0, 1), _minutesBetween(s, a, DateTime(a.year, a.month + 1))));
+      }
+    }
+    final total = bars.fold<int>(0, (a, b) => a + b.$2);
+    final lastDay = end.isAfter(today) ? DateTime(today.year, today.month, today.day + 1) : end;
+    final days = max(1, lastDay.difference(start).inDays);
+    final top = bars.fold<int>(1, (a, b) => max(a, b.$2));
+    return _NavCard(
+      title: 'Trends',
+      label: label,
+      onPrev: () => setState(() => _offset--),
+      onNext: _offset < 0 ? () => setState(() => _offset++) : null,
+      child: Column(
+        children: [
+          Center(
+            child: SegmentedButton<String>(
+              segments: const [
+                ButtonSegment(value: 'week', label: Text('Week')),
+                ButtonSegment(value: 'month', label: Text('Month')),
+                ButtonSegment(value: 'year', label: Text('Year')),
+              ],
+              selected: {_mode},
+              onSelectionChanged: (v) => setState(() {
+                _mode = v.first;
+                _offset = 0;
+              }),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 130,
+            child: total == 0
+                ? const Center(child: Text('No data'))
+                : Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      if (mins[i] > 0) Text('${mins[i]}m', style: const TextStyle(fontSize: 10)),
-                      Container(width: 16, height: 90 * mins[i] / top, color: color),
-                      Text(_weekdays[i].substring(0, 2), style: const TextStyle(fontSize: 11)),
+                      for (final (name, m) in bars)
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              Container(
+                                margin: const EdgeInsets.symmetric(horizontal: 1),
+                                height: 100 * m / top,
+                                color: widget.color,
+                              ),
+                              Text(name, style: const TextStyle(fontSize: 10)),
+                            ],
+                          ),
+                        ),
                     ],
                   ),
-                ),
-            ],
           ),
-        ),
-        const SizedBox(height: 8),
-        Row(children: [const Text('Daily average'), const Spacer(), Text(_hm(avg))]),
-      ],
+          const SizedBox(height: 8),
+          Row(children: [
+            const Text('Daily average'),
+            const Spacer(),
+            Text(_hm((total / days).round()), style: const TextStyle(fontSize: 18)),
+          ]),
+          Row(children: [const Text('Total'), const Spacer(), Text(_hm(total))]),
+        ],
+      ),
+    );
+  }
+}
+
+class _Timeline extends StatefulWidget {
+  const _Timeline({required this.store, required this.color});
+  final Store store;
+  final Color color;
+
+  @override
+  State<_Timeline> createState() => _TimelineState();
+}
+
+class _TimelineState extends State<_Timeline> {
+  int _offset = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.store;
+    final m = s.mondayOf(DateTime.now());
+    final start = DateTime(m.year, m.month, m.day + 7 * _offset);
+    final end = DateTime(start.year, start.month, start.day + 7);
+    final sessions = s.list('focus').where((f) {
+      final st = fromMs(f['start'] as int);
+      return !st.isBefore(start) && st.isBefore(end);
+    }).toList();
+    return _NavCard(
+      title: 'Timeline',
+      label: _offset == 0 ? 'This week' : (_offset == -1 ? 'Last week' : '${start.day} ${_months[start.month - 1]}'),
+      onPrev: () => setState(() => _offset--),
+      onNext: _offset < 0 ? () => setState(() => _offset++) : null,
+      child: SizedBox(
+        height: 220,
+        child: CustomPaint(painter: _TimelinePainter(sessions, widget.color), size: Size.infinite),
+      ),
+    );
+  }
+}
+
+class _MostFocused extends StatefulWidget {
+  const _MostFocused({required this.store, required this.color});
+  final Store store;
+  final Color color;
+
+  @override
+  State<_MostFocused> createState() => _MostFocusedState();
+}
+
+class _MostFocusedState extends State<_MostFocused> {
+  int _offset = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final month = DateTime(now.year, now.month + _offset);
+    // Minutes focused in each hour of the day, in the chosen month.
+    final byHour = List.filled(24, 0);
+    for (final f in widget.store.list('focus')) {
+      final st = fromMs(f['start'] as int);
+      if (st.year != month.year || st.month != month.month) continue;
+      for (var t = f['start'] as int; t < (f['end'] as int); t += 60000) {
+        byHour[fromMs(t).hour]++;
+      }
+    }
+    final top = byHour.fold<int>(1, (a, b) => max(a, b));
+    return _NavCard(
+      title: 'Most focused time',
+      label: '${_months[month.month - 1]} ${month.year}',
+      onPrev: () => setState(() => _offset--),
+      onNext: _offset < 0 ? () => setState(() => _offset++) : null,
+      child: Column(
+        children: [
+          SizedBox(
+            height: 100,
+            child: byHour.every((m) => m == 0)
+                ? const Center(child: Text('No data'))
+                : Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      for (var hr = 0; hr < 24; hr++)
+                        Expanded(
+                          child: Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 1),
+                            height: 100 * byHour[hr] / top,
+                            color: widget.color,
+                          ),
+                        ),
+                    ],
+                  ),
+          ),
+          const Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [Text('00:00'), Text('06:00'), Text('12:00'), Text('18:00'), Text('24:00')],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -419,53 +620,6 @@ class _TimelinePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_TimelinePainter old) => true;
-}
-
-class _HourBars extends StatelessWidget {
-  const _HourBars({required this.store, required this.color});
-  final Store store;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    // Minutes focused in each hour of the day, this month.
-    final now = DateTime.now();
-    final byHour = List.filled(24, 0);
-    for (final f in store.list('focus')) {
-      final st = fromMs(f['start'] as int);
-      if (st.year != now.year || st.month != now.month) continue;
-      for (var t = f['start'] as int; t < (f['end'] as int); t += 60000) {
-        byHour[fromMs(t).hour]++;
-      }
-    }
-    final top = byHour.fold<int>(1, (a, b) => b > a ? b : a);
-    return Column(
-      children: [
-        Text('${_months[now.month - 1]} ${now.year}', style: Theme.of(context).textTheme.bodySmall),
-        const SizedBox(height: 6),
-        SizedBox(
-          height: 100,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              for (var hr = 0; hr < 24; hr++)
-                Expanded(
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 1),
-                    height: 100 * byHour[hr] / top,
-                    color: color,
-                  ),
-                ),
-            ],
-          ),
-        ),
-        const Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [Text('00:00'), Text('06:00'), Text('12:00'), Text('18:00'), Text('24:00')],
-        ),
-      ],
-    );
-  }
 }
 
 class _YearGrid extends StatelessWidget {
