@@ -22,7 +22,8 @@ class Brain {
   /// Saves a note first, so nothing is ever lost, then tries to process it.
   /// [image] is the path of a photo to read along with the note.
   static Future<void> capture(Store s, String raw, {String source = 'in-app', String? image}) async {
-    final skip = image == null && s.settings['prefilter'] == true && !looksLikeUpdate(raw);
+    // Things the person deliberately shared are always processed.
+    final skip = image == null && source != 'share' && s.settings['prefilter'] == true && !looksLikeUpdate(raw);
     s.list('captures').add({
       'id': s.nextId(),
       'ts': DateTime.now().millisecondsSinceEpoch,
