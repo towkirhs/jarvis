@@ -210,22 +210,37 @@ Future<void> showTxSheet(BuildContext context, Store s, {Rec? tx, DateTime? day}
   );
 }
 
-/// One transaction row: category, note and account, amount in colour.
+const _catIcons = {
+  'Food': Icons.restaurant, 'Transport': Icons.directions_bus, 'Shopping': Icons.shopping_bag_outlined,
+  'Bills': Icons.receipt_long, 'Education': Icons.school_outlined, 'Health': Icons.medical_services_outlined,
+  'Entertainment': Icons.movie_outlined, 'Gifts': Icons.card_giftcard, 'Salary': Icons.work_outline,
+  'Tuition': Icons.menu_book_outlined, 'Allowance': Icons.savings_outlined, 'Gift': Icons.card_giftcard,
+  'Transfer': Icons.swap_horiz,
+};
+
+/// One transaction row: what it was for, category, account and time, amount in colour.
 Widget _txRow(BuildContext context, Store s, Rec t) {
   final type = t['type'] as String;
   final color = type == 'income' ? _incomeColor : (type == 'expense' ? _expenseColor : null);
+  final cat = t['cat'] as String;
   final sub = [
-    if (t['note'] != null) t['note'] as String,
+    if (t['note'] != null) cat,
     type == 'transfer' ? '${t['account']} → ${t['toAccount']}' : t['account'] as String,
+    clock(t['ts'] as int),
     ...((t['tags'] as List?) ?? []).map((e) => '#$e'),
   ].join('  ·  ');
   return ListTile(
-    dense: true,
     onTap: () => showTxSheet(context, s, tx: t),
-    leading: SizedBox(width: 72, child: Text(t['cat'] as String, overflow: TextOverflow.ellipsis)),
-    title: Text(sub, overflow: TextOverflow.ellipsis),
-    subtitle: Text(clock(t['ts'] as int)),
-    trailing: Text(s.money(t['amount'] as num), style: TextStyle(color: color, fontSize: 15)),
+    leading: CircleAvatar(
+      backgroundColor: (color ?? Colors.grey).withValues(alpha: 0.15),
+      child: Icon(_catIcons[cat] ?? Icons.category_outlined, color: color ?? Colors.grey, size: 20),
+    ),
+    title: Text((t['note'] as String?) ?? cat, overflow: TextOverflow.ellipsis),
+    subtitle: Text(sub, overflow: TextOverflow.ellipsis),
+    trailing: Text(
+      '${type == 'expense' ? '-' : (type == 'income' ? '+' : '')}${s.money(t['amount'] as num)}',
+      style: TextStyle(color: color, fontSize: 15, fontWeight: FontWeight.w600),
+    ),
   );
 }
 

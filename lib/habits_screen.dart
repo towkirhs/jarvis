@@ -140,7 +140,7 @@ class HabitTodayRow extends StatelessWidget {
           onPressed: () => store.logHabit(h, today, 'yes'),
         ),
         title: Text(h['name'] as String),
-        subtitle: Text('Habit  ·  $done/${h['times']} this ${h['per']}${h['remind'] == null ? '' : '  ·  ${h['remind']}'}'),
+        subtitle: Text('$done of ${h['times']} this ${h['per']}${h['remind'] == null ? '' : '  ·  ${_time12(h['remind'] as String)}'}'),
         trailing: IconButton(
           tooltip: 'Skip today',
           icon: const Icon(Icons.close),
@@ -153,6 +153,13 @@ class HabitTodayRow extends StatelessWidget {
       );
     return flat ? tile : Card(child: tile);
   }
+}
+
+/// "07:00" -> "7:00 am".
+String _time12(String hhmm) {
+  final p = hhmm.split(':');
+  final h = int.parse(p[0]);
+  return '${h % 12 == 0 ? 12 : h % 12}:${p[1]} ${h < 12 ? 'am' : 'pm'}';
 }
 
 /// Cycles a day: blank -> done -> skipped -> blank. Blank means "not said", which never counts as a miss.
@@ -309,7 +316,7 @@ class HabitPage extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.all(8),
                   child: Text(
-                    '${habitTarget(h)}${h['remind'] == null ? '' : '   ·   reminder ${h['remind']}'}'
+                    '${habitTarget(h)}${h['remind'] == null ? '' : '   ·   reminder ${_time12(h['remind'] as String)}'}'
                     '   ·   streak ${store.streakPeriods(h)} ${h['per']}s',
                   ),
                 ),

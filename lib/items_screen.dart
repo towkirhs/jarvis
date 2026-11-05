@@ -267,8 +267,14 @@ class _ListViewState extends State<_ListView> {
                 ),
               ),
               const SizedBox(height: 8),
-              if (_filter == 'All' || _filter == 'Today')
+              if ((_filter == 'All' || _filter == 'Today') && s.habitsDueToday().isNotEmpty) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 12, 4, 4),
+                  child: Text('Habits today',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(color: Theme.of(context).colorScheme.primary)),
+                ),
                 for (final h in s.habitsDueToday()) HabitTodayRow(store: s, habit: h),
+              ],
               if (open.isEmpty) const Padding(padding: EdgeInsets.all(16), child: Text('Nothing here. Tap + or tell Jarvis.')),
               for (final g in _groups)
                 if (open.any((i) => _groupOf(i) == g)) ...[
