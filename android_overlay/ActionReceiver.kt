@@ -36,7 +36,7 @@ class ActionReceiver : BroadcastReceiver() {
     companion object {
         const val ACTION_DONE = "com.towkirhs.jarcis.DONE"
         const val ACTION_SNOOZE = "com.towkirhs.jarcis.SNOOZE"
-        const val SNOOZE_OFFSET = 1_000_000
+        const val SNOOZE_OFFSET = 1_000_000_000
     }
 }
 

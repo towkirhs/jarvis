@@ -6,6 +6,7 @@ import 'countdown_screen.dart';
 import 'habits_screen.dart';
 import 'items_screen.dart';
 import 'money.dart';
+import 'plan_day_page.dart';
 import 'pages.dart';
 import 'store.dart';
 
@@ -162,6 +163,7 @@ class _HomeScreenState extends State<HomeScreen> {
           _card(context, 'Behind schedule', [
             for (final i in behind) ItemTile(store: s, it: i, dense: true),
           ], color: scheme.errorContainer),
+        LabelCard(store: s),
         if (habits.isNotEmpty)
           _card(context, 'Habits today', [
             for (final h in habits) HabitTodayRow(store: s, habit: h, flat: true),
@@ -191,6 +193,14 @@ class _HomeScreenState extends State<HomeScreen> {
           }),
         _card(context, 'Coming up today', [
           if (todays.isEmpty) const Text('Nothing else planned for today.'),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              icon: const Icon(Icons.auto_awesome_motion, size: 18),
+              label: const Text('Plan my day'),
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PlanDayPage(store: s))),
+            ),
+          ),
           for (final i in todays) ItemTile(store: s, it: i, dense: true),
         ]),
         const SizedBox(height: 8),

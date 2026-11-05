@@ -1,0 +1,55 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:jarcis/day_planner.dart';
+
+final now = DateTime(2026, 11, 5, 9, 2); // Thursday 9:02 am
+int at(int h, [int m = 0, int day = 5]) => DateTime(2026, 11, day, h, m).millisecondsSinceEpoch;
+
+Map<String, dynamic> task(int id, String title, {int? est, int priority = 0, int? when, String? cat}) =>
+    {'id': id, 'kind': 'task', 'title': title, 'est': est, 'priority': priority, 'when': when, 'cat': cat};
+
+String hm(DateTime d) => '${d.hour}:${d.minute.toString().padLeft(2, '0')}';
+
+void main() {
+  test('fills the morning around a fixed class, most urgent first', () {
+    final plan = DayPlanner.plan(now: now, items: [
+      {'id': 1, 'kind': 'event', 'title': 'Class', 'when': at(11), 'dur': 60},
+      task(2, 'Read notes', est: 30),
+      task(3, 'Lab report', est: 60, priority: 3),
+    ]);
+    expect(plan.blocks.map((b) => '${hm(b.start)} ${b.title}').toList(), [
+      '9:05 Lab report', // high priority first, at the next 5 minutes
+      '10:15 Read notes', // after a 10 minute break
+      '11:00 Class',
+    ]);
+    expect(plan.overflow, isEmpty);
+  });
+
+  test('a task too long for the gap before a class goes after it', () {
+    final plan = DayPlanner.plan(now: now, items: [
+      {'id': 1, 'kind': 'event', 'title': 'Class', 'when': at(10), 'dur': 90},
+      task(2, 'Write essay', est: 120),
+    ]);
+    expect(plan.blocks.map((b) => '${hm(b.start)} ${b.title}').toList(), ['10:00 Class', '11:30 Write essay']);
+  });
+
+  test('overdue tasks come first; future tasks are left alone', () {
+    final plan = DayPlanner.plan(now: now, items: [
+      task(1, 'Later this week', est: 30, when: at(9, 0, 7)),
+      task(2, 'No date', est: 30, priority: 3),
+      task(3, 'Was due yesterday', est: 30, when: at(17, 0, 4)),
+    ]);
+    expect(plan.blocks.map((b) => b.title).toList(), ['Was due yesterday', 'No date']);
+  });
+
+  test('learned estimates make tasks longer', () {
+    final plan = DayPlanner.plan(now: now, items: [task(1, 'Report', est: 60, cat: 'report')], ratios: {'report': 1.5});
+    expect(plan.blocks.single.minutes, 90);
+  });
+
+  test("what doesn't fit is listed", () {
+    final late = DateTime(2026, 11, 5, 21, 0);
+    final plan = DayPlanner.plan(now: late, items: [task(1, 'Short', est: 30), task(2, 'Long', est: 120)]);
+    expect(plan.blocks.map((b) => b.title).toList(), ['Short']);
+    expect(plan.overflow.map((b) => b.title).toList(), ['Long']);
+  });
+}

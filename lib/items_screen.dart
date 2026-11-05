@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import 'habits_screen.dart';
+import 'plan_day_page.dart';
 import 'store.dart';
 import 'task_sheet.dart';
 
@@ -249,6 +250,15 @@ class _ListViewState extends State<_ListView> {
           return ListView(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 80),
             children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: FilledButton.tonalIcon(
+                  icon: const Icon(Icons.auto_awesome_motion),
+                  label: const Text('Plan my day'),
+                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PlanDayPage(store: s))),
+                ),
+              ),
+              const SizedBox(height: 8),
               SizedBox(
                 height: 40,
                 child: ListView(
