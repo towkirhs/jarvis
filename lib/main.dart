@@ -32,8 +32,8 @@ Future<void> backgroundMain() async {
     while (true) {
       final notes = await Native.takeNotes();
       if (notes.isEmpty) break;
-      for (final note in notes) {
-        await Brain.capture(store, note, source: 'handy');
+      for (final (text, image, source) in notes) {
+        await Brain.capture(store, text.isEmpty ? '(shared image)' : text, source: source, image: image);
       }
     }
     // save() doesn't wait for the disk write; give it a moment before the engine is destroyed.
@@ -148,8 +148,8 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
   /// Runs every minute while the app is open: retries waiting notes and writes the evening summary.
   Future<void> _tick() async {
     await _applyDone();
-    for (final note in await Native.takeNotes()) {
-      await Brain.capture(s, note, source: 'handy');
+    for (final (text, image, source) in await Native.takeNotes()) {
+      await Brain.capture(s, text.isEmpty ? '(shared image)' : text, source: source, image: image);
     }
     await Brain.drain(s);
     final now = DateTime.now();

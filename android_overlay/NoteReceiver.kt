@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import org.json.JSONArray
+import org.json.JSONObject
 
 /** Receives dictations from the Handy app, queues them, and gets them processed right away. */
 class NoteReceiver : BroadcastReceiver() {
@@ -24,10 +25,10 @@ object NoteQueue {
     private const val FILE = "jarcis_notes"
 
     @Synchronized
-    fun add(context: Context, text: String) {
+    fun add(context: Context, text: String, image: String? = null, source: String = "handy") {
         val p = context.getSharedPreferences(FILE, Context.MODE_PRIVATE)
         val arr = JSONArray(p.getString("q", "[]"))
-        arr.put(text)
+        arr.put(JSONObject().put("text", text).put("image", image ?: JSONObject.NULL).put("source", source))
         p.edit().putString("q", arr.toString()).apply()
     }
 

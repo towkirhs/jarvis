@@ -26,11 +26,17 @@ class Native {
       kIsWeb ? null : await _ch.invokeMethod<String>('takeSharedText');
 
   /// Dictations sent by the Handy app while Jarvis was closed.
-  static Future<List<String>> takeNotes() async {
+  /// Notes sent from Handy or the share menu while Jarvis was closed, as (text, image path or null, source).
+  static Future<List<(String, String?, String)>> takeNotes() async {
     if (kIsWeb) return [];
     final raw = await _ch.invokeMethod<String>('takeNotes');
     if (raw == null) return [];
-    return (jsonDecode(raw) as List).map((e) => e.toString()).toList();
+    return [
+      for (final e in jsonDecode(raw) as List)
+        e is Map
+            ? ((e['text'] as String?) ?? '', e['image'] as String?, (e['source'] as String?) ?? 'handy')
+            : (e.toString(), null, 'handy'),
+    ];
   }
 
   /// What Handy's Jarvis bubble asked to open ('text' or 'photo'), if the app was started for that.

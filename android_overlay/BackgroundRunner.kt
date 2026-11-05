@@ -21,8 +21,8 @@ object BackgroundRunner {
     private val timeout = Runnable { stop() }
 
     /** Must be called on the main thread. */
-    fun run(context: Context, result: BroadcastReceiver.PendingResult) {
-        pending.add(result)
+    fun run(context: Context, result: BroadcastReceiver.PendingResult?) {
+        if (result != null) pending.add(result)
         if (engine != null) return // the running engine keeps draining until the queue is empty
         val app = context.applicationContext
         val loader = FlutterInjector.instance().flutterLoader()
