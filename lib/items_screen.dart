@@ -71,7 +71,7 @@ class ItemTile extends StatelessWidget {
         ? (open ? Icons.check_box_outline_blank : Icons.check_box)
         : (it['kind'] == 'alarm' ? Icons.alarm : Icons.event);
     final details = [
-      if (w != null) niceWhen(w),
+      if (w != null) it['allDay'] == true ? niceDay(w) : niceWhen(w),
       if (it['repeat'] != null) repeatNames[it['repeat']]!,
       if (est != null) fmtMinutes(est),
       if (it['dur'] != null) fmtMinutes(it['dur'] as int),
@@ -278,7 +278,7 @@ class _CalendarView extends StatefulWidget {
 
 class _CalendarViewState extends State<_CalendarView> {
   DateTime _day = DateTime.now();
-  bool _grid = true;
+  String _view = 'week'; // week, 3day or list
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -295,29 +295,40 @@ class _CalendarViewState extends State<_CalendarView> {
                     const Spacer(),
                     IconButton(
                       icon: const Icon(Icons.chevron_left),
-                      onPressed: () => setState(() => _day = DateTime(_day.year, _day.month, _day.day - 7)),
+                      onPressed: () => setState(() => _day = DateTime(_day.year, _day.month, _day.day - (_view == '3day' ? 3 : 7))),
                     ),
                     TextButton(onPressed: () => setState(() => _day = DateTime.now()), child: const Text('Today')),
                     IconButton(
                       icon: const Icon(Icons.chevron_right),
-                      onPressed: () => setState(() => _day = DateTime(_day.year, _day.month, _day.day + 7)),
+                      onPressed: () => setState(() => _day = DateTime(_day.year, _day.month, _day.day + (_view == '3day' ? 3 : 7))),
                     ),
-                    IconButton(
-                      tooltip: _grid ? 'Day list' : 'Week grid',
-                      icon: Icon(_grid ? Icons.view_agenda_outlined : Icons.calendar_view_week),
-                      onPressed: () => setState(() => _grid = !_grid),
+                    PopupMenuButton<String>(
+                      tooltip: 'View',
+                      icon: Icon(switch (_view) {
+                        '3day' => Icons.view_column_outlined,
+                        'list' => Icons.view_agenda_outlined,
+                        _ => Icons.calendar_view_week,
+                      }),
+                      initialValue: _view,
+                      onSelected: (v) => setState(() => _view = v),
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(value: 'week', child: Text('Week')),
+                        PopupMenuItem(value: '3day', child: Text('3 days')),
+                        PopupMenuItem(value: 'list', child: Text('Day list')),
+                      ],
                     ),
                   ],
                 ),
               ),
               Expanded(
-                child: _grid
+                child: _view != 'list'
                     ? WeekGrid(
                         store: s,
-                        monday: s.mondayOf(_day),
+                        start: _view == '3day' ? DateTime(_day.year, _day.month, _day.day) : s.mondayOf(_day),
+                        count: _view == '3day' ? 3 : 7,
                         onDayTap: (d) => setState(() {
                           _day = d;
-                          _grid = false;
+                          _view = 'list';
                         }),
                       )
                     : _dayList(context, s),
@@ -398,9 +409,10 @@ class _CalendarViewState extends State<_CalendarView> {
 /// Google Calendar style week: one column per day, one row per hour, items drawn as blocks.
 /// Tap an empty slot to add an event there; tap a block to edit it.
 class WeekGrid extends StatefulWidget {
-  const WeekGrid({super.key, required this.store, required this.monday, required this.onDayTap});
+  const WeekGrid({super.key, required this.store, required this.start, this.count = 7, required this.onDayTap});
   final Store store;
-  final DateTime monday;
+  final DateTime start;
+  final int count;
   final void Function(DateTime day) onDayTap;
 
   @override
@@ -469,13 +481,13 @@ class _WeekGridState extends State<WeekGrid> {
   Widget build(BuildContext context) {
     final s = widget.store;
     final scheme = Theme.of(context).colorScheme;
-    final days = [for (var i = 0; i < 7; i++) DateTime(widget.monday.year, widget.monday.month, widget.monday.day + i)];
+    final days = [for (var i = 0; i < widget.count; i++) DateTime(widget.start.year, widget.start.month, widget.start.day + i)];
     final now = DateTime.now();
     final todayKey = dayKey(now);
     final grid = scheme.outlineVariant.withValues(alpha: 0.4);
 
     return LayoutBuilder(builder: (context, box) {
-      final colW = (box.maxWidth - _gutter) / 7;
+      final colW = (box.maxWidth - _gutter) / widget.count;
       return Column(
         children: [
           // Day names and dates.
@@ -516,6 +528,25 @@ class _WeekGridState extends State<WeekGrid> {
                   width: colW,
                   child: Column(
                     children: [
+                      for (final it in s.list('items').where((i) =>
+                          i['allDay'] == true &&
+                          i['status'] != 'cancelled' &&
+                          i['when'] != null &&
+                          dayKey(fromMs(i['when'] as int)) == dayKey(d)))
+                        GestureDetector(
+                          onTap: () => showTaskSheet(context, s, item: it),
+                          child: Container(
+                            margin: const EdgeInsets.all(1),
+                            padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              color: _color(it, scheme).withValues(alpha: it['status'] == 'done' ? 0.35 : 0.9),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(it['title'] as String,
+                                maxLines: 1, overflow: TextOverflow.clip, style: const TextStyle(fontSize: 11, color: Colors.white)),
+                          ),
+                        ),
                       for (final c in s.list('countdowns').where((c) => dayKey(s.countdownNext(c)) == dayKey(d)))
                         Container(
                           margin: const EdgeInsets.all(1),
@@ -571,7 +602,7 @@ class _WeekGridState extends State<WeekGrid> {
     final key = dayKey(d);
     final items = s.list('items').where((i) {
       final w = i['when'] as int?;
-      return w != null && i['status'] != 'cancelled' && dayKey(fromMs(w)) == key;
+      return w != null && i['status'] != 'cancelled' && i['allDay'] != true && dayKey(fromMs(w)) == key;
     }).toList()
       ..sort(_byWhen);
     final lanes = _lanes(items);
@@ -590,6 +621,7 @@ class _WeekGridState extends State<WeekGrid> {
             day: d,
             at: TimeOfDay(hour: halfHours ~/ 2, minute: (halfHours % 2) * 30),
             newKind: 'event',
+            presetMinutes: 60,
           );
         },
         child: Stack(

@@ -24,6 +24,9 @@ String clock(int ms) {
 /// 45 -> "45 min", 90 -> "1h 30m", 120 -> "2h".
 String fmtMinutes(int m) => m < 60 ? '$m min' : '${m ~/ 60}h${m % 60 == 0 ? '' : ' ${m % 60}m'}';
 
+/// "Today", "Tomorrow" or the date, without a time (for all-day items).
+String niceDay(int ms) => niceWhen(ms).split(' ').first;
+
 String niceWhen(int ms) {
   final d = fromMs(ms);
   final now = DateTime.now();

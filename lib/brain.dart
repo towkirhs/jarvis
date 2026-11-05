@@ -258,6 +258,7 @@ class Brain {
       'list': ((p['list'] as String?) ?? '').trim().isEmpty ? 'Inbox' : (p['list'] as String).trim(),
       'repeat': when == null ? null : (['daily', 'weekly', 'monthly', 'yearly'].contains(p['repeat']) ? p['repeat'] : null),
       'dur': (p['durationMinutes'] as num?)?.toInt(),
+      'allDay': p['date'] != null && p['time'] == null,
     };
 
     if (type == 'task') {

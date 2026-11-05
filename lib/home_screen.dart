@@ -76,11 +76,12 @@ class _HomeScreenState extends State<HomeScreen> {
     final open = s.list('items').where((i) => i['status'] == 'open').toList();
     final behind = open.where((i) {
       final w = i['when'] as int?;
-      return w != null && w < nowMs;
+      // An all-day item is only behind once its day is over.
+      return w != null && w < nowMs && !(i['allDay'] == true && dayKey(fromMs(w)) == today);
     }).toList();
     final todays = open.where((i) {
       final w = i['when'] as int?;
-      return w != null && w >= nowMs && dayKey(fromMs(w)) == today;
+      return w != null && (w >= nowMs || i['allDay'] == true) && dayKey(fromMs(w)) == today;
     }).toList()
       ..sort((a, b) => (a['when'] as int).compareTo(b['when'] as int));
     final habits = s.habitsDueToday();

@@ -13,7 +13,8 @@ List<String> allLists(Store s) {
 }
 
 /// Adds a task (or edits [item]) by hand. [day], [at] and [newKind] preset a new one.
-Future<void> showTaskSheet(BuildContext context, Store s, {Rec? item, DateTime? day, TimeOfDay? at, String? newKind}) {
+/// Start and end times are optional: a date alone is an all-day item; the end sets the duration.
+Future<void> showTaskSheet(BuildContext context, Store s, {Rec? item, DateTime? day, TimeOfDay? at, String? newKind, int? presetMinutes}) {
   final title = TextEditingController(text: item?['title'] as String? ?? '');
   final desc = TextEditingController(text: item?['desc'] as String? ?? '');
   final tags = TextEditingController(text: ((item?['tags'] as List?) ?? []).join(', '));
@@ -23,8 +24,8 @@ Future<void> showTaskSheet(BuildContext context, Store s, {Rec? item, DateTime? 
   var repeat = item?['repeat'] as String?;
   final w = item?['when'] as int?;
   DateTime? date = w != null ? fromMs(w) : day;
-  TimeOfDay? time = w != null ? TimeOfDay.fromDateTime(fromMs(w)) : at;
-  final oldMinutes = kind == 'task' ? (item?['est']) : (item?['dur']);
+  TimeOfDay? time = w != null ? (item?['allDay'] == true ? null : TimeOfDay.fromDateTime(fromMs(w))) : at;
+  final oldMinutes = item == null ? presetMinutes : (kind == 'task' ? item['est'] : item['dur']);
   // Whole and half hours of an hour or more are shown in hours.
   var unit = oldMinutes is int && oldMinutes >= 60 && oldMinutes % 30 == 0 ? 'h' : 'min';
   final minutes = TextEditingController(
@@ -52,6 +53,34 @@ Future<void> showTaskSheet(BuildContext context, Store s, {Rec? item, DateTime? 
           if (t != null) setS(() => time = t);
         }
 
+        int? currentMinutes() {
+          final a = double.tryParse(minutes.text.trim());
+          return a == null ? null : (unit == 'h' ? a * 60 : a).round();
+        }
+
+        TimeOfDay? endTime() {
+          final m = currentMinutes();
+          if (time == null || m == null) return null;
+          final total = time!.hour * 60 + time!.minute + m;
+          return TimeOfDay(hour: (total ~/ 60) % 24, minute: total % 60);
+        }
+
+        // Picking an end time sets the duration field (shown in hours when it is whole or half hours).
+        Future<void> pickEnd() async {
+          final start = time!;
+          final t = await showTimePicker(
+            context: ctx,
+            initialTime: endTime() ?? TimeOfDay(hour: (start.hour + 1) % 24, minute: start.minute),
+          );
+          if (t == null) return;
+          var diff = (t.hour * 60 + t.minute) - (start.hour * 60 + start.minute);
+          if (diff <= 0) diff += 24 * 60;
+          setS(() {
+            unit = diff >= 60 && diff % 30 == 0 ? 'h' : 'min';
+            minutes.text = unit == 'h' ? '${diff / 60}'.replaceAll('.0', '') : '$diff';
+          });
+        }
+
         Future<void> save() async {
           final name = title.text.trim();
           if (name.isEmpty) return;
@@ -69,6 +98,7 @@ Future<void> showTaskSheet(BuildContext context, Store s, {Rec? item, DateTime? 
             'list': listCtrl.text.trim().isEmpty ? 'Inbox' : listCtrl.text.trim(),
             'repeat': when == null ? null : repeat,
             'dur': kind == 'task' ? null : mins,
+            'allDay': date != null && time == null,
           };
           if (item == null) {
             final undo = <Rec>[];
@@ -135,10 +165,18 @@ Future<void> showTaskSheet(BuildContext context, Store s, {Rec? item, DateTime? 
                       onPressed: pickDate,
                     ),
                     if (date != null)
-                      ActionChip(
+                      InputChip(
                         avatar: const Icon(Icons.schedule, size: 18),
-                        label: Text(time == null ? 'Time' : time!.format(ctx)),
+                        label: Text(time == null ? 'Start (all day)' : 'Start ${time!.format(ctx)}'),
                         onPressed: pickTime,
+                        onDeleted: time == null ? null : () => setS(() => time = null),
+                      ),
+                    if (date != null && time != null)
+                      InputChip(
+                        avatar: const Icon(Icons.schedule_outlined, size: 18),
+                        label: Text(endTime() == null ? 'End' : 'End ${endTime()!.format(ctx)}'),
+                        onPressed: pickEnd,
+                        onDeleted: endTime() == null ? null : () => setS(() => minutes.text = ''),
                       ),
                     if (date != null)
                       IconButton(
@@ -194,6 +232,7 @@ Future<void> showTaskSheet(BuildContext context, Store s, {Rec? item, DateTime? 
                       width: 80,
                       child: TextField(
                         controller: minutes,
+                        onChanged: (_) => setS(() {}),
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         decoration: InputDecoration(
                           labelText: kind == 'task' ? 'Estimate' : 'Duration',
