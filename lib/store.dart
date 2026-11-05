@@ -91,10 +91,39 @@ class Store extends ChangeNotifier {
   Rec get boosts => _s['boosts'] as Rec;
   int get cap => (settings['cap'] as int?) ?? 6;
 
+  /// Goes up by one on every save, so sync can tell whether anything changed.
+  int changes = 0;
+
   void save() {
     _prefs.setString('state', jsonEncode(_s));
+    changes++;
+    _prefs.setBool('local_dirty', true);
     notifyListeners();
   }
+
+  /// True when something changed here since the last sync upload (survives restarts).
+  bool get dirty => _prefs.getBool('local_dirty') ?? false;
+
+  Future<void> clearDirty(int atChanges) async {
+    if (changes == atChanges) await _prefs.setBool('local_dirty', false);
+  }
+
+  /// The whole data document (for sync).
+  Rec get state => _s;
+
+  /// Replaces all data with a merged copy from sync, then re-arms reminders.
+  Future<void> replaceState(Rec s) async {
+    _s = s;
+    _fillDefaults();
+    save();
+    await resyncAll();
+  }
+
+  /// Settings kept on this device only (never synced), like the sync token.
+  String? local(String key) => _prefs.getString('local_$key');
+
+  Future<void> setLocal(String key, String? value) =>
+      value == null ? _prefs.remove('local_$key') : _prefs.setString('local_$key', value);
 
   Future<void> setApiKey(String key) async {
     apiKey = key.trim();

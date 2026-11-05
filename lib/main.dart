@@ -12,6 +12,7 @@ import 'journal_screen.dart';
 import 'native.dart';
 import 'pages.dart';
 import 'store.dart';
+import 'sync.dart';
 import 'theme.dart';
 
 Future<void> main() async {
@@ -154,6 +155,11 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
       await Brain.capture(s, text.isEmpty ? '(shared image)' : text, source: source, image: image);
     }
     await Brain.drain(s);
+    try {
+      await Sync.run(s);
+    } catch (_) {
+      // Offline or GitHub is down: the next tick tries again.
+    }
     final now = DateTime.now();
     final today = dayKey(now);
     if (now.hour >= 21 &&

@@ -7,6 +7,8 @@ import 'focus_screen.dart';
 import 'habits_screen.dart';
 import 'native.dart';
 import 'store.dart';
+import 'sync.dart';
+import 'sync_page.dart';
 import 'theme.dart';
 
 class MoreScreen extends StatelessWidget {
@@ -578,6 +580,19 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             const Divider(height: 32),
             Text('Backup and other devices', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.cloud_sync_outlined),
+                title: const Text('Encrypted sync'),
+                subtitle: Text(Sync.enabled(s) ? 'On' : 'Off — set up to never lose anything'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () async {
+                  await Navigator.of(context).push(MaterialPageRoute(builder: (_) => SyncPage(store: s)));
+                  if (mounted) setState(() {});
+                },
+              ),
+            ),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
