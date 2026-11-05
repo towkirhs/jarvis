@@ -215,6 +215,7 @@ class _HomeScreenState extends State<HomeScreen> {
             Text('${clock(c['ts'] as int)}  ${c['cleaned']}'),
             if (status == 'pending') Text('Waiting to be processed...', style: small),
             if (msg.isNotEmpty) Text(msg, style: small),
+            if (c['via'] == 'phone') Text('Understood on this phone, no AI used', style: small?.copyWith(fontStyle: FontStyle.italic)),
             for (final p in past) Text(p, style: small?.copyWith(fontStyle: FontStyle.italic)),
             Row(
               children: [

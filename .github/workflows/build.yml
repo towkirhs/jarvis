@@ -27,7 +27,7 @@ jobs:
 
       - name: Apply Android overlay
         run: |
-          rm -rf test analysis_options.yaml
+          rm -f test/widget_test.dart analysis_options.yaml
           D=android/app/src/main/kotlin/com/towkirhs/jarcis
           cp android_overlay/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
           for f in MainActivity AlarmReceiver AlarmScheduler BootReceiver NoteReceiver NativeChannel BackgroundRunner ActionReceiver ShareActivity; do
@@ -62,6 +62,7 @@ jobs:
 
       - run: flutter pub get
       - run: flutter analyze --no-fatal-infos
+      - run: flutter test
       - run: flutter build apk --release
       - run: flutter build web --release --base-href /jarvis/
 

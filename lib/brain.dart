@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
 
 import 'gemini.dart';
+import 'local_parser.dart';
 import 'store.dart';
 
 /// Turns captured text into tasks, alarms, habits, promises, decisions and journal entries.
@@ -65,6 +66,19 @@ class Brain {
   }
 
   static Future<bool> _process(Store s, Rec c) async {
+    // Simple notes (alarms, timed tasks, money, habits, birthdays) are understood on the phone: no AI call.
+    final local = c['image'] == null && s.settings['local'] != false
+        ? LocalParser.parse(
+            c['raw'] as String,
+            now: DateTime.now(),
+            habits: s.list('habits').map((h) => h['name'] as String).toList(),
+            accounts: s.list('accounts').map((a) => a['name'] as String).toList(),
+          )
+        : null;
+    if (local != null) {
+      c['via'] = 'phone';
+      return _apply(s, c, local);
+    }
     if (s.apiKey.isEmpty) {
       c['msg'] = 'Add your Gemini key in Settings. This note is saved and will be processed then.';
       s.save();
@@ -102,7 +116,12 @@ class Brain {
       s.save();
       return true;
     }
+    c['via'] = 'ai';
+    return _apply(s, c, data);
+  }
 
+  /// Turns the parsed items (from the phone or the AI) into tasks, alarms, money and so on.
+  static Future<bool> _apply(Store s, Rec c, Rec data) async {
     final capId = c['id'] as int;
     final undo = <Rec>[];
     final msgs = <String>[];

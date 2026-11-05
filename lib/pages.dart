@@ -531,6 +531,24 @@ class _SettingsPageState extends State<SettingsPage> {
                 },
               ),
             ),
+            Builder(builder: (context) {
+              final recent = s.list('captures').where((c) => c['via'] != null).toList().reversed.take(100).toList();
+              final onPhone = recent.where((c) => c['via'] == 'phone').length;
+              return SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Understand simple notes on the phone'),
+                subtitle: Text(
+                  'Alarms, timed tasks, money, habits and birthdays are read without an AI call: faster, offline, '
+                  'and saves your Gemini quota.${recent.isEmpty ? '' : ' Recently $onPhone of ${recent.length} notes needed no AI.'}',
+                ),
+                value: s.settings['local'] != false,
+                onChanged: (v) {
+                  s.settings['local'] = v;
+                  s.save();
+                  setState(() {});
+                },
+              );
+            }),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Keep small talk on this phone'),
