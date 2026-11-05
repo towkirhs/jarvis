@@ -16,26 +16,32 @@ Rec copyRec(Rec r) => jsonDecode(jsonEncode(r)) as Rec;
 
 String two(int n) => n.toString().padLeft(2, '0');
 
+const _shortDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const _shortMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/// 16:30 -> "4:30 pm".
 String clock(int ms) {
   final d = fromMs(ms);
-  return '${two(d.hour)}:${two(d.minute)}';
+  final h = d.hour % 12 == 0 ? 12 : d.hour % 12;
+  return '$h:${two(d.minute)} ${d.hour < 12 ? 'am' : 'pm'}';
 }
 
 /// 45 -> "45 min", 90 -> "1h 30m", 120 -> "2h".
 String fmtMinutes(int m) => m < 60 ? '$m min' : '${m ~/ 60}h${m % 60 == 0 ? '' : ' ${m % 60}m'}';
 
-/// "Today", "Tomorrow" or the date, without a time (for all-day items).
-String niceDay(int ms) => niceWhen(ms).split(' ').first;
-
-String niceWhen(int ms) {
+/// "Today", "Tomorrow", "Yesterday", "Sat" within a week, otherwise "7 Nov" (with the year if not this year).
+String niceDay(int ms) {
   final d = fromMs(ms);
   final now = DateTime.now();
-  final today = dayKey(now);
-  final tomorrow = dayKey(DateTime(now.year, now.month, now.day + 1));
-  final k = dayKey(d);
-  final day = k == today ? 'Today' : (k == tomorrow ? 'Tomorrow' : k);
-  return '$day ${clock(ms)}';
+  final diff = DateTime(d.year, d.month, d.day).difference(DateTime(now.year, now.month, now.day)).inDays;
+  if (diff == 0) return 'Today';
+  if (diff == 1) return 'Tomorrow';
+  if (diff == -1) return 'Yesterday';
+  if (diff > 1 && diff < 7) return _shortDays[d.weekday - 1];
+  return '${_shortDays[d.weekday - 1]} ${d.day} ${_shortMonths[d.month - 1]}${d.year == now.year ? '' : ' ${d.year}'}';
 }
+
+String niceWhen(int ms) => '${niceDay(ms)}, ${clock(ms)}';
 
 /// All app data lives in one JSON document in local storage. Collections hold plain maps.
 class Store extends ChangeNotifier {

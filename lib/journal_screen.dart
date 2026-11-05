@@ -150,7 +150,7 @@ class _JournalScreenState extends State<JournalScreen> {
                   children: [
                     Text('Journal', style: Theme.of(context).textTheme.titleLarge),
                     const SizedBox(width: 8),
-                    if (streak > 0) Chip(label: Text('🔥 $streak day${streak == 1 ? '' : 's'}')),
+                    if (streak > 0) Text('🔥 $streak', style: Theme.of(context).textTheme.titleMedium),
                     const Spacer(),
                     IconButton(
                       tooltip: 'Insights',

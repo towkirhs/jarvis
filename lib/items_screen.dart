@@ -79,8 +79,8 @@ class ItemTile extends StatelessWidget {
       if (started) 'started',
       if ((it['list'] ?? 'Inbox') != 'Inbox') '${it['list']}',
     ].join('  ·  ');
-    return Card(
-      child: InkWell(
+    final body = InkWell(
+        borderRadius: BorderRadius.circular(12),
         onTap: () => showTaskSheet(context, store, item: it),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(4, 4, 4, 4),
@@ -112,20 +112,13 @@ class ItemTile extends StatelessWidget {
                       ],
                     ),
                   ),
-                  if (open && it['kind'] == 'task' && !started && !dense)
-                    IconButton(
-                      tooltip: 'Start',
-                      icon: const Icon(Icons.play_arrow),
-                      onPressed: () => store.updateRec(
-                        'items', it, 'Started: ${it['title']}',
-                        (r) => r['startedAt'] = DateTime.now().millisecondsSinceEpoch,
-                      ),
-                    ),
                   PopupMenuButton<String>(
                     tooltip: 'More',
                     onSelected: (v) => _itemAction(context, store, it, v),
                     itemBuilder: (_) => [
                       if (open) const PopupMenuItem(value: 'done', child: Text('Done')),
+                      if (open && it['kind'] == 'task' && !started)
+                        const PopupMenuItem(value: 'start', child: Text('Start (track time)')),
                       const PopupMenuItem(value: 'edit', child: Text('Edit')),
                       if (open && w != null) const PopupMenuItem(value: 'snooze', child: Text('Snooze 1 hour')),
                       if (open) const PopupMenuItem(value: 'tomorrow', child: Text('Move to tomorrow')),
@@ -156,8 +149,9 @@ class ItemTile extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
+      );
+    // Inside another card (Home, calendar) a row is flat; in lists it is its own card.
+    return dense ? body : Card(child: body);
   }
 }
 
@@ -167,6 +161,9 @@ Future<void> _itemAction(BuildContext context, Store store, Rec it, String v) as
     switch (v) {
       case 'done':
         await store.markDone(it);
+      case 'start':
+        await store.updateRec('items', it, 'Started: ${it['title']}',
+            (r) => r['startedAt'] = DateTime.now().millisecondsSinceEpoch);
       case 'edit':
         await showTaskSheet(context, store, item: it);
       case 'snooze':
@@ -193,6 +190,23 @@ Future<void> _itemAction(BuildContext context, Store store, Rec it, String v) as
         store.removeRec('items', it, 'Deleted: ${it['title']}');
     }
   }
+}
+
+const _groups = ['Overdue', 'Today', 'Tomorrow', 'Next 7 days', 'Later', 'No date'];
+
+/// Which heading an open item goes under in the list.
+String _groupOf(Rec it) {
+  final w = it['when'] as int?;
+  if (w == null) return 'No date';
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final d = fromMs(w);
+  final days = DateTime(d.year, d.month, d.day).difference(today).inDays;
+  if (days < 0 || (days == 0 && it['allDay'] != true && d.isBefore(now))) return 'Overdue';
+  if (days == 0) return 'Today';
+  if (days == 1) return 'Tomorrow';
+  if (days < 7) return 'Next 7 days';
+  return 'Later';
 }
 
 class _ListView extends StatefulWidget {
@@ -256,7 +270,19 @@ class _ListViewState extends State<_ListView> {
               if (_filter == 'All' || _filter == 'Today')
                 for (final h in s.habitsDueToday()) HabitTodayRow(store: s, habit: h),
               if (open.isEmpty) const Padding(padding: EdgeInsets.all(16), child: Text('Nothing here. Tap + or tell Jarvis.')),
-              for (final it in open) ItemTile(store: s, it: it),
+              for (final g in _groups)
+                if (open.any((i) => _groupOf(i) == g)) ...[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(4, 12, 4, 4),
+                    child: Text(
+                      g,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            color: g == 'Overdue' ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.primary,
+                          ),
+                    ),
+                  ),
+                  for (final it in open.where((i) => _groupOf(i) == g)) ItemTile(store: s, it: it),
+                ],
               if (done.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 Text('Recently done', style: Theme.of(context).textTheme.titleMedium),

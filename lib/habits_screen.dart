@@ -119,18 +119,21 @@ Future<Rec?> showAddHabit(BuildContext context, Store store, {String name = '', 
 
 /// A habit shown as one of today's tasks: tick it done, or mark it skipped.
 class HabitTodayRow extends StatelessWidget {
-  const HabitTodayRow({super.key, required this.store, required this.habit});
+  const HabitTodayRow({super.key, required this.store, required this.habit, this.flat = false});
   final Store store;
   final Rec habit;
+
+  /// Flat inside another card (Home); its own card in lists.
+  final bool flat;
 
   @override
   Widget build(BuildContext context) {
     final today = dayKey(DateTime.now());
     final h = habit;
     final done = store.periodCount(h, store.periodStart(h, DateTime.now()));
-    return Card(
-      child: ListTile(
+    final tile = ListTile(
         dense: true,
+        contentPadding: flat ? EdgeInsets.zero : null,
         leading: IconButton(
           tooltip: 'Done',
           icon: Icon(Icons.check_circle_outline, color: Color(habitColor(h))),
@@ -147,8 +150,8 @@ class HabitTodayRow extends StatelessWidget {
           context,
           MaterialPageRoute(builder: (_) => HabitPage(store: store, id: h['id'] as int)),
         ),
-      ),
-    );
+      );
+    return flat ? tile : Card(child: tile);
   }
 }
 

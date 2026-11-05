@@ -92,7 +92,15 @@ class _HomeScreenState extends State<HomeScreen> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Text('Today, $today', style: Theme.of(context).textTheme.titleLarge),
+        Text(
+          now.hour < 12 ? 'Good morning' : (now.hour < 17 ? 'Good afternoon' : 'Good evening'),
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600),
+        ),
+        Text(
+          '${const ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][now.weekday - 1]}, '
+          '${now.day} ${const ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][now.month - 1]}',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+        ),
         const SizedBox(height: 12),
         Row(
           crossAxisAlignment: CrossAxisAlignment.end,
@@ -156,7 +164,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ], color: scheme.errorContainer),
         if (habits.isNotEmpty)
           _card(context, 'Habits today', [
-            for (final h in habits) HabitTodayRow(store: s, habit: h),
+            for (final h in habits) HabitTodayRow(store: s, habit: h, flat: true),
           ]),
         if (s.list('countdowns').any((c) => daysLeft(s, c) >= 0))
           _card(context, 'Countdowns', [

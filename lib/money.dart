@@ -278,6 +278,7 @@ class _MoneyPageState extends State<MoneyPage> {
             ],
             bottom: const TabBar(
               isScrollable: true,
+              tabAlignment: TabAlignment.start,
               tabs: [Tab(text: 'Daily'), Tab(text: 'Calendar'), Tab(text: 'Monthly'), Tab(text: 'Stats'), Tab(text: 'Accounts')],
             ),
           ),

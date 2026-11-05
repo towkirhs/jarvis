@@ -21,55 +21,46 @@ class MoreScreen extends StatelessWidget {
               Navigator.push(context, MaterialPageRoute(builder: (_) => page));
           final inbox = store.list('inbox').length;
           final promises = store.list('promises').where((p) => p['status'] == 'open').length;
+          Widget tile(IconData icon, String title, String? sub, Widget page, {int badge = 0}) => ListTile(
+                leading: Badge(isLabelVisible: badge > 0, label: Text('$badge'), child: Icon(icon)),
+                title: Text(title),
+                subtitle: sub == null ? null : Text(sub),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => open(page),
+              );
+          Widget group(String name, List<Widget> tiles) => Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 16, 8, 4),
+                    child: Text(name, style: Theme.of(context).textTheme.titleSmall?.copyWith(color: Theme.of(context).colorScheme.primary)),
+                  ),
+                  Card(child: Column(children: tiles)),
+                ],
+              );
           return ListView(
+            padding: const EdgeInsets.fromLTRB(12, 16, 12, 24),
             children: [
-              ListTile(
-                leading: const Icon(Icons.inbox),
-                title: const Text('Review inbox'),
-                subtitle: Text('$inbox waiting'),
-                onTap: () => open(InboxPage(store: store)),
-              ),
-              ListTile(
-                leading: const Icon(Icons.handshake_outlined),
-                title: const Text('Promises'),
-                subtitle: Text('$promises open'),
-                onTap: () => open(PromisesPage(store: store)),
-              ),
-              ListTile(
-                leading: const Icon(Icons.history_edu),
-                title: const Text('Decisions'),
-                onTap: () => open(DecisionsPage(store: store)),
-              ),
-              ListTile(
-                leading: const Icon(Icons.timer_outlined),
-                title: const Text('Focus'),
-                subtitle: Text(store.focusActive == null ? 'Pomodoro and stopwatch' : 'Running now'),
-                onTap: () => open(Scaffold(
-                  appBar: AppBar(title: const Text('Focus')),
-                  body: FocusScreen(store: store),
-                )),
-              ),
-              ListTile(
-                leading: const Icon(Icons.hourglass_bottom),
-                title: const Text('Countdowns'),
-                subtitle: Text('${store.list('countdowns').length} saved'),
-                onTap: () => open(CountdownPage(store: store)),
-              ),
-              ListTile(
-                leading: const Icon(Icons.insights),
-                title: const Text('Insights'),
-                onTap: () => open(InsightsPage(store: store)),
-              ),
-              ListTile(
-                leading: const Icon(Icons.undo),
-                title: const Text('Activity and undo'),
-                onTap: () => open(ActivityPage(store: store)),
-              ),
-              ListTile(
-                leading: const Icon(Icons.settings),
-                title: const Text('Settings'),
-                onTap: () => open(SettingsPage(store: store)),
-              ),
+              Text('More', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600)),
+              group('Plan', [
+                tile(Icons.inbox_outlined, 'Review inbox', inbox == 0 ? 'All clear' : '$inbox waiting', InboxPage(store: store), badge: inbox),
+                tile(Icons.handshake_outlined, 'Promises', '$promises open', PromisesPage(store: store)),
+                tile(Icons.hourglass_bottom, 'Countdowns', '${store.list('countdowns').length} saved', CountdownPage(store: store)),
+                tile(Icons.history_edu_outlined, 'Decisions', null, DecisionsPage(store: store)),
+              ]),
+              group('Tools', [
+                tile(
+                  Icons.timer_outlined,
+                  'Focus',
+                  store.focusActive == null ? 'Pomodoro and stopwatch' : 'Running now',
+                  Scaffold(appBar: AppBar(title: const Text('Focus')), body: FocusScreen(store: store)),
+                ),
+                tile(Icons.insights, 'Insights', null, InsightsPage(store: store)),
+              ]),
+              group('App', [
+                tile(Icons.undo, 'Activity and undo', null, ActivityPage(store: store)),
+                tile(Icons.settings_outlined, 'Settings', null, SettingsPage(store: store)),
+              ]),
             ],
           );
         },
