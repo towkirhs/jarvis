@@ -1,6 +1,7 @@
 package com.towkirhs.jarcis
 
 import android.content.Context
+import android.content.Intent
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 
@@ -26,6 +27,22 @@ object NativeChannel {
             }
             "takeNotes" -> result.success(NoteQueue.take(context))
             "takeDone" -> result.success(DoneQueue.take(context))
+            "takeMoney" -> result.success(MoneyQueue.take(context))
+            "moneyAccess" -> result.success(
+                mapOf(
+                    "sms" to (context.checkSelfPermission(android.Manifest.permission.RECEIVE_SMS) ==
+                        android.content.pm.PackageManager.PERMISSION_GRANTED),
+                    "notifications" to (android.provider.Settings.Secure.getString(
+                        context.contentResolver, "enabled_notification_listeners"
+                    )?.contains(context.packageName) == true)
+                )
+            )
+            "openNotificationAccess" -> {
+                context.startActivity(
+                    Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+                result.success(null)
+            }
             "getLog" -> result.success(AlarmLog.read(context))
             else -> return false
         }

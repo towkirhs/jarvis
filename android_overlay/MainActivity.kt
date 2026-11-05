@@ -29,6 +29,10 @@ class MainActivity : FlutterActivity() {
                     result.success(pendingShared)
                     pendingShared = null
                 }
+                "requestSmsPermission" -> {
+                    requestPermissions(arrayOf(Manifest.permission.RECEIVE_SMS), 2)
+                    result.success(null)
+                }
                 "requestNotificationPermission" -> {
                     if (Build.VERSION.SDK_INT >= 33) {
                         requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)

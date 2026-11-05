@@ -163,6 +163,7 @@ class _HomeScreenState extends State<HomeScreen> {
           _card(context, 'Behind schedule', [
             for (final i in behind) ItemTile(store: s, it: i, dense: true),
           ], color: scheme.errorContainer),
+        LabelCard(store: s),
         if (habits.isNotEmpty)
           _card(context, 'Habits today', [
             for (final h in habits) HabitTodayRow(store: s, habit: h, flat: true),

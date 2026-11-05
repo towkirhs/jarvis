@@ -89,6 +89,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     Native.onShared = _onShared;
     Native.onNotesWaiting = _tick;
     Native.onDoneWaiting = _tick;
+    Native.onMoneyWaiting = _tick;
     Native.onLaunchAction = _openCapture;
     _boot();
     _timer = Timer.periodic(const Duration(minutes: 1), (_) => _tick());
@@ -148,6 +149,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
   /// Runs every minute while the app is open: retries waiting notes and writes the evening summary.
   Future<void> _tick() async {
     await _applyDone();
+    await drainMoneyQueue(s);
     for (final (text, image, source) in await Native.takeNotes()) {
       await Brain.capture(s, text.isEmpty ? '(shared image)' : text, source: source, image: image);
     }

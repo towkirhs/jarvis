@@ -3,6 +3,8 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import 'money_io.dart';
+import 'money_sms.dart';
+import 'native.dart';
 import 'store.dart';
 
 const expenseCats = ['Food', 'Transport', 'Shopping', 'Bills', 'Education', 'Health', 'Entertainment', 'Gifts', 'Other'];
@@ -277,6 +279,11 @@ class _MoneyPageState extends State<MoneyPage> {
               ],
             ),
             actions: [
+              IconButton(
+                tooltip: 'Log money automatically',
+                icon: const Icon(Icons.bolt),
+                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AutoMoneyPage(store: s))),
+              ),
               PopupMenuButton<String>(
                 tooltip: 'Export and import',
                 icon: const Icon(Icons.import_export),
@@ -645,4 +652,172 @@ class _DonutPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_DonutPainter old) => true;
+}
+
+/// Reads waiting bKash/Nagad/bank messages into transactions. Skips ones already logged
+/// (same TrxID, or the same amount within 10 minutes when there is no TrxID). Returns how many were added.
+Future<int> drainMoneyQueue(Store s) async {
+  var added = 0;
+  for (final (from, text, ts) in await Native.takeMoney()) {
+    final e = MoneySms.parse(text, from: from, now: fromMs(ts));
+    if (e == null) continue;
+    final dup = s.list('tx').any((t) => e.trxId != null
+        ? t['trxId'] == e.trxId
+        : t['auto'] == true &&
+            t['type'] == e.type &&
+            t['amount'] == e.amount &&
+            ((t['ts'] as int) - e.ts.millisecondsSinceEpoch).abs() < 10 * 60000);
+    if (dup) continue;
+    final undo = <Rec>[];
+    for (final name in [e.account, if (e.toAccount != null) e.toAccount!]) {
+      if (s.list('accounts').every((a) => a['name'] != name)) {
+        final a = {'id': s.nextId(), 'name': name, 'group': name == 'Cash' ? 'Cash' : (name == 'Bank' ? 'Bank' : 'Mobile wallet'), 'initial': 0};
+        s.list('accounts').add(a);
+        undo.add({'op': 'rm', 'col': 'accounts', 'id': a['id']});
+      }
+    }
+    final r = s.addTx(
+      type: e.type,
+      amount: e.amount,
+      category: e.category,
+      account: e.account,
+      toAccount: e.toAccount,
+      note: e.note,
+      ts: e.ts.millisecondsSinceEpoch,
+      undo: undo,
+    );
+    r['auto'] = true;
+    r['trxId'] = e.trxId;
+    r['needsLabel'] = e.type != 'transfer' && e.category == 'Other';
+    s.logAction('Logged from ${e.account}: ${s.money(e.amount)} ${e.note ?? e.category}', undo);
+    added++;
+  }
+  if (added > 0) s.save();
+  return added;
+}
+
+/// "What was this for?" for transactions logged automatically from messages.
+class LabelCard extends StatelessWidget {
+  const LabelCard({super.key, required this.store});
+  final Store store;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = store;
+    final todo = s.list('tx').where((t) => t['needsLabel'] == true).toList();
+    if (todo.isEmpty) return const SizedBox.shrink();
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('What were these for?', style: TextStyle(fontWeight: FontWeight.bold)),
+            for (final t in todo.take(3)) ...[
+              const SizedBox(height: 8),
+              Text('${t['type'] == 'income' ? '+' : '-'}${s.money(t['amount'] as num)}  ${t['note'] ?? ''}  ·  ${t['account']}  ·  ${niceWhen(t['ts'] as int)}'),
+              Wrap(
+                spacing: 6,
+                children: [
+                  for (final c in t['type'] == 'income' ? incomeCats : expenseCats)
+                    ActionChip(
+                      label: Text(c),
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () => s.updateRec('tx', t, 'Labelled ${s.money(t['amount'] as num)} as $c', (r) {
+                        r['cat'] = c;
+                        r['needsLabel'] = false;
+                      }),
+                    ),
+                ],
+              ),
+            ],
+            if (todo.length > 3) Text('and ${todo.length - 3} more', style: Theme.of(context).textTheme.bodySmall),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Turns automatic logging on: SMS permission and notification access.
+class AutoMoneyPage extends StatefulWidget {
+  const AutoMoneyPage({super.key, required this.store});
+  final Store store;
+
+  @override
+  State<AutoMoneyPage> createState() => _AutoMoneyPageState();
+}
+
+class _AutoMoneyPageState extends State<AutoMoneyPage> with WidgetsBindingObserver {
+  ({bool sms, bool notifications}) _access = (sms: false, notifications: false);
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _refresh();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // Coming back from Android's settings page: check again.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _refresh();
+  }
+
+  Future<void> _refresh() async {
+    final a = await Native.moneyAccess();
+    if (mounted) setState(() => _access = a);
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: const Text('Log money automatically')),
+        body: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            const Text(
+              'Jarvis can read transaction messages from bKash, Nagad, Rocket and your bank, and log them for you. '
+              'Cash in and cash out become transfers. When it can\'t tell what a payment was for, it asks you on Home.\n\n'
+              'Messages are read on this phone only. Only messages with an amount (Tk, BDT, ৳) are kept; OTPs and offers are ignored.',
+            ),
+            const SizedBox(height: 16),
+            Card(
+              child: ListTile(
+                leading: Icon(_access.sms ? Icons.check_circle : Icons.sms_outlined, color: _access.sms ? Colors.green : null),
+                title: const Text('Read transaction SMS'),
+                subtitle: Text(_access.sms ? 'On' : 'Off. Tap to allow.'),
+                onTap: _access.sms
+                    ? null
+                    : () async {
+                        await Native.requestSmsPermission();
+                        await Future<void>.delayed(const Duration(seconds: 1));
+                        _refresh();
+                      },
+              ),
+            ),
+            Card(
+              child: ListTile(
+                leading: Icon(_access.notifications ? Icons.check_circle : Icons.notifications_outlined,
+                    color: _access.notifications ? Colors.green : null),
+                title: const Text('Read wallet and bank app notifications'),
+                subtitle: Text(_access.notifications
+                    ? 'On'
+                    : 'Off. Tap, then turn on "Jarvis money logging" in the list Android shows.'),
+                onTap: _access.notifications ? null : Native.openNotificationAccess,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Logged: ${widget.store.list('tx').where((t) => t['auto'] == true).length} transactions so far.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+      );
 }
