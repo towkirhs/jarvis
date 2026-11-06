@@ -118,7 +118,8 @@ ThemeData polish(ThemeData t) {
       surfaceTintColor: Colors.transparent,
       scrolledUnderElevation: 0,
       centerTitle: false,
-      titleTextStyle: display(tt.titleLarge, FontWeight.w700, -0.2)?.copyWith(color: c.onSurface),
+      // The theme's text styles get their sizes later, so the app bar title needs its size here.
+      titleTextStyle: display(tt.titleLarge, FontWeight.w700, -0.2)?.copyWith(color: c.onSurface, fontSize: 22, height: 1.27),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
