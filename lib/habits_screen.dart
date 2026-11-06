@@ -50,6 +50,7 @@ Widget _dayMark(BuildContext context, Rec h, DateTime day) {
   final p = HabitCore.progress(h, day);
   if (p == null) return const Icon(Icons.circle, size: 6, color: Colors.grey);
   if (p >= 1) return Icon(Icons.check, color: color);
+  if (p == 0) return Icon(Icons.close, color: Theme.of(context).colorScheme.error.withValues(alpha: 0.7)); // over a limit, late
   return SizedBox(
     width: 18,
     height: 18,
@@ -178,9 +179,11 @@ class HabitsScreen extends StatelessWidget {
                                 onTap: () => _openHabit(context, store, h),
                                 child: Padding(
                                   padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
-                                  child: Text(h['name'] as String,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(color: Color(habitColor(h)), fontWeight: FontWeight.w600)),
+                                  child: Row(children: [
+                                    Icon(habitIcon(h), size: 16, color: Color(habitColor(h))),
+                                    const SizedBox(width: 8),
+                                    Expanded(child: Text(h['name'] as String, overflow: TextOverflow.ellipsis)),
+                                  ]),
                                 ),
                               ),
                             ),
@@ -562,7 +565,11 @@ class HabitPage extends StatelessWidget {
 
   Widget _bigStat(BuildContext context, String value, String label, Color color) => Expanded(
         child: Column(children: [
-          Text(value, style: Theme.of(context).textTheme.titleLarge?.copyWith(color: color)),
+          // Habit colours are pastel; mix in the text colour so numbers stay readable.
+          Text(value,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: Color.lerp(color, Theme.of(context).colorScheme.onSurface, 0.45),
+                  )),
           Text(label, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall),
         ]),
       );
@@ -613,7 +620,7 @@ class HabitPage extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: TextStyle(color: color, fontSize: 18)),
+              Builder(builder: (context) => Text(title, style: Theme.of(context).textTheme.titleMedium)),
               const SizedBox(height: 12),
               child,
             ],
