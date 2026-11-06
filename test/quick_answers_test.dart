@@ -19,6 +19,7 @@ final tx = <Map<String, dynamic>>[
   {'type': 'expense', 'amount': 500, 'category': 'Food', 'ts': at(3, 20)},
   {'type': 'expense', 'amount': 1200, 'category': 'Bills', 'ts': at(1, 10)}, // last week, this month
   {'type': 'income', 'amount': 5000, 'category': 'Tuition', 'ts': at(6, 10)},
+  {'type': 'expense', 'amount': 40, 'category': null, 'ts': at(6, 8)}, // old record without a category
 ];
 
 String? ask(String q) => QuickAnswers.answer(q,
@@ -34,9 +35,9 @@ void main() {
   });
 
   test('spending by period, with the biggest categories', () {
-    expect(ask('How much did I spend today?'), 'You spent ৳310 today. Most on Food ৳250, Transport ৳60.');
-    expect(ask('how much did I spend this week'), 'You spent ৳810 this week. Most on Food ৳750, Transport ৳60.');
-    expect(ask('how much have I spent'), 'You spent ৳2010 this month. Most on Bills ৳1200, Food ৳750, Transport ৳60.');
+    expect(ask('How much did I spend today?'), 'You spent ৳350 today. Most on Food ৳250, Transport ৳60, Other ৳40.');
+    expect(ask('how much did I spend this week'), 'You spent ৳850 this week. Most on Food ৳750, Transport ৳60, Other ৳40.');
+    expect(ask('how much have I spent'), 'You spent ৳2050 this month. Most on Bills ৳1200, Food ৳750, Transport ৳60.');
   });
 
   test('spending on one category', () {

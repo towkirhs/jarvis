@@ -97,18 +97,19 @@ class QuickAnswers {
       return x['type'] == 'expense' && !d.isBefore(from) && d.isBefore(to);
     }).toList();
     // "on food", "for transport": narrow to a category the person has used.
-    final categories = {for (final x in spent) (x['category'] as String).toLowerCase(): x['category'] as String};
+    String catOf(Map<String, dynamic> x) => (x['category'] as String?) ?? 'Other';
+    final categories = {for (final x in spent) catOf(x).toLowerCase(): catOf(x)};
     String? cat;
     for (final c in categories.keys) {
       if (RegExp('\\b${RegExp.escape(c)}\\b').hasMatch(t)) cat = categories[c];
     }
-    final picked = cat == null ? spent : spent.where((x) => x['category'] == cat).toList();
+    final picked = cat == null ? spent : spent.where((x) => catOf(x) == cat).toList();
     final total = picked.fold<num>(0, (a, x) => a + (x['amount'] as num));
     if (picked.isEmpty) return 'Nothing spent${cat == null ? '' : ' on $cat'} $label.';
     if (cat != null) return 'You spent ${money(total)} on $cat $label.';
     final byCat = <String, num>{};
     for (final x in picked) {
-      byCat[x['category'] as String] = (byCat[x['category']] ?? 0) + (x['amount'] as num);
+      byCat[catOf(x)] = (byCat[catOf(x)] ?? 0) + (x['amount'] as num);
     }
     final top = byCat.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
     return 'You spent ${money(total)} $label. Most on ${top.take(3).map((e) => '${e.key} ${money(e.value)}').join(', ')}.';

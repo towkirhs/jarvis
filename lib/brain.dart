@@ -94,7 +94,12 @@ class Brain {
         );
 
   static Future<bool> _understand(Store s, Rec c) async {
-    final quick = c['image'] == null ? _quickAnswer(s, c['raw'] as String) : null;
+    String? quick;
+    try {
+      quick = c['image'] == null ? _quickAnswer(s, c['raw'] as String) : null;
+    } catch (_) {
+      // Odd data must never block the note: let the parser or the AI take it.
+    }
     if (quick != null) {
       c['via'] = 'phone';
       return _apply(s, c, {'items': <dynamic>[], 'reply': quick});
@@ -593,6 +598,14 @@ class Brain {
 
   // ---------- prompt ----------
 
+  static String _safeWorld(Store s) {
+    try {
+      return world(s);
+    } catch (_) {
+      return '(not available)'; // never let odd data stop a note from being read
+    }
+  }
+
   /// A compact picture of the person's life for the AI: what is open, coming, owed, tracked and spent.
   static String world(Store s) {
     final now = DateTime.now();
@@ -656,7 +669,8 @@ class Brain {
       final a = x['amount'] as num;
       if (x['type'] == 'income') income += a;
       if (x['type'] != 'expense') continue;
-      byCat[x['category'] as String] = (byCat[x['category']] ?? 0) + a;
+      final cat = (x['category'] as String?) ?? 'Other';
+      byCat[cat] = (byCat[cat] ?? 0) + a;
       if (ts >= weekStart) week += a;
       if (dayKey(fromMs(ts)) == today) todaySpent += a;
     }
@@ -680,7 +694,7 @@ class Brain {
     return '''You are Jarvis, the person's personal assistant. You turn what they tell you into actions in their life system, and answer their questions from their data. Today is ${days[now.weekday - 1]} ${dayKey(now)}, local time ${two(now.hour)}:${two(now.minute)}.
 
 What you know about their life right now:
-${world(s)}
+${_safeWorld(s)}
 
 Return ONLY JSON in this shape:
 {"cleaned": string, "reply": string, "mood": integer or null, "topics": [string], "items": [ {"type": string, "title": string, "date": string or null, "time": string or null, "target": string or null, "person": string or null, "reason": string or null, "habit": string or null, "estimateMinutes": integer or null, "category": string or null, "times": integer or null, "per": "week" or "month" or null, "done": boolean or null, "description": string or null, "priority": "high" or "medium" or "low" or null, "tags": [string] or null, "list": string or null, "repeat": "daily" or "weekly" or "monthly" or "yearly" or null, "durationMinutes": integer or null, "amount": number or null, "moneyType": "income" or "expense" or "transfer" or null, "account": string or null, "toAccount": string or null, "confidence": number} ]}
