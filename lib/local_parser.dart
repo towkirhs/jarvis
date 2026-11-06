@@ -206,7 +206,7 @@ class LocalParser {
   /// "finished the lab report", "done call ammu": marks an open item done (Brain checks it matches one).
   static Map<String, dynamic>? _done(String text, String t) {
     final m = RegExp(
-      r"^(?:i\s+)?(?:have\s+|'ve\s+)?(?:done|finished|completed|submitted|sent|did)\s+(?:with\s+)?(?:the\s+|my\s+)?(.+?)[.!]?$",
+      r"^(?:i(?:\s+have|'ve)?\s+)?(?:done|finished|completed|submitted|sent|did)\s+(?:with\s+)?(?:the\s+|my\s+)?(.+?)[.!]?$",
     ).firstMatch(t);
     if (m == null || m.group(1)!.split(' ').length > 8) return null;
     return _result(text, {'type': 'complete', 'target': m.group(1)});
