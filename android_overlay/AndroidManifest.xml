@@ -64,6 +64,13 @@
         </service>
         <receiver android:name=".AlarmReceiver" android:exported="false"/>
         <receiver android:name=".ActionReceiver" android:exported="false"/>
+        <receiver android:name=".ReplyReceiver" android:exported="false"/>
+        <activity
+            android:name=".VoiceActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"/>
         <receiver android:name=".NoteReceiver" android:exported="true">
           <intent-filter>
             <action android:name="com.towkirhs.jarcis.NEW_NOTE" />

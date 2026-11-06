@@ -44,9 +44,25 @@ class Brain {
       'past': <String>[],
       'source': source,
       'image': image,
+      if (source.startsWith('reply')) 'replyTo': _replyContext(s, source),
     });
     s.save();
     if (!skip) await drain(s);
+  }
+
+  /// What an answer from a notification is answering: a reminder ("reply:123") or Jarvis's last message.
+  static String? _replyContext(Store s, String source) {
+    final id = int.tryParse(source.split(':').last);
+    if (id == 1) return 'the morning check-in: "What is the one thing that matters today?"';
+    if (id == 2) return 'the evening check-in: "How did today go?" (habits done, money spent, feelings all count)';
+    if (id != null) {
+      final it = s.byId('items', id);
+      if (it != null) return 'the reminder for #$id "${it['title']}"';
+      final p = s.byId('promises', id);
+      if (p != null) return 'the reminder for promise #$id to ${p['person']}: "${p['what']}"';
+    }
+    final said = s.local('last_said');
+    return said == null ? null : 'Jarvis, who had just said: "$said"';
   }
 
   /// Processes waiting notes oldest first. Stops at the first failure and tries again later.
@@ -74,10 +90,20 @@ class Brain {
 
   static Future<bool> _process(Store s, Rec c) async {
     final ok = await _understand(s, c);
-    // Notes sent from outside the app get Jarvis's answer back as a notification.
+    // Notes sent from outside the app get Jarvis's answer back as a notification you can answer again.
     final reply = c['reply'] as String?;
-    if (ok && c['status'] == 'done' && !const {'in-app', 'journal'}.contains(c['source'])) {
-      await Native.notify('Jarvis', reply ?? (c['msg'] as String? ?? ''));
+    final outside = !const {'in-app', 'journal'}.contains(c['source']);
+    if (ok && c['status'] == 'done' && outside) {
+      final said = reply ?? (c['msg'] as String? ?? '');
+      await s.setLocal('last_said', said);
+      await Native.notify('Jarvis', said);
+    } else if (!ok && outside && (c['source'] as String).startsWith('reply') && c['told'] != true) {
+      // Answered from a notification: say once why nothing happened yet, instead of leaving "…" hanging.
+      c['told'] = true;
+      s.save();
+      await Native.notify('Jarvis', s.apiKey.isEmpty
+          ? "I need the Gemini key (Settings) for that one. It's saved and I'll do it once the key is in."
+          : "I can't reach the AI right now. Your answer is saved and I'll handle it when I can.");
     }
     return ok;
   }
@@ -95,6 +121,24 @@ class Brain {
         );
 
   static Future<bool> _understand(Store s, Rec c) async {
+    // "done" / "cancel it" answering a reminder: act on that item straight away.
+    final about = int.tryParse(((c['source'] as String?) ?? '').split(':').last);
+    if (about != null) {
+      final t = (c['raw'] as String).trim().toLowerCase().replaceAll(RegExp(r'[.!]+$'), '');
+      final type = RegExp(r"^(ok(ay)? )?(done|did it|finished|completed|yes,? done|it's done|already done)$").hasMatch(t)
+          ? 'complete'
+          : RegExp(r"^(cancel( it)?|skip( it)?|not needed|no longer needed|forget it)$").hasMatch(t)
+              ? 'cancel'
+              : null;
+      if (type != null && findTarget(s, '#$about') != null) {
+        c['via'] = 'phone';
+        return _apply(s, c, {
+          'items': [
+            {'type': type, 'target': '#$about', 'confidence': 1},
+          ],
+        });
+      }
+    }
     String? quick;
     try {
       quick = c['image'] == null ? _quickAnswer(s, c['raw'] as String) : null;
@@ -154,7 +198,7 @@ class Brain {
       }
       text = await Gemini.generate(
         s,
-        _parserPrompt(s, c['raw'] as String, photo: bytes != null),
+        _parserPrompt(s, c['raw'] as String, photo: bytes != null, replyTo: c['replyTo'] as String?),
         json: true,
         image: bytes,
         mime: path != null && path.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg',
@@ -750,7 +794,7 @@ class Brain {
     return lines.join('\n');
   }
 
-  static String _parserPrompt(Store s, String note, {bool photo = false}) {
+  static String _parserPrompt(Store s, String note, {bool photo = false, String? replyTo}) {
     final now = DateTime.now();
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
     return '''You are Jarvis, the person's personal assistant. You turn what they tell you into actions in their life system, and answer their questions from their data. Today is ${days[now.weekday - 1]} ${dayKey(now)}, local time ${two(now.hour)}:${two(now.minute)}.
@@ -791,6 +835,6 @@ Rules:
 - If the same thing happens on several dates, output one item per date.
 - Notes may be in English, Bengali, or Bengali written in English letters (for example "kal" = tomorrow, "porshu" = day after tomorrow, "tarikh" = date, "tar por" = after that, "sondhay" = evening, "sokal" = morning). Understand them. Write "title" in short plain English; keep "cleaned" in the language the person used.
 
-${photo ? 'The note comes with a photo. Read everything useful in it (a class routine, exam schedule, poster, handwritten list, receipt, screenshot) and turn it into items. In "cleaned", after the note text, add one short line describing the photo.\n' : ''}Note: """$note"""''';
+${photo ? 'The note comes with a photo. Read everything useful in it (a class routine, exam schedule, poster, handwritten list, receipt, screenshot) and turn it into items. In "cleaned", after the note text, add one short line describing the photo.\n' : ''}${replyTo == null ? '' : 'This note is their answer to $replyTo. Words like "it", "that", "yes", "later" refer to that. For a reminder, "later", "in an hour" or a time means delay it; "done" means complete it; use its id as the target.\n'}Note: """$note"""''';
   }
 }

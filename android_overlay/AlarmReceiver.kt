@@ -61,6 +61,7 @@ class AlarmReceiver : BroadcastReceiver() {
             .setAutoCancel(true)
             .addAction(0, "Done", action(context, ActionReceiver.ACTION_DONE, id, kind, label))
             .addAction(0, "Snooze 10 min", action(context, ActionReceiver.ACTION_SNOOZE, id, kind, label))
+            .addAction(Chat.replyAction(context, if (id >= ActionReceiver.SNOOZE_OFFSET) id - ActionReceiver.SNOOZE_OFFSET else id, id))
             .build()
         if (isAlarm) notification.flags = notification.flags or Notification.FLAG_INSISTENT
         manager.notify(id, notification)

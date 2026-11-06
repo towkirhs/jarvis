@@ -195,8 +195,8 @@ class Store extends ChangeNotifier {
       );
     }
 
-    await daily(1, 7, 30, 'Morning plan is ready. Open Jarvis to see your day.');
-    await daily(2, 21, 0, 'Evening check-in: log your habits and close out the day.');
+    await daily(1, 7, 30, "Good morning. What's the one thing that matters today? Reply, or open your day.");
+    await daily(2, 21, 0, 'How did today go? Reply with anything: what you did, spent, or felt.');
   }
 
   /// A habit's optional daily reminder at 'remind' (HH:MM).
