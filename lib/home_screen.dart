@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'brain.dart';
 import 'capture_page.dart';
 import 'countdown_screen.dart';
+import 'decide.dart';
+import 'decide_page.dart';
 import 'habits_screen.dart';
 import 'haptics.dart';
 import 'items_screen.dart';
@@ -150,6 +152,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final warn = _overbooked(todays);
     final countdowns = s.list('countdowns').where((c) => daysLeft(s, c) >= 0).toList()
       ..sort((a, b) => daysLeft(s, a).compareTo(daysLeft(s, b)));
+    final now0 = Decide.whatNow(s.list('items'), now);
+    final nowPick = now0.pick == 'nothing' ? null : s.byId('items', int.parse(now0.pick));
     num spentToday = 0;
     for (final t in s.list('tx').where((t) => t['type'] == 'expense')) {
       if (dayKey(fromMs(t['ts'] as int)) == today) spentToday += t['amount'] as num;
@@ -215,6 +219,29 @@ class _HomeScreenState extends State<HomeScreen> {
             for (final i in behind) ItemTile(store: s, it: i, dense: true),
           ], icon: Icons.error_outline, iconColor: scheme.error),
         LabelCard(store: s),
+        if (nowPick != null)
+          _section(
+            context,
+            'Do this now',
+            [
+              ItemTile(store: s, it: nowPick, dense: true),
+              Padding(
+                padding: const EdgeInsets.only(left: 4, bottom: 2),
+                child: Text(
+                  '${(now0.confidence * 100).round()}% the best use of right now'
+                  '${now0.probs.length > 1 ? ' · then ${s.byId('items', int.parse(now0.probs.keys.elementAt(1)))?['title']}' : ''}',
+                  style: tt.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                ),
+              ),
+            ],
+            icon: Icons.bolt,
+            iconColor: scheme.primary,
+            trailing: IconButton(
+              tooltip: 'Decide something',
+              icon: const Icon(Icons.balance),
+              onPressed: () => _open(context, DecidePage(store: s)),
+            ),
+          ),
         if (countdowns.isNotEmpty || s.list('tx').isNotEmpty)
           Row(
             children: [

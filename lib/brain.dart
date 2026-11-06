@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:image_picker/image_picker.dart';
 
+import 'decide.dart';
 import 'gemini.dart';
 import 'local_parser.dart';
 import 'native.dart';
@@ -103,6 +104,19 @@ class Brain {
     if (quick != null) {
       c['via'] = 'phone';
       return _apply(s, c, {'items': <dynamic>[], 'reply': quick});
+    }
+    // "Should I…?", "X or Y?": a decision with odds, not a conversation.
+    if (c['image'] == null && s.apiKey.isNotEmpty && Decide.isDecisionRequest(c['raw'] as String)) {
+      try {
+        final answers = await decide(s, c['raw'] as String, captureId: c['id'] as int);
+        c['via'] = 'ai';
+        c['decision'] = [for (final a in answers) a.toJson()];
+        return _apply(s, c, {'items': <dynamic>[], 'reply': verdict(s, answers.first)});
+      } catch (e) {
+        c['msg'] = 'Waiting for the AI: $e';
+        s.save();
+        return false;
+      }
     }
     // Simple notes (alarms, timed tasks, money, habits, birthdays) are understood on the phone: no AI call.
     var local = c['image'] == null && s.settings['local'] != false
@@ -216,7 +230,7 @@ class Brain {
   static String? reviewReason(Store s, Rec p) {
     final type = p['type'];
     final conf = (p['confidence'] as num?)?.toDouble() ?? 0;
-    if (conf < 0.7) return 'not sure I understood';
+    if (conf < s.sureEnough) return 'not sure I understood';
     final time = p['time'] as String?;
     final date = p['date'] as String?;
     if ((type == 'alarm' || type == 'event') && time == null) return 'no time given';
@@ -604,6 +618,54 @@ class Brain {
     } catch (_) {
       return '(not available)'; // never let odd data stop a note from being read
     }
+  }
+
+  /// Decides [situation] with typed questions: which option, and how much it matters. Confident decisions are
+  /// kept in your decisions, so later notes on the same topic show "Past you decided".
+  static Future<List<Answer>> decide(Store s, String situation, {List<String> options = const [], int? captureId}) async {
+    final questions = [
+      Question.choice('pick', 'What should the person do?', options),
+      const Question.score('impact', 'How much does this decision matter for their life and goals?'),
+    ];
+    final past = s.list('decisions').reversed.take(10).map((d) {
+      final why = d['reason'];
+      return '- ${d['decision']}${why == null ? '' : ' (because $why)'}';
+    }).join('\n');
+    final state = 'The person asks: $situation\n\nTheir life right now:\n${_safeWorld(s)}\n\n'
+        'Their past decisions:\n${past.isEmpty ? 'none' : past}';
+    final answers = Decide.parse(await Gemini.generate(s, Decide.prompt(state, questions), json: true), questions);
+    final pick = answers.first;
+    if (pick.confidence >= s.sureEnough) {
+      const stop = {'should', 'shall', 'would', 'which', 'what', 'with', 'this', 'that', 'tonight', 'today', 'tomorrow', 'jarvis', 'decide'};
+      final tags = situation
+          .toLowerCase()
+          .split(RegExp(r'[^a-z]+'))
+          .where((w) => w.length > 3 && !stop.contains(w))
+          .toSet()
+          .take(5)
+          .toList();
+      s.list('decisions').add({
+        'id': s.nextId(),
+        'ts': DateTime.now().millisecondsSinceEpoch,
+        'decision': '${pick.pick} (asked: $situation)',
+        'reason': 'Jarvis was ${(pick.confidence * 100).round()}% sure',
+        'tags': tags,
+        'captureId': captureId,
+        'by': 'jarvis',
+      });
+      s.save();
+    }
+    return answers;
+  }
+
+  /// One line for a decision: the pick and its odds, or "your call" when it is too close.
+  static String verdict(Store s, Answer a) {
+    String pct(double v) => '${(v * 100).round()}%';
+    final others = a.probs.entries.skip(1).map((e) => '${e.key} ${pct(e.value)}').join(', ');
+    if (a.confidence < s.sureEnough) {
+      return 'Too close to call: ${a.probs.entries.map((e) => '${e.key} ${pct(e.value)}').join(', ')}. Your call.';
+    }
+    return '${a.pick} (${pct(a.confidence)})${others.isEmpty ? '' : '. $others'}';
   }
 
   /// A compact picture of the person's life for the AI: what is open, coming, owed, tracked and spent.

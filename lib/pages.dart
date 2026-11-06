@@ -7,6 +7,7 @@ import 'countdown_screen.dart';
 import 'focus_screen.dart';
 import 'habits_screen.dart';
 import 'native.dart';
+import 'decide_page.dart';
 import 'store.dart';
 import 'sync.dart';
 import 'sync_page.dart';
@@ -49,6 +50,7 @@ class MoreScreen extends StatelessWidget {
                 tile(Icons.inbox_outlined, 'Review inbox', inbox == 0 ? 'All clear' : '$inbox waiting', InboxPage(store: store), badge: inbox),
                 tile(Icons.handshake_outlined, 'Promises', '$promises open', PromisesPage(store: store)),
                 tile(Icons.hourglass_bottom, 'Countdowns', '${store.list('countdowns').length} saved', CountdownPage(store: store)),
+                tile(Icons.balance, 'Decide', 'Odds, not chat', DecidePage(store: store)),
                 tile(Icons.history_edu_outlined, 'Decisions', null, DecisionsPage(store: store)),
               ]),
               group('Tools', [
@@ -601,6 +603,24 @@ class _SettingsPageState extends State<SettingsPage> {
               value: s.settings['prefilter'] == true,
               onChanged: (v) {
                 s.settings['prefilter'] = v;
+                s.save();
+                setState(() {});
+              },
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Act on its own when at least'),
+              subtitle: const Text('Below this, notes go to your review inbox and decisions are left to you.'),
+              trailing: Text('${(s.sureEnough * 100).round()}% sure', style: Theme.of(context).textTheme.titleSmall),
+            ),
+            Slider(
+              value: s.sureEnough,
+              min: 0.5,
+              max: 0.95,
+              divisions: 9,
+              label: '${(s.sureEnough * 100).round()}%',
+              onChanged: (v) {
+                s.settings['sure'] = v;
                 s.save();
                 setState(() {});
               },

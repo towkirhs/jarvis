@@ -91,6 +91,9 @@ class Store extends ChangeNotifier {
   Rec get boosts => _s['boosts'] as Rec;
   int get cap => (settings['cap'] as int?) ?? 6;
 
+  /// How sure Jarvis must be (0.5 to 0.95) to act or decide on its own; below it, you are asked.
+  double get sureEnough => ((settings['sure'] as num?) ?? 0.7).toDouble();
+
   /// Goes up by one on every save, so sync can tell whether anything changed.
   int changes = 0;
 
