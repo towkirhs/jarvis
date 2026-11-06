@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 
 import 'haptics.dart';
 import 'brain.dart';
+import 'habit_core.dart';
 import 'store.dart';
 
 const moodFaces = ['', '😞', '😕', '😐', '🙂', '😄'];
@@ -697,7 +698,7 @@ class JournalInsightsPage extends StatelessWidget {
       compare(t, (d) => s.entriesOn(d).any((e) => ((e['tags'] as List?) ?? []).contains(t)));
     }
     for (final h in s.list('habits')) {
-      compare('${h['name']} (habit)', (d) => (h['logs'] as Rec)[d] == 'yes');
+      compare('${h['name']} (habit)', (d) => HabitCore.done(h, DateTime.parse(d)));
     }
     compare('Focused 1h+', (d) =>
         s.list('focus').where((f) => dayKey(fromMs(f['start'] as int)) == d).fold<int>(0, (a, f) => a + (f['minutes'] as int)) >= 60);

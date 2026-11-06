@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 
 import 'decide.dart';
 import 'gemini.dart';
+import 'habit_core.dart';
 import 'local_parser.dart';
 import 'native.dart';
 import 'quick_answers.dart';
@@ -478,10 +479,23 @@ class Brain {
       final done = p['done'] != false;
       final before = s.streakPeriods(h);
       undo.add({'op': 'put', 'col': 'habits', 'rec': copyRec(h)});
-      (h['logs'] as Rec)[day] = done ? 'yes' : 'no';
+      final type = (h['type'] as String?) ?? 'yesno';
+      final amount = p['amount'] as num?;
+      if (!done) {
+        (h['logs'] as Rec)[day] = 'no';
+      } else if (amount != null && type != 'yesno') {
+        // "drank 1 litre", "ran 3 km": add to the day; a rating or percentage replaces it.
+        final e = Map<String, dynamic>.from(HabitCore.entry(h, day) ?? {})..remove('miss')..remove('skip')..remove('done');
+        e['v'] = (type == 'rating' || type == 'percent') ? amount : ((e['v'] as num?) ?? 0) + amount;
+        (h['logs'] as Rec)[day] = e;
+      } else {
+        (h['logs'] as Rec)[day] = 'yes';
+      }
       final after = s.streakPeriods(h);
-      if (done && after > before) await s.boost('${h['name']}: $after ${h['per']} streak');
-      return '${done ? 'Logged' : 'Skipped'} ${h['name']}';
+      if (done && after > before) await s.boost('${h['name']}: $after ${HabitCore.unit(h)} streak');
+      if (!done) return 'Missed ${h['name']}';
+      final unit = h['unit'] ?? '';
+      return amount != null && type != 'yesno' ? 'Logged ${h['name']}: +$amount $unit'.trim() : 'Logged ${h['name']}';
     }
     if (type == 'money') {
       final kind = ['income', 'transfer'].contains(p['moneyType']) ? p['moneyType'] as String : 'expense';
@@ -751,8 +765,10 @@ class Brain {
       lines.add('Habits (target, done this period, streak, today):');
       for (final h in habits) {
         final logs = (h['logs'] as Rec?) ?? {};
-        lines.add('"${h['name']}" ${h['times']} per ${h['per']}, ${s.periodCount(h, s.periodStart(h, now))} so far, '
-            'streak ${s.streakPeriods(h)} ${h['per']}s, today ${logs[today] ?? 'not logged'}');
+        final t = HabitCore.target(h, now);
+        lines.add('"${h['name']}" (${HabitType.of(h).label}${t == null ? '' : ', target $t ${h['unit'] ?? ''}'}) '
+            '${HabitCore.describe(h)}, streak ${HabitCore.currentStreak(h, now)} ${HabitCore.unit(h)}s, '
+            'today ${logs[today] ?? 'not logged'}${h['archived'] == true ? ', archived' : ''}');
       }
     }
 
@@ -811,7 +827,7 @@ Return ONLY JSON in this shape:
 "mood": 1 (awful) to 5 (great) if the note says how they feel, otherwise null.
 "type" is one of: task, event, alarm, delay, complete, cancel, habit_log, habit_new, countdown, money, promise, decision, note, ignore.
 "date" is YYYY-MM-DD and "time" is HH:MM in 24 hours, both local. For a promise, "date" is the deadline.
-"target" is, for delay, complete and cancel, the existing open item or promise it refers to, written as its id like "#123". "habit" is, for habit_log, the tracked habit name, and for habit_new, a short name for the new habit. "done" is, for habit_log, true if they did it and false if they say they skipped it. "times" and "per" are, for habit_new, the target, like 3 per week or 12 per month ("daily" = 7 per week); "time" is its reminder time if one was said. "person" is, for a promise, who it was made to. "reason" is, for a decision, why the person decided.
+"target" is, for delay, complete and cancel, the existing open item or promise it refers to, written as its id like "#123". "habit" is, for habit_log, the tracked habit name, and for habit_new, a short name for the new habit. "done" is, for habit_log, true if they did it and false if they say they skipped it; "amount" is, for habit_log of a measured habit, how much they did (litres, km, minutes, reps, a rating), in the habit's unit. "times" and "per" are, for habit_new, the target, like 3 per week or 12 per month ("daily" = 7 per week); "time" is its reminder time if one was said. "person" is, for a promise, who it was made to. "reason" is, for a decision, why the person decided.
 "category" is one lowercase word for the kind of work, such as report, email, call, errand.
 "confidence" is 0 to 1.
 

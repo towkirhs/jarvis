@@ -5,6 +5,7 @@ import 'haptics.dart';
 import 'brain.dart';
 import 'countdown_screen.dart';
 import 'focus_screen.dart';
+import 'habit_core.dart';
 import 'habits_screen.dart';
 import 'native.dart';
 import 'decide_page.dart';
@@ -388,8 +389,8 @@ class InsightsPage extends StatelessWidget {
                 if (store.list('habits').isEmpty) const Text('No habits yet.'),
                 for (final h in store.list('habits'))
                   Text(
-                    '${h['name']}: ${store.periodCount(h, store.periodStart(h, DateTime.now()))}/${h['times']} '
-                    'this ${h['per']}, streak ${store.streakPeriods(h)}',
+                    '${h['name']}: ${HabitCore.describe(h).toLowerCase()}, '
+                    '${HabitCore.consistency(h, DateTime.now())}% consistent, streak ${store.streakPeriods(h)} ${HabitCore.unit(h)}s',
                   ),
                 const SizedBox(height: 16),
                 Text('How long things really take', style: style),

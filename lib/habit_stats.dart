@@ -1,3 +1,4 @@
+import 'habit_core.dart';
 import 'store.dart';
 
 /// Colours a habit can have (ARGB). A habit stores an index into this list.
@@ -8,26 +9,19 @@ const habitColors = [
 
 int habitColor(Rec h) => habitColors[((h['color'] as int?) ?? 0) % habitColors.length];
 
-String habitTarget(Rec h) => '${h['times']} times per ${h['per']}';
+String habitTarget(Rec h) => HabitCore.describe(h);
 
 DateTime _day(DateTime d) => DateTime(d.year, d.month, d.day);
 
-bool _done(Rec h, DateTime d) => (h['logs'] as Rec)[dayKey(d)] == 'yes';
+bool _done(Rec h, DateTime d) => HabitCore.done(h, d);
 
-/// Share of the target reached over the 30 days ending on asOf, from 0 to 1.
+/// Share of scheduled days (or weeks/months) done over the 30 days ending on asOf, from 0 to 1.
 double habitScore(Rec h, DateTime asOf) {
   final end = _day(asOf);
-  var done = 0;
-  for (var i = 0; i < 30; i++) {
-    if (_done(h, DateTime(end.year, end.month, end.day - i))) done++;
-  }
-  final times = (h['times'] as num).toDouble();
-  final expected = h['per'] == 'month' ? times : times * 30 / 7;
-  if (expected <= 0) return 0;
-  return (done / expected).clamp(0.0, 1.0);
+  return HabitCore.rate(h, DateTime(end.year, end.month, end.day - 29), end) ?? 0;
 }
 
-int habitTotal(Rec h) => (h['logs'] as Rec).values.where((v) => v == 'yes').length;
+int habitTotal(Rec h) => HabitCore.totalDone(h);
 
 /// First day of each of the last n months, oldest first.
 List<DateTime> lastMonths(int n) {
@@ -40,7 +34,7 @@ List<int> monthCounts(Rec h, int n) => [
       for (final m in lastMonths(n))
         (h['logs'] as Rec)
             .entries
-            .where((e) => e.value == 'yes' && e.key.startsWith('${m.year}-${two(m.month)}'))
+            .where((e) => (e.key as String).startsWith('${m.year}-${two(m.month)}') && _done(h, DateTime.parse(e.key as String)))
             .length,
     ];
 
@@ -67,8 +61,8 @@ class Streak {
 List<Streak> bestStreaks(Rec h, int n) {
   final days = (h['logs'] as Rec)
       .entries
-      .where((e) => e.value == 'yes')
-      .map((e) => DateTime.parse(e.key))
+      .where((e) => _done(h, DateTime.parse(e.key as String)))
+      .map((e) => DateTime.parse(e.key as String))
       .toList()
     ..sort();
   final runs = <Streak>[];
@@ -88,7 +82,7 @@ List<Streak> bestStreaks(Rec h, int n) {
 List<int> weekdayCounts(Rec h) {
   final c = List.filled(7, 0);
   for (final e in (h['logs'] as Rec).entries) {
-    if (e.value == 'yes') c[DateTime.parse(e.key).weekday - 1]++;
+    if (_done(h, DateTime.parse(e.key as String))) c[DateTime.parse(e.key as String).weekday - 1]++;
   }
   return c;
 }

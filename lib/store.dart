@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'habit_core.dart';
 import 'native.dart';
 
 typedef Rec = Map<String, dynamic>;
@@ -524,6 +525,7 @@ class Store extends ChangeNotifier {
       'color': list('habits').length,
       'remind': remind,
       'rid': remind == null ? null : nextId(),
+      'start': dayKey(DateTime.now()),
       'logs': <String, dynamic>{},
     };
     list('habits').add(h);
@@ -536,53 +538,35 @@ class Store extends ChangeNotifier {
   DateTime mondayOf(DateTime d) => DateTime(d.year, d.month, d.day - (d.weekday - 1));
 
   /// First day of the week or month (the habit's period) that contains d.
-  DateTime periodStart(Rec h, DateTime d) =>
-      h['per'] == 'month' ? DateTime(d.year, d.month, 1) : mondayOf(d);
+  DateTime periodStart(Rec h, DateTime d) => HabitCore.periodStart(h, d);
 
-  DateTime _nextPeriod(Rec h, DateTime start) => h['per'] == 'month'
-      ? DateTime(start.year, start.month + 1, 1)
-      : DateTime(start.year, start.month, start.day + 7);
+  /// Days done in the period starting at start.
+  int periodCount(Rec h, DateTime start) => HabitCore.periodCount(h, start);
 
-  DateTime _prevPeriod(Rec h, DateTime start) => h['per'] == 'month'
-      ? DateTime(start.year, start.month - 1, 1)
-      : DateTime(start.year, start.month, start.day - 7);
+  /// The habit's current streak (days, or weeks/months for weekly/monthly targets).
+  int streakPeriods(Rec h) => HabitCore.currentStreak(h, DateTime.now());
 
-  /// Times done in the period starting at start.
-  int periodCount(Rec h, DateTime start) {
-    final logs = h['logs'] as Rec;
-    final end = _nextPeriod(h, start);
-    var c = 0;
-    for (var d = start; d.isBefore(end); d = DateTime(d.year, d.month, d.day + 1)) {
-      if (logs[dayKey(d)] == 'yes') c++;
-    }
-    return c;
-  }
-
-  /// Consecutive weeks (or months) in which the habit reached its target.
-  int streakPeriods(Rec h) {
-    final target = h['times'] as int;
-    final now = periodStart(h, DateTime.now());
-    var streak = periodCount(h, now) >= target ? 1 : 0;
-    var p = _prevPeriod(h, now);
-    while (periodCount(h, p) >= target) {
-      streak++;
-      p = _prevPeriod(h, p);
-    }
-    return streak;
-  }
-
-  /// Habits still to do today: not logged today and target for this week/month not yet reached.
+  /// Habits still to do today, in routine order (morning, then the rest, then evening).
   List<Rec> habitsDueToday() {
     final now = DateTime.now();
-    final today = dayKey(now);
-    return list('habits')
-        .where((h) =>
-            (h['logs'] as Rec)[today] == null && periodCount(h, periodStart(h, now)) < (h['times'] as int))
-        .toList();
+    return orderedHabits().where((h) => HabitCore.dueToday(h, now)).toList();
   }
 
-  /// value: 'yes', 'no' (said they skipped it), or null (clear the day).
-  Future<void> logHabit(Rec h, String day, String? value) async {
+  /// Active habits, morning routine first, evening last, then by your own order.
+  List<Rec> orderedHabits({bool archived = false}) {
+    int group(Rec h) => switch (h['routine']) { 'morning' => 0, 'evening' => 2, _ => 1 };
+    return list('habits').where((h) => (h['archived'] == true) == archived).toList()
+      ..sort((a, b) {
+        final g = group(a).compareTo(group(b));
+        if (g != 0) return g;
+        final r = '${a['routine'] ?? ''}'.compareTo('${b['routine'] ?? ''}');
+        if (r != 0) return r;
+        return ((a['order'] as int?) ?? (a['id'] as int)).compareTo((b['order'] as int?) ?? (b['id'] as int));
+      });
+  }
+
+  /// Sets a day: 'yes', 'no' (missed), 'skip' (rest day), a log map ({v, items, at, note, photo}), or null to clear.
+  Future<void> logHabit(Rec h, String day, Object? value) async {
     final before = streakPeriods(h);
     final old = copyRec(h);
     final logs = h['logs'] as Rec;
@@ -591,15 +575,31 @@ class Store extends ChangeNotifier {
     } else {
       logs[day] = value;
     }
-    final verb = value == 'yes' ? 'Logged' : (value == 'no' ? 'Skipped' : 'Cleared');
+    final d = DateTime.parse(day);
+    final verb = value == null
+        ? 'Cleared'
+        : (value == 'skip' || (value is Map && value['skip'] == true))
+            ? 'Rest day for'
+            : (value == 'no' ? 'Missed' : (HabitCore.done(h, d) ? 'Done' : 'Logged'));
     logAction('$verb ${h['name']} on $day', [
       {'op': 'put', 'col': 'habits', 'rec': old},
     ]);
     save();
     final after = streakPeriods(h);
-    if (value == 'yes' && after > before) {
-      await boost('${h['name']}: $after ${h['per']} streak');
+    if (HabitCore.done(h, d) && after > before) {
+      await boost('${h['name']}: $after ${HabitCore.unit(h)} streak');
     }
+  }
+
+  /// Adds to (or, for ratings and percentages, sets) today's amount for a measured habit.
+  Future<void> addHabitValue(Rec h, String day, num amount, {bool set = false}) async {
+    final e = Map<String, dynamic>.from(HabitCore.entry(h, day) ?? {})
+      ..remove('skip')
+      ..remove('miss')
+      ..remove('done');
+    final v = set ? amount : ((e['v'] as num?) ?? 0) + amount;
+    e['v'] = v < 0 ? 0 : v;
+    await logHabit(h, day, e);
   }
 
   // ---------- focus (pomodoro and stopwatch) ----------
@@ -786,8 +786,11 @@ class Store extends ChangeNotifier {
         .where((i) => i['kind'] == 'event' && i['status'] != 'cancelled' && on(i['when'] as int?))
         .map((i) => i['title'])
         .toList();
-    final habits = list('habits').where((h) => (h['logs'] as Rec)[day] == 'yes').map((h) => h['name']).toList();
-    final skipped = list('habits').where((h) => (h['logs'] as Rec)[day] == 'no').map((h) => h['name']).toList();
+    final habits = list('habits').where((h) => HabitCore.done(h, DateTime.parse(day))).map((h) => h['name']).toList();
+    final skipped = list('habits')
+        .where((h) => HabitCore.entry(h, day)?['miss'] == true || HabitCore.skipped(h, DateTime.parse(day)))
+        .map((h) => h['name'])
+        .toList();
     final focus = list('focus').where((f) => on(f['start'] as int)).fold<int>(0, (a, f) => a + (f['minutes'] as int));
     num spent = 0;
     num earned = 0;
