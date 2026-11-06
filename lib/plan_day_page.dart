@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'day_planner.dart';
+import 'haptics.dart';
 import 'store.dart';
 
 /// Shows a proposed timeline for today. Apply gives each task its time; what does not fit can go to tomorrow.
@@ -19,6 +20,7 @@ class PlanDayPage extends StatelessWidget {
   }
 
   Future<void> _apply(BuildContext context, DayPlan plan) async {
+    Haptics.success();
     final undo = <Rec>[];
     for (final b in plan.blocks.where((b) => !b.fixed)) {
       final it = store.byId('items', b.itemId);

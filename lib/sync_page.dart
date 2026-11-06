@@ -105,7 +105,6 @@ class _SyncPageState extends State<SyncPage> {
                 labelText: 'GitHub token',
                 helperText: 'github.com → Settings → Developer settings → Tokens (classic), with only "gist" ticked.',
                 helperMaxLines: 3,
-                border: OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 12),
@@ -116,14 +115,13 @@ class _SyncPageState extends State<SyncPage> {
                 labelText: 'Passphrase',
                 helperText: 'Use the same one on every device. If you lose it, the synced copy cannot be opened.',
                 helperMaxLines: 3,
-                border: OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _pass2,
               obscureText: true,
-              decoration: const InputDecoration(labelText: 'Passphrase again', border: OutlineInputBorder()),
+              decoration: const InputDecoration(labelText: 'Passphrase again'),
             ),
             const SizedBox(height: 16),
             FilledButton.icon(

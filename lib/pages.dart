@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'haptics.dart';
 import 'brain.dart';
 import 'countdown_screen.dart';
 import 'focus_screen.dart';
@@ -43,7 +44,7 @@ class MoreScreen extends StatelessWidget {
           return ListView(
             padding: const EdgeInsets.fromLTRB(12, 16, 12, 24),
             children: [
-              Text('More', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600)),
+              Text('More', style: Theme.of(context).textTheme.headlineSmall),
               group('Plan', [
                 tile(Icons.inbox_outlined, 'Review inbox', inbox == 0 ? 'All clear' : '$inbox waiting', InboxPage(store: store), badge: inbox),
                 tile(Icons.handshake_outlined, 'Promises', '$promises open', PromisesPage(store: store)),
@@ -243,7 +244,13 @@ class ActivityPage extends StatelessWidget {
                     subtitle: Text(niceWhen(a['ts'] as int)),
                     trailing: a['undone'] == true
                         ? const Text('Undone')
-                        : TextButton(onPressed: () => store.undo(a['id'] as int), child: const Text('Undo')),
+                        : TextButton(
+                            onPressed: () {
+                              Haptics.tick();
+                              store.undo(a['id'] as int);
+                            },
+                            child: const Text('Undo'),
+                          ),
                   ),
               ],
             );
@@ -486,7 +493,6 @@ class _SettingsPageState extends State<SettingsPage> {
               decoration: const InputDecoration(
                 labelText: 'Gemini API key',
                 helperText: 'Stored only on this device. Not part of backups.',
-                border: OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 12),
@@ -495,7 +501,6 @@ class _SettingsPageState extends State<SettingsPage> {
               decoration: const InputDecoration(
                 labelText: 'Model',
                 helperText: 'Change this if Google retires the default.',
-                border: OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 8),
@@ -560,6 +565,17 @@ class _SettingsPageState extends State<SettingsPage> {
                 s.settings['prefilter'] = v;
                 s.save();
                 setState(() {});
+              },
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Vibrate on actions'),
+              subtitle: const Text('A light tap when you send, finish a task, or delete something.'),
+              value: s.settings['haptics'] != false,
+              onChanged: (v) {
+                s.settings['haptics'] = v;
+                s.save();
+                if (v) Haptics.success();
               },
             ),
             ListTile(

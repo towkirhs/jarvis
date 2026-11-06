@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import 'haptics.dart';
 import 'habits_screen.dart';
 import 'plan_day_page.dart';
 import 'store.dart';
@@ -93,7 +94,12 @@ class ItemTile extends StatelessWidget {
                   IconButton(
                     icon: Icon(icon, color: priority > 0 ? priorityColors[priority] : null),
                     tooltip: open ? 'Done' : null,
-                    onPressed: open ? () => store.markDone(it) : null,
+                    onPressed: open
+                        ? () {
+                            Haptics.success();
+                            store.markDone(it);
+                          }
+                        : null,
                   ),
                   Expanded(
                     child: Column(
@@ -161,6 +167,7 @@ Future<void> _itemAction(BuildContext context, Store store, Rec it, String v) as
     final w = it['when'] as int?;
     switch (v) {
       case 'done':
+        Haptics.success();
         await store.markDone(it);
       case 'start':
         await store.updateRec('items', it, 'Started: ${it['title']}',
@@ -188,6 +195,7 @@ Future<void> _itemAction(BuildContext context, Store store, Rec it, String v) as
       case 'archive':
         await store.updateRec('items', it, 'Archived: ${it['title']}', (r) => r['status'] = 'cancelled');
       case 'delete':
+        Haptics.warn();
         store.removeRec('items', it, 'Deleted: ${it['title']}');
     }
   }
@@ -778,7 +786,10 @@ class _MatrixView extends StatelessWidget {
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
                                           InkWell(
-                                            onTap: () => store.markDone(it),
+                                            onTap: () {
+                                              Haptics.success();
+                                              store.markDone(it);
+                                            },
                                             child: const Icon(Icons.check_box_outline_blank, size: 20),
                                           ),
                                           const SizedBox(width: 6),

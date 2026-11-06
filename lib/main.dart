@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'haptics.dart';
 import 'brain.dart';
 import 'capture_page.dart';
 import 'money.dart';
@@ -53,6 +54,7 @@ class JarcisApp extends StatelessWidget {
         listenable: store,
         builder: (context, _) {
           final pick = (store.settings['theme'] as String?) ?? 'system';
+          Haptics.on = store.settings['haptics'] != false;
           return MaterialApp(
             title: 'Jarvis',
             theme: pick == 'latte' ? latteTheme : defaultLight,
@@ -193,7 +195,10 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
         ),
         bottomNavigationBar: NavigationBar(
           selectedIndex: _tab,
-          onDestinationSelected: (i) => setState(() => _tab = i),
+          onDestinationSelected: (i) {
+            if (i != _tab) Haptics.tick();
+            setState(() => _tab = i);
+          },
           destinations: const [
             NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
             NavigationDestination(icon: Icon(Icons.checklist), label: 'Plan'),

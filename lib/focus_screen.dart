@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import 'haptics.dart';
 import 'store.dart';
 
 const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -63,6 +64,7 @@ class _FocusScreenState extends State<FocusScreen> {
   }
 
   Future<void> _start() async {
+    Haptics.tap();
     final task = s.byId('items', _taskId);
     await s.startFocus(
       mode: _mode,

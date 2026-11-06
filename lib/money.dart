@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import 'haptics.dart';
 import 'money_io.dart';
 import 'money_sms.dart';
 import 'native.dart';
@@ -90,6 +91,7 @@ Future<void> showTxSheet(BuildContext context, Store s, {Rec? tx, DateTime? day}
         } else {
           await s.updateRec('tx', tx, 'Edited ${s.money(a)} ${fields['cat']}', (r) => r.addAll(fields));
         }
+        Haptics.tap();
         if (ctx.mounted) Navigator.pop(ctx);
       }
 
@@ -192,6 +194,7 @@ Future<void> showTxSheet(BuildContext context, Store s, {Rec? tx, DateTime? day}
                       icon: const Icon(Icons.delete_outline),
                       label: const Text('Delete'),
                       onPressed: () {
+                        Haptics.warn();
                         s.removeRec('tx', tx, 'Deleted ${s.money(tx['amount'] as num)} ${tx['cat']}');
                         Navigator.pop(ctx);
                       },
@@ -586,6 +589,7 @@ class _MoneyPageState extends State<MoneyPage> {
           if (a != null)
             TextButton(
               onPressed: () {
+                Haptics.warn();
                 s.removeRec('accounts', a, 'Deleted account ${a['name']}');
                 Navigator.pop(ctx);
               },

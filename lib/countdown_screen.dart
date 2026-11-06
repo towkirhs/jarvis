@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'haptics.dart';
 import 'store.dart';
 
 const countdownKinds = {
@@ -50,6 +51,7 @@ Future<void> _edit(BuildContext context, Store s, {String kind = 'countdown', Re
           if (c != null)
             TextButton(
               onPressed: () {
+                Haptics.warn();
                 s.removeRec('countdowns', c, 'Deleted countdown ${c['title']}');
                 Navigator.pop(ctx);
               },

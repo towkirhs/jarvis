@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'haptics.dart';
 import 'store.dart';
 
 const priorityNames = ['None', 'Low', 'Medium', 'High'];
@@ -269,6 +270,7 @@ Future<void> showTaskSheet(BuildContext context, Store s, {Rec? item, DateTime? 
                         icon: const Icon(Icons.delete_outline),
                         label: const Text('Delete'),
                         onPressed: () {
+                          Haptics.warn();
                           s.removeRec('items', item, 'Deleted: ${item['title']}');
                           Navigator.pop(ctx);
                         },

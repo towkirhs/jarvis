@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'haptics.dart';
 import 'brain.dart';
 import 'store.dart';
 
@@ -148,7 +149,7 @@ class _JournalScreenState extends State<JournalScreen> {
               children: [
                 Row(
                   children: [
-                    Text('Journal', style: Theme.of(context).textTheme.titleLarge),
+                    Text('Journal', style: Theme.of(context).textTheme.headlineSmall),
                     const SizedBox(width: 8),
                     if (streak > 0) Text('🔥 $streak', style: Theme.of(context).textTheme.titleMedium),
                     const Spacer(),
@@ -174,7 +175,6 @@ class _JournalScreenState extends State<JournalScreen> {
                   decoration: const InputDecoration(
                     prefixIcon: Icon(Icons.search),
                     hintText: 'Search your journal',
-                    border: OutlineInputBorder(),
                     isDense: true,
                   ),
                   onChanged: (v) => setState(() => _search = v),
@@ -187,7 +187,6 @@ class _JournalScreenState extends State<JournalScreen> {
                         controller: _askCtrl,
                         decoration: const InputDecoration(
                           hintText: 'Ask: when did I last feel this good?',
-                          border: OutlineInputBorder(),
                           isDense: true,
                         ),
                         onSubmitted: (_) => _ask(),
@@ -546,6 +545,7 @@ class _EntryEditorState extends State<_EntryEditor> {
         {'op': 'rm', 'col': 'entries', 'id': r['id']},
       ]);
       s.save();
+      Haptics.tap();
       if (_toJarvis && text.isNotEmpty) await Brain.capture(s, text, source: 'journal');
     } else {
       await s.updateRec('entries', e, 'Edited journal entry', (r) {
@@ -569,6 +569,7 @@ class _EntryEditorState extends State<_EntryEditor> {
                 tooltip: 'Delete',
                 icon: const Icon(Icons.delete_outline),
                 onPressed: () {
+                  Haptics.warn();
                   s.removeRec('entries', widget.entry!, 'Deleted journal entry');
                   Navigator.pop(context);
                 },
@@ -636,7 +637,7 @@ class _EntryEditorState extends State<_EntryEditor> {
               minLines: 8,
               maxLines: null,
               textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(hintText: 'Dear diary...', border: OutlineInputBorder()),
+              decoration: const InputDecoration(hintText: 'Dear diary...'),
             ),
             const SizedBox(height: 12),
             if (!kIsWeb)

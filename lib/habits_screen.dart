@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'haptics.dart';
 import 'habit_stats.dart';
 import 'store.dart';
 
@@ -137,14 +138,20 @@ class HabitTodayRow extends StatelessWidget {
         leading: IconButton(
           tooltip: 'Done',
           icon: Icon(Icons.check_circle_outline, color: Color(habitColor(h))),
-          onPressed: () => store.logHabit(h, today, 'yes'),
+          onPressed: () {
+            Haptics.success();
+            store.logHabit(h, today, 'yes');
+          },
         ),
         title: Text(h['name'] as String),
         subtitle: Text('$done of ${h['times']} this ${h['per']}${h['remind'] == null ? '' : '  ·  ${_time12(h['remind'] as String)}'}'),
         trailing: IconButton(
           tooltip: 'Skip today',
           icon: const Icon(Icons.close),
-          onPressed: () => store.logHabit(h, today, 'no'),
+          onPressed: () {
+            Haptics.tick();
+            store.logHabit(h, today, 'no');
+          },
         ),
         onTap: () => Navigator.push(
           context,
@@ -165,6 +172,7 @@ String _time12(String hhmm) {
 /// Cycles a day: blank -> done -> skipped -> blank. Blank means "not said", which never counts as a miss.
 void _cycle(Store store, Rec h, String day) {
   final v = (h['logs'] as Rec)[day];
+  v == null ? Haptics.success() : Haptics.tick();
   store.logHabit(h, day, v == null ? 'yes' : (v == 'yes' ? 'no' : null));
 }
 
@@ -197,7 +205,7 @@ class HabitsScreen extends StatelessWidget {
             return ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                Text('Habits', style: Theme.of(context).textTheme.titleLarge),
+                Text('Habits', style: Theme.of(context).textTheme.headlineSmall),
                 const SizedBox(height: 4),
                 const Text('Tap a day: done, skipped, blank. Or just tell Jarvis, like "went to the gym today".'),
                 const SizedBox(height: 12),
@@ -304,6 +312,7 @@ class HabitPage extends StatelessWidget {
                   tooltip: 'Delete',
                   icon: const Icon(Icons.delete_outline),
                   onPressed: () {
+                    Haptics.warn();
                     store.removeRec('habits', h, 'Deleted habit ${h['name']}');
                     Navigator.pop(context);
                   },

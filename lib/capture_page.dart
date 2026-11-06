@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import 'haptics.dart';
 import 'brain.dart';
 import 'store.dart';
 
@@ -72,6 +73,7 @@ class _CapturePageState extends State<CapturePage> {
     final store = widget.store;
     final path = _photo?.path;
     Navigator.pop(context);
+    Haptics.tap();
     await Brain.capture(store, t.isEmpty ? '(photo)' : t, source: path == null ? 'text' : 'photo', image: path);
   }
 
@@ -92,7 +94,6 @@ class _CapturePageState extends State<CapturePage> {
               textCapitalization: TextCapitalization.sentences,
               decoration: const InputDecoration(
                 hintText: 'Type anything: a task, a plan, a thought. Add a photo of a routine, notice or list.',
-                border: OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 12),
