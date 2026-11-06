@@ -669,7 +669,7 @@ class Brain {
       final a = x['amount'] as num;
       if (x['type'] == 'income') income += a;
       if (x['type'] != 'expense') continue;
-      final cat = (x['category'] as String?) ?? 'Other';
+      final cat = (x['cat'] as String?) ?? 'Other';
       byCat[cat] = (byCat[cat] ?? 0) + a;
       if (ts >= weekStart) week += a;
       if (dayKey(fromMs(ts)) == today) todaySpent += a;

@@ -97,7 +97,7 @@ class QuickAnswers {
       return x['type'] == 'expense' && !d.isBefore(from) && d.isBefore(to);
     }).toList();
     // "on food", "for transport": narrow to a category the person has used.
-    String catOf(Map<String, dynamic> x) => (x['category'] as String?) ?? 'Other';
+    String catOf(Map<String, dynamic> x) => (x['cat'] as String?) ?? 'Other';
     final categories = {for (final x in spent) catOf(x).toLowerCase(): catOf(x)};
     String? cat;
     for (final c in categories.keys) {

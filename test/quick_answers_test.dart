@@ -14,12 +14,12 @@ final items = <Map<String, dynamic>>[
   {'title': 'Done thing', 'status': 'done', 'when': at(7, 9)},
 ];
 final tx = <Map<String, dynamic>>[
-  {'type': 'expense', 'amount': 250, 'category': 'Food', 'ts': at(6, 13)},
-  {'type': 'expense', 'amount': 60, 'category': 'Transport', 'ts': at(6, 9)},
-  {'type': 'expense', 'amount': 500, 'category': 'Food', 'ts': at(3, 20)},
-  {'type': 'expense', 'amount': 1200, 'category': 'Bills', 'ts': at(1, 10)}, // last week, this month
-  {'type': 'income', 'amount': 5000, 'category': 'Tuition', 'ts': at(6, 10)},
-  {'type': 'expense', 'amount': 40, 'category': null, 'ts': at(6, 8)}, // old record without a category
+  {'type': 'expense', 'amount': 250, 'cat': 'Food', 'ts': at(6, 13)},
+  {'type': 'expense', 'amount': 60, 'cat': 'Transport', 'ts': at(6, 9)},
+  {'type': 'expense', 'amount': 500, 'cat': 'Food', 'ts': at(3, 20)},
+  {'type': 'expense', 'amount': 1200, 'cat': 'Bills', 'ts': at(1, 10)}, // last week, this month
+  {'type': 'income', 'amount': 5000, 'cat': 'Tuition', 'ts': at(6, 10)},
+  {'type': 'expense', 'amount': 40, 'cat': null, 'ts': at(6, 8)}, // old record without a category
 ];
 
 String? ask(String q) => QuickAnswers.answer(q,
