@@ -550,8 +550,8 @@ class HabitPage extends StatelessWidget {
                               )
                             : const Icon(Icons.notes),
                         title: Text(((e.value as Map)['note'] as String?) ?? 'Photo'),
-                        subtitle: Text(_shortDate(DateTime.parse(e.key as String))),
-                        onTap: () => showHabitDay(context, store, h, DateTime.parse(e.key as String)),
+                        subtitle: Text(_shortDate(DateTime.parsee.key)),
+                        onTap: () => showHabitDay(context, store, h, DateTime.parsee.key),
                       ),
                   ])),
               ],
