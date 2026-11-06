@@ -538,6 +538,44 @@ class _SettingsPageState extends State<SettingsPage> {
                 },
               ),
             ),
+            const Text('Colour'),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                for (final e in accents.entries)
+                  Builder(builder: (context) {
+                    final picked = ((s.settings['accent'] as String?) ?? 'default') == e.key;
+                    return Semantics(
+                      label: e.key,
+                      selected: picked,
+                      child: InkResponse(
+                        onTap: () {
+                          Haptics.tick();
+                          s.settings['accent'] = e.key;
+                          s.save();
+                          setState(() {});
+                        },
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: e.value,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: picked ? Theme.of(context).colorScheme.onSurface : Colors.transparent,
+                              width: 3,
+                            ),
+                          ),
+                          child: picked ? const Icon(Icons.check, color: Colors.white, size: 20) : null,
+                        ),
+                      ),
+                    );
+                  }),
+              ],
+            ),
+            const SizedBox(height: 8),
             Builder(builder: (context) {
               final recent = s.list('captures').where((c) => c['via'] != null).toList().reversed.take(100).toList();
               final onPhone = recent.where((c) => c['via'] == 'phone').length;

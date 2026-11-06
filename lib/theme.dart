@@ -18,13 +18,40 @@ class Latte {
 
 Color _tint(Color c, double a) => Color.alphaBlend(c.withValues(alpha: a), Latte.base);
 
-final ThemeData latteTheme = polish(ThemeData(
+/// Accent colours the whole app can be painted in. 'default' is indigo, or mauve in Latte.
+const accents = <String, Color>{
+  'default': Colors.indigo,
+  'mauve': Color(0xFF8839EF),
+  'blue': Color(0xFF1E66F5),
+  'sapphire': Color(0xFF209FB5),
+  'teal': Color(0xFF179299),
+  'green': Color(0xFF40A02B),
+  'yellow': Color(0xFFDF8E1D),
+  'peach': Color(0xFFFE640B),
+  'red': Color(0xFFD20F39),
+  'pink': Color(0xFFEA76CB),
+};
+
+final _themes = <String, ThemeData>{};
+
+/// The theme for a look ('light', 'dark' or 'latte') in an accent, built once and reused.
+ThemeData themeFor(String look, String accent) => _themes.putIfAbsent('$look/$accent', () {
+      final color = accents[accent] ?? Colors.indigo;
+      if (look == 'latte') return _latte(accent == 'default' ? Latte.mauve : color);
+      return polish(ThemeData(
+        colorSchemeSeed: color,
+        brightness: look == 'dark' ? Brightness.dark : Brightness.light,
+        useMaterial3: true,
+      ));
+    });
+
+ThemeData _latte(Color accent) => polish(ThemeData(
   useMaterial3: true,
   colorScheme: ColorScheme(
     brightness: Brightness.light,
-    primary: Latte.mauve,
+    primary: accent,
     onPrimary: Latte.base,
-    primaryContainer: _tint(Latte.mauve, 0.18),
+    primaryContainer: _tint(accent, 0.18),
     onPrimaryContainer: Latte.text,
     secondary: Latte.blue,
     onSecondary: Latte.base,
@@ -50,14 +77,11 @@ final ThemeData latteTheme = polish(ThemeData(
     outlineVariant: Latte.surface1,
     inverseSurface: Latte.text,
     onInverseSurface: Latte.base,
-    inversePrimary: _tint(Latte.mauve, 0.5),
+    inversePrimary: _tint(accent, 0.5),
   ),
   scaffoldBackgroundColor: Latte.base,
 ));
 
-final ThemeData defaultLight = polish(ThemeData(colorSchemeSeed: Colors.indigo, useMaterial3: true));
-final ThemeData defaultDark =
-    polish(ThemeData(colorSchemeSeed: Colors.indigo, brightness: Brightness.dark, useMaterial3: true));
 
 /// One set of shapes, weights and spacing for every theme, so each screen reads the same way:
 /// bold titles, flat rounded cards, no shadows, and filled fields.
@@ -93,7 +117,7 @@ ThemeData polish(ThemeData t) {
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: c.surfaceContainerHigh,
+      fillColor: c.surfaceContainerHighest,
       border: field,
       enabledBorder: field,
       focusedBorder: field.copyWith(borderSide: BorderSide(color: c.primary, width: 1.5)),

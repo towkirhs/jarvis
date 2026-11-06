@@ -307,10 +307,22 @@ class _MoneyPageState extends State<MoneyPage> {
               tabs: [Tab(text: 'Daily'), Tab(text: 'Calendar'), Tab(text: 'Monthly'), Tab(text: 'Stats'), Tab(text: 'Accounts')],
             ),
           ),
-          floatingActionButton: FloatingActionButton(
-            onPressed: () => showTxSheet(context, s, day: _calDay),
-            child: const Icon(Icons.add),
-          ),
+          floatingActionButton: Builder(builder: (context) {
+            final tabs = DefaultTabController.of(context);
+            return ListenableBuilder(
+              listenable: tabs,
+              builder: (context, _) => tabs.index == 4
+                  ? FloatingActionButton.extended(
+                      onPressed: () => _editAccount(context, null),
+                      icon: const Icon(Icons.add),
+                      label: const Text('Account'),
+                    )
+                  : FloatingActionButton(
+                      onPressed: () => showTxSheet(context, s, day: _calDay),
+                      child: const Icon(Icons.add),
+                    ),
+            );
+          }),
           body: ListenableBuilder(
             listenable: s,
             builder: (context, _) {
@@ -323,6 +335,8 @@ class _MoneyPageState extends State<MoneyPage> {
                   const Divider(height: 1),
                   Expanded(
                     child: TabBarView(
+                      // Sideways swipes switch the app's main tabs; these tabs switch by tapping.
+                      physics: const NeverScrollableScrollPhysics(),
                       children: [
                         _daily(context, monthTx),
                         _calendar(context, monthTx),
@@ -569,15 +583,23 @@ class _MoneyPageState extends State<MoneyPage> {
     final name = TextEditingController(text: a?['name'] as String? ?? '');
     final group = TextEditingController(text: a?['group'] as String? ?? 'Cash');
     final initial = TextEditingController(text: '${a?['initial'] ?? 0}');
+    String? nameError;
     await showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setD) => AlertDialog(
         title: Text(a == null ? 'New account' : 'Edit account'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: name, decoration: const InputDecoration(labelText: 'Name, like Bank or Nagad')),
+            TextField(
+              controller: name,
+              autofocus: a == null,
+              textCapitalization: TextCapitalization.words,
+              decoration: InputDecoration(labelText: 'Name, like Rocket or City Bank', errorText: nameError),
+            ),
+            const SizedBox(height: 12),
             TextField(controller: group, decoration: const InputDecoration(labelText: 'Group, like Cash, Bank, Card')),
+            const SizedBox(height: 12),
             TextField(
               controller: initial,
               keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
@@ -599,7 +621,10 @@ class _MoneyPageState extends State<MoneyPage> {
           FilledButton(
             onPressed: () async {
               final n = name.text.trim();
-              if (n.isEmpty) return;
+              if (n.isEmpty) return setD(() => nameError = 'Give the account a name');
+              if (s.list('accounts').any((x) => x != a && (x['name'] as String).toLowerCase() == n.toLowerCase())) {
+                return setD(() => nameError = 'You already have an account called $n');
+              }
               final start = num.tryParse(initial.text.trim()) ?? 0;
               if (a == null) {
                 final r = {'id': s.nextId(), 'name': n, 'group': group.text.trim(), 'initial': start};
@@ -627,7 +652,7 @@ class _MoneyPageState extends State<MoneyPage> {
             child: const Text('Save'),
           ),
         ],
-      ),
+      )),
     );
   }
 }

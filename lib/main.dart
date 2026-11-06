@@ -54,11 +54,12 @@ class JarcisApp extends StatelessWidget {
         listenable: store,
         builder: (context, _) {
           final pick = (store.settings['theme'] as String?) ?? 'system';
+          final accent = (store.settings['accent'] as String?) ?? 'default';
           Haptics.on = store.settings['haptics'] != false;
           return MaterialApp(
             title: 'Jarvis',
-            theme: pick == 'latte' ? latteTheme : defaultLight,
-            darkTheme: defaultDark,
+            theme: themeFor(pick == 'latte' ? 'latte' : 'light', accent),
+            darkTheme: themeFor('dark', accent),
             themeMode: switch (pick) {
               'light' || 'latte' => ThemeMode.light,
               'dark' => ThemeMode.dark,
@@ -80,6 +81,7 @@ class Shell extends StatefulWidget {
 
 class _ShellState extends State<Shell> with WidgetsBindingObserver {
   int _tab = 0;
+  final _pages = PageController();
   Timer? _timer;
   String? _summaryTried;
 
@@ -101,6 +103,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
   @override
   void dispose() {
     _timer?.cancel();
+    _pages.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -145,7 +148,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
   }
 
   Future<void> _onShared(String text) async {
-    if (mounted) setState(() => _tab = 0);
+    if (mounted) _goTo(0);
     await Brain.capture(s, text, source: 'share');
   }
 
@@ -178,27 +181,40 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     }
   }
 
+  void _goTo(int i) {
+    if (_pages.hasClients) {
+      _pages.jumpToPage(i); // onPageChanged updates the tab
+    } else {
+      setState(() => _tab = i);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
         body: SafeArea(
-          child: IndexedStack(
-            index: _tab,
+          // Swipe left or right anywhere to move between the main tabs.
+          child: PageView(
+            controller: _pages,
+            onPageChanged: (i) {
+              if (i != _tab) Haptics.tick();
+              setState(() => _tab = i);
+            },
             children: [
-              HomeScreen(store: s),
-              ItemsScreen(store: s),
-              MoneyPage(store: s),
-              JournalScreen(store: s),
-              HabitsScreen(store: s),
-              MoreScreen(store: s),
+              for (final page in [
+                HomeScreen(store: s),
+                ItemsScreen(store: s),
+                MoneyPage(store: s),
+                JournalScreen(store: s),
+                HabitsScreen(store: s),
+                MoreScreen(store: s),
+              ])
+                _KeepAlive(child: page),
             ],
           ),
         ),
         bottomNavigationBar: NavigationBar(
           selectedIndex: _tab,
-          onDestinationSelected: (i) {
-            if (i != _tab) Haptics.tick();
-            setState(() => _tab = i);
-          },
+          onDestinationSelected: _goTo,
           destinations: const [
             NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
             NavigationDestination(icon: Icon(Icons.checklist), label: 'Plan'),
@@ -209,4 +225,24 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
           ],
         ),
       );
+}
+
+/// Keeps a tab's scroll position and state while you are on another tab.
+class _KeepAlive extends StatefulWidget {
+  const _KeepAlive({required this.child});
+  final Widget child;
+
+  @override
+  State<_KeepAlive> createState() => _KeepAliveState();
+}
+
+class _KeepAliveState extends State<_KeepAlive> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
+  }
 }

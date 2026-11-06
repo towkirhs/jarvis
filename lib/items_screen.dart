@@ -39,6 +39,8 @@ class ItemsScreen extends StatelessWidget {
               const TabBar(tabs: [Tab(text: 'List'), Tab(text: 'Calendar'), Tab(text: 'Matrix')]),
               Expanded(
                 child: TabBarView(
+                  // Sideways swipes switch the app's main tabs; these tabs switch by tapping.
+                  physics: const NeverScrollableScrollPhysics(),
                   children: [
                     _ListView(store: store),
                     _CalendarView(store: store),
@@ -328,7 +330,14 @@ class _CalendarView extends StatefulWidget {
 
 class _CalendarViewState extends State<_CalendarView> {
   DateTime _day = DateTime.now();
-  String _view = 'week'; // week, 3day or list
+  String _view = '3day'; // week, 3day, 2day, timeline or list
+
+  /// How many days the arrows move by.
+  int get _step => switch (_view) {
+        '3day' => 3,
+        '2day' => 2,
+        _ => 7,
+      };
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -345,25 +354,29 @@ class _CalendarViewState extends State<_CalendarView> {
                     const Spacer(),
                     IconButton(
                       icon: const Icon(Icons.chevron_left),
-                      onPressed: () => setState(() => _day = DateTime(_day.year, _day.month, _day.day - (_view == '3day' ? 3 : 7))),
+                      onPressed: () => setState(() => _day = DateTime(_day.year, _day.month, _day.day - _step)),
                     ),
                     TextButton(onPressed: () => setState(() => _day = DateTime.now()), child: const Text('Today')),
                     IconButton(
                       icon: const Icon(Icons.chevron_right),
-                      onPressed: () => setState(() => _day = DateTime(_day.year, _day.month, _day.day + (_view == '3day' ? 3 : 7))),
+                      onPressed: () => setState(() => _day = DateTime(_day.year, _day.month, _day.day + _step)),
                     ),
                     PopupMenuButton<String>(
                       tooltip: 'View',
                       icon: Icon(switch (_view) {
                         '3day' => Icons.view_column_outlined,
+                        '2day' => Icons.view_week_outlined,
+                        'timeline' => Icons.view_timeline_outlined,
                         'list' => Icons.view_agenda_outlined,
                         _ => Icons.calendar_view_week,
                       }),
                       initialValue: _view,
                       onSelected: (v) => setState(() => _view = v),
                       itemBuilder: (_) => const [
-                        PopupMenuItem(value: 'week', child: Text('Week')),
+                        PopupMenuItem(value: '2day', child: Text('2 days')),
                         PopupMenuItem(value: '3day', child: Text('3 days')),
+                        PopupMenuItem(value: 'week', child: Text('Week')),
+                        PopupMenuItem(value: 'timeline', child: Text('Timeline (hours across)')),
                         PopupMenuItem(value: 'list', child: Text('Day list')),
                       ],
                     ),
@@ -371,17 +384,26 @@ class _CalendarViewState extends State<_CalendarView> {
                 ),
               ),
               Expanded(
-                child: _view != 'list'
-                    ? WeekGrid(
-                        store: s,
-                        start: _view == '3day' ? DateTime(_day.year, _day.month, _day.day) : s.mondayOf(_day),
-                        count: _view == '3day' ? 3 : 7,
-                        onDayTap: (d) => setState(() {
-                          _day = d;
-                          _view = 'list';
-                        }),
-                      )
-                    : _dayList(context, s),
+                child: switch (_view) {
+                  'list' => _dayList(context, s),
+                  'timeline' => TimelineGrid(
+                      store: s,
+                      start: s.mondayOf(_day),
+                      onDayTap: (d) => setState(() {
+                        _day = d;
+                        _view = 'list';
+                      }),
+                    ),
+                  _ => WeekGrid(
+                      store: s,
+                      start: _view == 'week' ? s.mondayOf(_day) : DateTime(_day.year, _day.month, _day.day),
+                      count: _step,
+                      onDayTap: (d) => setState(() {
+                        _day = d;
+                        _view = 'list';
+                      }),
+                    ),
+                },
               ),
             ],
           );
@@ -481,7 +503,9 @@ class _WeekGridState extends State<WeekGrid> {
     super.dispose();
   }
 
-  Color _color(Rec it, ColorScheme scheme) {
+  Color _color(Rec it, ColorScheme scheme) => _colorOf(it, scheme);
+
+  static Color _colorOf(Rec it, ColorScheme scheme) {
     final p = (it['priority'] as int?) ?? 0;
     if (p > 0) return priorityColors[p];
     return switch (it['kind']) {
@@ -737,6 +761,206 @@ class _WeekGridState extends State<WeekGrid> {
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// A week with the hours running left to right: one row per day, scroll sideways through the day.
+class TimelineGrid extends StatefulWidget {
+  const TimelineGrid({super.key, required this.store, required this.start, required this.onDayTap});
+  final Store store;
+  final DateTime start;
+  final void Function(DateTime day) onDayTap;
+
+  @override
+  State<TimelineGrid> createState() => _TimelineGridState();
+}
+
+class _TimelineGridState extends State<TimelineGrid> {
+  static const _hourW = 64.0;
+  static const _labelW = 52.0;
+  static const _barH = 24.0;
+  late final ScrollController _sideways =
+      ScrollController(initialScrollOffset: _hourW * ((DateTime.now().hour - 1).clamp(0, 18)));
+
+  @override
+  void dispose() {
+    _sideways.dispose();
+    super.dispose();
+  }
+
+  int _minutes(Rec it) => ((it['dur'] ?? it['est'] ?? 60) as int).clamp(15, 24 * 60);
+
+  /// Stacks overlapping bars in rows: returns the row of each item and how many rows the day needs.
+  (Map<int, int>, int) _rows(List<Rec> items) {
+    final out = <int, int>{};
+    final ends = <int>[];
+    for (final it in items) {
+      final st = it['when'] as int;
+      var row = ends.indexWhere((e) => e <= st);
+      if (row < 0) {
+        row = ends.length;
+        ends.add(0);
+      }
+      ends[row] = st + _minutes(it) * 60000;
+      out[it['id'] as int] = row;
+    }
+    return (out, max(ends.length, 1));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.store;
+    final scheme = Theme.of(context).colorScheme;
+    final small = Theme.of(context).textTheme.labelSmall;
+    final grid = scheme.outlineVariant.withValues(alpha: 0.4);
+    final now = DateTime.now();
+    final days = [for (var i = 0; i < 7; i++) DateTime(widget.start.year, widget.start.month, widget.start.day + i)];
+    final perDay = [
+      for (final d in days)
+        (s.list('items').where((i) {
+          final w = i['when'] as int?;
+          return w != null && i['status'] != 'cancelled' && i['allDay'] != true && dayKey(fromMs(w)) == dayKey(d);
+        }).toList()
+          ..sort(_byWhen)),
+    ];
+    final layouts = [for (final items in perDay) _rows(items)];
+    final heights = [for (final (_, n) in layouts) max(56.0, n * (_barH + 4) + 8)];
+
+    Widget hourLabels() => SizedBox(
+          height: 24,
+          child: Row(children: [
+            for (var h = 0; h < 24; h++)
+              SizedBox(
+                width: _hourW,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 4),
+                  child: Text(h == 0 ? '12 am' : (h == 12 ? '12 pm' : (h < 12 ? '$h am' : '${h - 12} pm')), style: small),
+                ),
+              ),
+          ]),
+        );
+
+    Widget dayRow(int k) {
+      final d = days[k];
+      final (rows, _) = layouts[k];
+      final isToday = dayKey(d) == dayKey(now);
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapUp: (e) {
+          final halfHours = (e.localPosition.dx / (_hourW / 2)).floor().clamp(0, 47);
+          showTaskSheet(context, s,
+              day: d,
+              at: TimeOfDay(hour: halfHours ~/ 2, minute: (halfHours % 2) * 30),
+              newKind: 'event',
+              presetMinutes: 60);
+        },
+        child: SizedBox(
+          width: _hourW * 24,
+          height: heights[k],
+          child: Stack(children: [
+            for (var h = 0; h < 24; h++)
+              Positioned(
+                left: h * _hourW,
+                top: 0,
+                bottom: 0,
+                width: _hourW,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(border: Border(left: BorderSide(color: grid), top: BorderSide(color: grid))),
+                ),
+              ),
+            for (final it in perDay[k])
+              Builder(builder: (context) {
+                final st = fromMs(it['when'] as int);
+                final left = (st.hour * 60 + st.minute) / 60 * _hourW;
+                final done = it['status'] == 'done';
+                return Positioned(
+                  left: left + 1,
+                  top: 4 + rows[it['id'] as int]! * (_barH + 4),
+                  width: max(_minutes(it) / 60 * _hourW - 2, 28.0),
+                  height: _barH,
+                  child: GestureDetector(
+                    onTap: () => showTaskSheet(context, s, item: it),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      alignment: Alignment.centerLeft,
+                      decoration: BoxDecoration(
+                        color: _WeekGridState._colorOf(it, scheme).withValues(alpha: done ? 0.35 : 0.9),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '${it['kind'] == 'alarm' ? '⏰ ' : ''}${it['title']}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.white,
+                          decoration: done ? TextDecoration.lineThrough : null,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            if (isToday)
+              Positioned(
+                left: (now.hour * 60 + now.minute) / 60 * _hourW - 1,
+                top: 0,
+                bottom: 0,
+                child: Container(width: 2, color: Colors.red),
+              ),
+          ]),
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.only(bottom: 80),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Day names stay put while the hours scroll.
+          SizedBox(
+            width: _labelW,
+            child: Column(children: [
+              const SizedBox(height: 24),
+              for (var k = 0; k < 7; k++)
+                InkWell(
+                  onTap: () => widget.onDayTap(days[k]),
+                  child: SizedBox(
+                    height: heights[k],
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(_weekdays[days[k].weekday - 1],
+                            style: TextStyle(fontSize: 12, color: dayKey(days[k]) == dayKey(now) ? scheme.primary : null)),
+                        CircleAvatar(
+                          radius: 14,
+                          backgroundColor: dayKey(days[k]) == dayKey(now) ? scheme.primary : Colors.transparent,
+                          child: Text('${days[k].day}',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: dayKey(days[k]) == dayKey(now) ? scheme.onPrimary : scheme.onSurface,
+                              )),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ]),
+          ),
+          Expanded(
+            child: SingleChildScrollView(
+              controller: _sideways,
+              scrollDirection: Axis.horizontal,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [hourLabels(), for (var k = 0; k < 7; k++) dayRow(k)],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
