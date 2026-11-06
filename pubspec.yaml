@@ -24,3 +24,12 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  fonts:
+    - family: Bricolage
+      fonts:
+        - asset: assets/fonts/Bricolage-500.ttf
+          weight: 500
+        - asset: assets/fonts/Bricolage-700.ttf
+          weight: 700
+        - asset: assets/fonts/Bricolage-800.ttf
+          weight: 800

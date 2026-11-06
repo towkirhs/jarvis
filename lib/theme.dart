@@ -90,13 +90,18 @@ ThemeData polish(ThemeData t) {
   final tt = t.textTheme;
   TextStyle? w(TextStyle? s, FontWeight weight, [double? spacing]) =>
       s?.copyWith(fontWeight: weight, letterSpacing: spacing);
+  // Bricolage Grotesque for titles and big numbers: the app's voice. Body text stays the system font, which
+  // reads best small and covers Bangla.
+  TextStyle? display(TextStyle? s, FontWeight weight, [double? spacing]) =>
+      w(s, weight, spacing)?.copyWith(fontFamily: 'Bricolage');
   RoundedRectangleBorder round(double r) => RoundedRectangleBorder(borderRadius: BorderRadius.circular(r));
   final field = OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none);
   return t.copyWith(
     textTheme: tt.copyWith(
-      headlineMedium: w(tt.headlineMedium, FontWeight.w700, -0.5),
-      headlineSmall: w(tt.headlineSmall, FontWeight.w700, -0.3),
-      titleLarge: w(tt.titleLarge, FontWeight.w600, -0.2),
+      displaySmall: display(tt.displaySmall, FontWeight.w800, -1),
+      headlineMedium: display(tt.headlineMedium, FontWeight.w800, -0.6),
+      headlineSmall: display(tt.headlineSmall, FontWeight.w700, -0.3),
+      titleLarge: display(tt.titleLarge, FontWeight.w700, -0.2),
       titleMedium: w(tt.titleMedium, FontWeight.w600),
       titleSmall: w(tt.titleSmall, FontWeight.w600),
       labelLarge: w(tt.labelLarge, FontWeight.w600),
@@ -113,7 +118,7 @@ ThemeData polish(ThemeData t) {
       surfaceTintColor: Colors.transparent,
       scrolledUnderElevation: 0,
       centerTitle: false,
-      titleTextStyle: w(tt.titleLarge, FontWeight.w700, -0.2)?.copyWith(color: c.onSurface),
+      titleTextStyle: display(tt.titleLarge, FontWeight.w700, -0.2)?.copyWith(color: c.onSurface),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,

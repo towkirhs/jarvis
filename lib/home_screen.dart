@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'brain.dart';
 import 'capture_page.dart';
 import 'countdown_screen.dart';
+import 'day_ribbon.dart';
 import 'decide.dart';
 import 'decide_page.dart';
 import 'habits_screen.dart';
@@ -168,12 +169,23 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         const SizedBox(height: 2),
         Text(
-          '${const ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][now.weekday - 1]}, '
-          '${now.day} ${const ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][now.month - 1]}'
-          '${todays.isEmpty ? '' : '  ·  ${todays.length} left today'}',
+          '${const ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][now.weekday - 1]} '
+          '${now.day} ${const ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][now.month - 1]}',
           style: tt.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 14),
+        DayRibbon(
+          now: now,
+          items: s.list('items').where((i) {
+            final w = i['when'] as int?;
+            return w != null &&
+                i['allDay'] != true &&
+                (i['status'] == 'open' || i['status'] == 'done') &&
+                dayKey(fromMs(w)) == today;
+          }).toList(),
+          onTap: () => _open(context, PlanDayPage(store: s)),
+        ),
+        const SizedBox(height: 14),
         // The one thing every visit is for: telling Jarvis something.
         Container(
           padding: const EdgeInsets.fromLTRB(16, 4, 6, 4),
@@ -228,8 +240,8 @@ class _HomeScreenState extends State<HomeScreen> {
               Padding(
                 padding: const EdgeInsets.only(left: 4, bottom: 2),
                 child: Text(
-                  '${(now0.confidence * 100).round()}% the best use of right now'
-                  '${now0.probs.length > 1 ? ' · then ${s.byId('items', int.parse(now0.probs.keys.elementAt(1)))?['title']}' : ''}',
+                  '${(now0.confidence * 100).round()}% sure this is the best use of now.'
+                  '${now0.probs.length > 1 ? ' Next: ${s.byId('items', int.parse(now0.probs.keys.elementAt(1)))?['title']}' : ''}',
                   style: tt.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
                 ),
               ),
