@@ -111,7 +111,7 @@ class Brain {
         final answers = await decide(s, c['raw'] as String, captureId: c['id'] as int);
         c['via'] = 'ai';
         c['decision'] = [for (final a in answers) a.toJson()];
-        return _apply(s, c, {'items': <dynamic>[], 'reply': verdict(s, answers.first)});
+        return await _apply(s, c, {'items': <dynamic>[], 'reply': verdict(s, answers.first)});
       } catch (e) {
         c['msg'] = 'Waiting for the AI: $e';
         s.save();
