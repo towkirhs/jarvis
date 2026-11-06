@@ -152,6 +152,7 @@ class LocalParser {
 
     return _money(text, t, now, accounts) ??
         _habit(text, t, now, habits) ??
+        _done(text, t) ??
         _birthday(text, t, now) ??
         _move(text, t, now) ??
         _alarm(text, t, now) ??
@@ -200,6 +201,15 @@ class LocalParser {
       'date': date == null ? null : _day(date.$1),
       'time': null,
     });
+  }
+
+  /// "finished the lab report", "done call ammu": marks an open item done (Brain checks it matches one).
+  static Map<String, dynamic>? _done(String text, String t) {
+    final m = RegExp(
+      r"^(?:i\s+)?(?:have\s+|'ve\s+)?(?:done|finished|completed|submitted|sent|did)\s+(?:with\s+)?(?:the\s+|my\s+)?(.+?)[.!]?$",
+    ).firstMatch(t);
+    if (m == null || m.group(1)!.split(' ').length > 8) return null;
+    return _result(text, {'type': 'complete', 'target': m.group(1)});
   }
 
   static Map<String, dynamic>? _habit(String text, String t, DateTime now, List<String> habits) {

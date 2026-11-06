@@ -79,6 +79,16 @@ class Native {
     return (jsonDecode(raw) as List).map((e) => (e as num).toInt()).toList();
   }
 
+  /// Shows Jarvis's reply to a note as a notification (replaces the previous reply).
+  static Future<void> notify(String title, String text) async {
+    if (kIsWeb) return;
+    try {
+      await _ch.invokeMethod('notify', {'title': title, 'text': text});
+    } catch (_) {
+      // An older install without this method: the reply is still in the app.
+    }
+  }
+
   /// Tells Android the background run is finished, so it can shut down.
   static Future<void> backgroundDone() => _ch.invokeMethod('backgroundDone');
 

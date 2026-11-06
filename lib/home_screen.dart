@@ -275,6 +275,24 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  /// Jarvis's answer, set apart from what you said.
+  Widget _reply(BuildContext context, String text) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.only(top: 6),
+      padding: const EdgeInsets.fromLTRB(10, 8, 12, 8),
+      decoration: BoxDecoration(color: scheme.primaryContainer.withValues(alpha: 0.6), borderRadius: BorderRadius.circular(12)),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.auto_awesome, size: 16, color: scheme.primary),
+          const SizedBox(width: 8),
+          Expanded(child: Text(text, style: TextStyle(color: scheme.onPrimaryContainer))),
+        ],
+      ),
+    );
+  }
+
   Widget _capture(BuildContext context, Rec c) {
     final status = c['status'] as String;
     final msg = (c['msg'] as String?) ?? '';
@@ -290,6 +308,7 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 2),
             Text('${c['cleaned']}', style: Theme.of(context).textTheme.bodyLarge),
             if (status == 'pending') Text('Waiting to be processed...', style: small),
+            if (c['reply'] != null) _reply(context, c['reply'] as String),
             if (msg.isNotEmpty) Text(msg, style: small),
             if (c['via'] == 'phone') Text('Understood on this phone, no AI used', style: small?.copyWith(fontStyle: FontStyle.italic)),
             for (final p in past) Text(p, style: small?.copyWith(fontStyle: FontStyle.italic)),

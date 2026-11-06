@@ -735,11 +735,15 @@ class Store extends ChangeNotifier {
       list('entries').where((e) => dayKey(fromMs(e['ts'] as int)) == day).toList()
         ..sort((a, b) => (a['ts'] as int).compareTo(b['ts'] as int));
 
-  /// The day's mood (1 awful to 5 great): the last entry that has one.
+  /// The day's mood (1 awful to 5 great): the last journal entry that has one, or else what Jarvis heard in notes.
   int? dayMood(String day) {
     int? m;
     for (final e in entriesOn(day)) {
       if (e['mood'] != null) m = e['mood'] as int;
+    }
+    if (m != null) return m;
+    for (final c in capturesOn(day)) {
+      if (c['mood'] != null) m = c['mood'] as int;
     }
     return m;
   }

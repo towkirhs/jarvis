@@ -364,7 +364,7 @@ class DayPage extends StatelessWidget {
                       dense: true,
                       contentPadding: EdgeInsets.zero,
                       title: Text(c['cleaned'] as String),
-                      subtitle: Text(clock(c['ts'] as int)),
+                      subtitle: Text(c['reply'] == null ? clock(c['ts'] as int) : '${clock(c['ts'] as int)}  ·  Jarvis: ${c['reply']}'),
                       onTap: () => showDialog<void>(
                         context: context,
                         builder: (ctx) => AlertDialog(

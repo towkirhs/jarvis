@@ -44,8 +44,43 @@ object NativeChannel {
                 result.success(null)
             }
             "getLog" -> result.success(AlarmLog.read(context))
+            "notify" -> {
+                Replies.show(context, call.argument<String>("title") ?: "Jarvis", call.argument<String>("text") ?: "")
+                result.success(null)
+            }
             else -> return false
         }
         return true
+    }
+}
+
+/** Jarvis's answer to a note sent from outside the app (the bubble, share, a screenshot). */
+object Replies {
+    private const val CHANNEL = "replies"
+    private const val ID = 2_100_000_000
+
+    fun show(context: Context, title: String, text: String) {
+        if (text.isBlank()) return
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+        if (android.os.Build.VERSION.SDK_INT >= 26) {
+            manager.createNotificationChannel(
+                android.app.NotificationChannel(CHANNEL, "Jarvis replies", android.app.NotificationManager.IMPORTANCE_DEFAULT)
+            )
+        }
+        val open = android.app.PendingIntent.getActivity(
+            context, 7, Intent(context, MainActivity::class.java), android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+        val builder = if (android.os.Build.VERSION.SDK_INT >= 26) android.app.Notification.Builder(context, CHANNEL)
+        else android.app.Notification.Builder(context)
+        manager.notify(
+            ID,
+            builder.setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setContentTitle(title)
+                .setContentText(text)
+                .setStyle(android.app.Notification.BigTextStyle().bigText(text))
+                .setContentIntent(open)
+                .setAutoCancel(true)
+                .build()
+        )
     }
 }

@@ -20,6 +20,18 @@ void main() {
     });
   });
 
+  group('finishing things', () {
+    test('finished the lab report', () {
+      expect(item('Finished the lab report'), allOf(containsPair('type', 'complete'), containsPair('target', 'lab report')));
+    });
+    test("I've done my assignment", () {
+      expect(item("I've done my assignment"), allOf(containsPair('type', 'complete'), containsPair('target', 'assignment')));
+    });
+    test('a tracked habit is a habit log, not a task', () {
+      expect(item('did gym today', habits: ['Gym']), containsPair('type', 'habit_log'));
+    });
+  });
+
   group('tasks and events', () {
     test('Banglish class tomorrow', () {
       expect(item('kal 4.30 e tuition ase'),

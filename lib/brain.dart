@@ -1,10 +1,13 @@
 import 'dart:convert';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:image_picker/image_picker.dart';
 
 import 'gemini.dart';
 import 'local_parser.dart';
+import 'native.dart';
+import 'quick_answers.dart';
 import 'store.dart';
 
 /// Turns captured text into tasks, alarms, habits, promises, decisions and journal entries.
@@ -12,7 +15,7 @@ class Brain {
   static bool _busy = false;
 
   static final _intent = RegExp(
-    r'\b(\d{1,2}:\d{2}|\d{1,2}\s*(am|pm)|tomorrow|today|tonight|meeting|remind|alarm|deadline|appointment|call|send|email|buy|submit|finish|complete|need to|have to|must|should|will|going to|promise|decided|decide|plan|push|delay|move|cancel|postpone|did|went|ran|done|gym|read|study|workout|behind|late|schedule|task|todo|spent|spend|paid|pay|bought|cost|taka|tk|salary|income|received|got|transfer|bkash|nagad|expense|birthday|exam)\b',
+    r'\b(\d{1,2}:\d{2}|\d{1,2}\s*(am|pm)|tomorrow|today|tonight|meeting|remind|alarm|deadline|appointment|call|send|email|buy|submit|finish|complete|need to|have to|must|should|will|going to|promise|decided|decide|plan|push|delay|move|cancel|postpone|did|went|ran|done|gym|read|study|workout|behind|late|schedule|task|todo|spent|spend|paid|pay|bought|cost|taka|tk|salary|income|received|got|transfer|bkash|nagad|expense|birthday|exam|what|when|how|which|where|show|finished|cancel|balance|left|feel|feeling|mood)\b',
     caseSensitive: false,
   );
 
@@ -23,8 +26,11 @@ class Brain {
   /// Saves a note first, so nothing is ever lost, then tries to process it.
   /// [image] is the path of a photo to read along with the note.
   static Future<void> capture(Store s, String raw, {String source = 'in-app', String? image}) async {
-    // Things the person deliberately shared are always processed.
-    final skip = image == null && source != 'share' && s.settings['prefilter'] == true && !looksLikeUpdate(raw);
+    // Notes sent on purpose (the bubble, share, screenshots) are always processed; the filter is for typing here.
+    final skip = image == null &&
+        (source == 'in-app' || source == 'journal') &&
+        s.settings['prefilter'] == true &&
+        !looksLikeUpdate(raw);
     s.list('captures').add({
       'id': s.nextId(),
       'ts': DateTime.now().millisecondsSinceEpoch,
@@ -66,8 +72,35 @@ class Brain {
   }
 
   static Future<bool> _process(Store s, Rec c) async {
+    final ok = await _understand(s, c);
+    // Notes sent from outside the app get Jarvis's answer back as a notification.
+    final reply = c['reply'] as String?;
+    if (ok && c['status'] == 'done' && !const {'in-app', 'journal'}.contains(c['source'])) {
+      await Native.notify('Jarvis', reply ?? (c['msg'] as String? ?? ''));
+    }
+    return ok;
+  }
+
+  /// Everyday questions answered from your own data, without the AI.
+  static String? _quickAnswer(Store s, String raw) => s.settings['local'] == false
+      ? null
+      : QuickAnswers.answer(
+          raw,
+          now: DateTime.now(),
+          items: s.list('items'),
+          tx: s.list('tx'),
+          balances: {for (final a in s.list('accounts')) a['name'] as String: s.balance(a)},
+          money: s.money,
+        );
+
+  static Future<bool> _understand(Store s, Rec c) async {
+    final quick = c['image'] == null ? _quickAnswer(s, c['raw'] as String) : null;
+    if (quick != null) {
+      c['via'] = 'phone';
+      return _apply(s, c, {'items': <dynamic>[], 'reply': quick});
+    }
     // Simple notes (alarms, timed tasks, money, habits, birthdays) are understood on the phone: no AI call.
-    final local = c['image'] == null && s.settings['local'] != false
+    var local = c['image'] == null && s.settings['local'] != false
         ? LocalParser.parse(
             c['raw'] as String,
             now: DateTime.now(),
@@ -75,6 +108,11 @@ class Brain {
             accounts: s.list('accounts').map((a) => a['name'] as String).toList(),
           )
         : null;
+    // "done X" only counts when X is clearly one open item; otherwise the AI looks at it.
+    final finished = local == null ? null : ((local['items'] as List).first as Map);
+    if (finished != null && finished['type'] == 'complete' && findTarget(s, finished['target'] as String?) == null) {
+      local = null;
+    }
     if (local != null) {
       c['via'] = 'phone';
       return _apply(s, c, local);
@@ -146,12 +184,16 @@ class Brain {
         return 'Past you decided: ${d['decision']}${reason == null ? '' : ' (because $reason)'}';
       }).toList();
 
+      final reply = (data['reply'] as String?)?.trim().isEmpty ?? true ? null : (data['reply'] as String).trim();
       final cleaned = (data['cleaned'] as String?)?.trim() ?? '';
       c['cleaned'] = cleaned.isNotEmpty ? cleaned : c['raw'];
       c['topics'] = topics;
       c['past'] = past;
       c['actionId'] = msgs.isEmpty ? null : s.logAction(msgs.join('; '), undo);
-      c['msg'] = msgs.isEmpty ? 'Saved to your journal.' : msgs.join('\n');
+      c['msg'] = msgs.isEmpty ? (reply == null ? 'Saved to your journal.' : '') : msgs.join('\n');
+      c['reply'] = reply;
+      final mood = (data['mood'] as num?)?.toInt();
+      c['mood'] = mood != null && mood >= 1 && mood <= 5 ? mood : null;
       c['status'] = 'done';
     } catch (e) {
       // Remove whatever was already created, so Retry starts clean instead of making duplicates.
@@ -211,6 +253,26 @@ class Brain {
       }
     }
     return tie ? null : best;
+  }
+
+  /// The open item or promise a note points at: "#123" from the AI, or words of its title.
+  static (String, Rec)? findTarget(Store s, String? target) {
+    if (target == null) return null;
+    final id = int.tryParse(target.trim().replaceFirst('#', ''));
+    if (id != null) {
+      final it = s.byId('items', id);
+      if (it != null && it['status'] == 'open') return ('items', it);
+      final p = s.byId('promises', id);
+      if (p != null && p['status'] == 'open') return ('promises', p);
+      return null;
+    }
+    final it = findItem(s, target);
+    if (it != null) return ('items', it);
+    final tw = _words(target);
+    for (final p in s.list('promises')) {
+      if (p['status'] == 'open' && _words('${p['what']} ${p['person']}').intersection(tw).length >= 2) return ('promises', p);
+    }
+    return null;
   }
 
   static Rec? findHabit(Store s, String? name) {
@@ -297,8 +359,9 @@ class Brain {
       return '${type == 'alarm' ? 'Alarm' : 'Event'}: $title${when == null ? '' : ' (${niceWhen(when)})'}';
     }
     if (type == 'delay') {
-      final it = findItem(s, p['target'] as String?);
-      if (it == null) return null;
+      final found = findTarget(s, p['target'] as String?);
+      if (found == null || found.$1 != 'items') return null;
+      final it = found.$2;
       final old = it['when'] as int?;
       final base = old != null ? fromMs(old) : DateTime.now();
       final nw = whenFrom(
@@ -312,6 +375,38 @@ class Brain {
       it['nid'] ??= s.nextId();
       await s.syncRecord('items', it);
       return 'Moved ${it['title']} to ${niceWhen(nw)}';
+    }
+    if (type == 'complete' || type == 'cancel') {
+      final found = findTarget(s, p['target'] as String?);
+      if (found == null) return null;
+      final (col, it) = found;
+      final name = (col == 'items' ? it['title'] : 'promise to ${it['person']}: ${it['what']}') as String;
+      undo.add({'op': 'put', 'col': col, 'rec': copyRec(it)});
+      if (type == 'cancel') {
+        it['status'] = 'cancelled';
+        await s.syncRecord(col, it);
+        return 'Cancelled $name';
+      }
+      if (col == 'items' && it['repeat'] != null) {
+        // A repeating item moves to its next time; keep a done copy like the Done button does.
+        final done = copyRec(it)
+          ..['id'] = s.nextId()
+          ..['status'] = 'done'
+          ..['doneAt'] = DateTime.now().millisecondsSinceEpoch
+          ..['repeat'] = null
+          ..['nid'] = null;
+        s.list('items').add(done);
+        undo.add({'op': 'rm', 'col': 'items', 'id': done['id']});
+        it['when'] = Store.nextRepeat(it['when'] as int, it['repeat'] as String);
+      } else {
+        it['status'] = 'done';
+        it['doneAt'] = DateTime.now().millisecondsSinceEpoch;
+        final started = it['startedAt'] as int?;
+        if (started != null) it['actual'] = max(1, ((it['doneAt'] as int) - started) ~/ 60000);
+      }
+      await s.syncRecord(col, it);
+      await s.boost('Done: $name');
+      return 'Done: $name';
     }
     if (type == 'habit_log') {
       final h = findHabit(s, p['habit'] as String?);
@@ -498,24 +593,105 @@ class Brain {
 
   // ---------- prompt ----------
 
+  /// A compact picture of the person's life for the AI: what is open, coming, owed, tracked and spent.
+  static String world(Store s) {
+    final now = DateTime.now();
+    final nowMs = now.millisecondsSinceEpoch;
+    final today = dayKey(now);
+    String when(int? w, {bool allDay = false}) {
+      if (w == null) return 'no date';
+      final d = fromMs(w);
+      return allDay ? dayKey(d) : '${dayKey(d)} ${two(d.hour)}:${two(d.minute)}';
+    }
+
+    final open = s.list('items').where((i) => i['status'] == 'open').toList()
+      ..sort((a, b) => ((a['when'] as int?) ?? 1 << 52).compareTo((b['when'] as int?) ?? 1 << 52));
+    final lines = <String>['Open items (id, kind, title, when):'];
+    for (final i in open.take(40)) {
+      final w = i['when'] as int?;
+      final late = w != null && w < nowMs && !(i['allDay'] == true && dayKey(fromMs(w)) == today);
+      final p = (i['priority'] as int?) ?? 0;
+      lines.add('#${i['id']} ${i['kind']} "${i['title']}" ${when(w, allDay: i['allDay'] == true)}'
+          '${late ? ' OVERDUE' : ''}${p >= 3 ? ' high priority' : ''}${i['repeat'] == null ? '' : ' repeats ${i['repeat']}'}');
+    }
+    if (open.isEmpty) lines.add('none');
+    final weekAgo = nowMs - 7 * 86400000;
+    final done = s.list('items').where((i) => i['status'] == 'done' && ((i['doneAt'] as int?) ?? 0) > weekAgo).toList();
+    if (done.isNotEmpty) lines.add('Done in the last 7 days: ${done.take(15).map((i) => '"${i['title']}"').join(', ')}');
+
+    final promises = s.list('promises').where((p) => p['status'] == 'open').toList();
+    if (promises.isNotEmpty) {
+      lines.add('Open promises:');
+      for (final p in promises.take(15)) {
+        lines.add('#${p['id']} to ${p['person']}: "${p['what']}" due ${when(p['due'] as int?)}');
+      }
+    }
+
+    final habits = s.list('habits');
+    if (habits.isNotEmpty) {
+      lines.add('Habits (target, done this period, streak, today):');
+      for (final h in habits) {
+        final logs = (h['logs'] as Rec?) ?? {};
+        lines.add('"${h['name']}" ${h['times']} per ${h['per']}, ${s.periodCount(h, s.periodStart(h, now))} so far, '
+            'streak ${s.streakPeriods(h)} ${h['per']}s, today ${logs[today] ?? 'not logged'}');
+      }
+    }
+
+    final countdowns = s.list('countdowns');
+    if (countdowns.isNotEmpty) {
+      lines.add('Dates (countdowns, birthdays): '
+          '${countdowns.take(15).map((c) => '"${c['title']}" ${c['date']}${c['kind'] == 'countdown' ? '' : ' (${c['kind']})'}').join(', ')}');
+    }
+
+    final accounts = s.list('accounts');
+    lines.add('Money accounts and balances: '
+        '${accounts.map((a) => '${a['name']} ${s.money(s.balance(a))}').join(', ')}');
+    final monthStart = DateTime(now.year, now.month).millisecondsSinceEpoch;
+    final weekStart = DateTime(now.year, now.month, now.day - (now.weekday - 1)).millisecondsSinceEpoch;
+    final byCat = <String, num>{};
+    num week = 0, todaySpent = 0, income = 0;
+    for (final x in s.list('tx')) {
+      final ts = x['ts'] as int;
+      if (ts < monthStart) continue;
+      final a = x['amount'] as num;
+      if (x['type'] == 'income') income += a;
+      if (x['type'] != 'expense') continue;
+      byCat[x['category'] as String] = (byCat[x['category']] ?? 0) + a;
+      if (ts >= weekStart) week += a;
+      if (dayKey(fromMs(ts)) == today) todaySpent += a;
+    }
+    final cats = byCat.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    lines.add('Spent today ${s.money(todaySpent)}, this week ${s.money(week)}, this month '
+        '${s.money(byCat.values.fold<num>(0, (a, b) => a + b))} (${cats.take(6).map((e) => '${e.key} ${s.money(e.value)}').join(', ')}); '
+        'income this month ${s.money(income)}');
+
+    final recent = s.list('captures').where((c) => c['status'] == 'done').toList().reversed.take(6).toList().reversed;
+    if (recent.isNotEmpty) {
+      lines.add('Their last notes: ${recent.map((c) => '[${when(c['ts'] as int)}] ${c['cleaned']}').join(' | ')}');
+    }
+    final mood = s.dayMood(today);
+    if (mood != null) lines.add('Mood today: ${moodNames[mood]}');
+    return lines.join('\n');
+  }
+
   static String _parserPrompt(Store s, String note, {bool photo = false}) {
     final now = DateTime.now();
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-    final open = s.list('items').where((i) => i['status'] == 'open').map((i) => '"${i['title']}"').join(', ');
-    final habits = s.list('habits').map((h) => '"${h['name']}"').join(', ');
-    return '''You turn a person's spoken notes into structured data. Today is ${days[now.weekday - 1]} ${dayKey(now)}, local time ${two(now.hour)}:${two(now.minute)}.
-Open items the person already has (use these for delays): ${open.isEmpty ? 'none' : open}
-Habits the person tracks: ${habits.isEmpty ? 'none' : habits}
-Money accounts: ${s.list('accounts').map((a) => a['name']).join(', ')}
+    return '''You are Jarvis, the person's personal assistant. You turn what they tell you into actions in their life system, and answer their questions from their data. Today is ${days[now.weekday - 1]} ${dayKey(now)}, local time ${two(now.hour)}:${two(now.minute)}.
+
+What you know about their life right now:
+${world(s)}
 
 Return ONLY JSON in this shape:
-{"cleaned": string, "topics": [string], "items": [ {"type": string, "title": string, "date": string or null, "time": string or null, "target": string or null, "person": string or null, "reason": string or null, "habit": string or null, "estimateMinutes": integer or null, "category": string or null, "times": integer or null, "per": "week" or "month" or null, "done": boolean or null, "description": string or null, "priority": "high" or "medium" or "low" or null, "tags": [string] or null, "list": string or null, "repeat": "daily" or "weekly" or "monthly" or "yearly" or null, "durationMinutes": integer or null, "amount": number or null, "moneyType": "income" or "expense" or "transfer" or null, "account": string or null, "toAccount": string or null, "confidence": number} ]}
+{"cleaned": string, "reply": string, "mood": integer or null, "topics": [string], "items": [ {"type": string, "title": string, "date": string or null, "time": string or null, "target": string or null, "person": string or null, "reason": string or null, "habit": string or null, "estimateMinutes": integer or null, "category": string or null, "times": integer or null, "per": "week" or "month" or null, "done": boolean or null, "description": string or null, "priority": "high" or "medium" or "low" or null, "tags": [string] or null, "list": string or null, "repeat": "daily" or "weekly" or "monthly" or "yearly" or null, "durationMinutes": integer or null, "amount": number or null, "moneyType": "income" or "expense" or "transfer" or null, "account": string or null, "toAccount": string or null, "confidence": number} ]}
 
 "cleaned": the note with grammar fixed, same meaning, first person, nothing added.
 "topics": 1 to 4 lowercase single words about what the note covers.
-"type" is one of: task, event, alarm, delay, habit_log, habit_new, countdown, money, promise, decision, note, ignore.
+"reply": what you say back to the person, one or two short sentences, warm and direct, like a real assistant. If they asked a question, answer it using ONLY the data above (say so if the data does not tell). Otherwise say what you did and connect it to the rest of their life when it helps: what is next today, a clash with something already planned, a streak, how much they have spent on that this week, a promise or countdown it relates to. Never invent facts.
+"mood": 1 (awful) to 5 (great) if the note says how they feel, otherwise null.
+"type" is one of: task, event, alarm, delay, complete, cancel, habit_log, habit_new, countdown, money, promise, decision, note, ignore.
 "date" is YYYY-MM-DD and "time" is HH:MM in 24 hours, both local. For a promise, "date" is the deadline.
-"target" is, for a delay, the title of the existing open item it refers to. "habit" is, for habit_log, the tracked habit name, and for habit_new, a short name for the new habit. "done" is, for habit_log, true if they did it and false if they say they skipped it. "times" and "per" are, for habit_new, the target, like 3 per week or 12 per month ("daily" = 7 per week); "time" is its reminder time if one was said. "person" is, for a promise, who it was made to. "reason" is, for a decision, why the person decided.
+"target" is, for delay, complete and cancel, the existing open item or promise it refers to, written as its id like "#123". "habit" is, for habit_log, the tracked habit name, and for habit_new, a short name for the new habit. "done" is, for habit_log, true if they did it and false if they say they skipped it. "times" and "per" are, for habit_new, the target, like 3 per week or 12 per month ("daily" = 7 per week); "time" is its reminder time if one was said. "person" is, for a promise, who it was made to. "reason" is, for a decision, why the person decided.
 "category" is one lowercase word for the kind of work, such as report, email, call, errand.
 "confidence" is 0 to 1.
 
@@ -528,9 +704,13 @@ Rules:
 - "money" is money spent, received or moved: "spent 250 on lunch", "got 5000 tuition fee", "sent 1000 from bank to bKash", or a receipt in a photo. "amount" is the number, "moneyType" is expense, income or transfer, "title" is a short note (what it was for), "category" is one word like Food, Transport, Shopping, Bills, Education, Health, Entertainment, Gifts, Salary, Tuition. "account" and "toAccount" only if named. "date"/"time" only if it was not today.
 - A promise is a commitment made to another person. A decision is a choice the person made.
 - "delay" moves an existing item; give the new date or time.
+- "complete" is when the person says they finished, did, sent, paid or submitted something that is an open item or promise above. "cancel" is when they say it is off or no longer needed. Never create a new task for something they say is already done.
+- Things connect: paying a bill that is an open task is a "money" item AND a "complete" item. Buying something on their list completes it too. Keeping a promise completes the promise.
+- A question ("what do I have tomorrow", "when is Ammu's birthday", "how much did I spend on food", "did I go to the gym this week") gets no items, only the answer in "reply".
+- A plain reflection or feeling is type "note" (it goes to their journal); still write a short, kind "reply" and set "mood".
 - Small talk, or anything that is not about plans, tasks, habits, promises, decisions or reflections, is type "ignore".
 - One note can hold several items, but one real-world thing is ONE item. A class or appointment at a time is one "event" (it already gets a reminder); do not also add a task or alarm for it unless the person separately asks to be woken or reminded.
-- If the note is about something already in the open items list, do not create it again: use "delay" if its time changed, otherwise "ignore".
+- If the note is about something already in the open items list, do not create it again: use "delay" if its time changed, "complete" if it is done, otherwise "ignore".
 - Never output two items with the same title and time.
 - If the same thing happens on several dates, output one item per date.
 - Notes may be in English, Bengali, or Bengali written in English letters (for example "kal" = tomorrow, "porshu" = day after tomorrow, "tarikh" = date, "tar por" = after that, "sondhay" = evening, "sokal" = morning). Understand them. Write "title" in short plain English; keep "cleaned" in the language the person used.
