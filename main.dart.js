@@ -31668,7 +31668,7 @@ if(a8<a2)continue
 a9=A.dq(p.h(q,"amount"))
 if(J.c(p.h(q,"type"),"income"))a7+=a9
 if(!J.c(p.h(q,"type"),"expense"))continue
-b0=A.aE(p.h(q,"category"))
+b0=A.aE(p.h(q,"cat"))
 if(b0==null)b0="Other"
 q=a4.h(0,b0)
 a4.m(0,b0,(q==null?0:q)+a9)
@@ -116731,7 +116731,7 @@ $1(a){var s=J.U(a),r=new A.ab(A.bK(A.ap(s.h(a,"ts")),0,!1),0,!1)
 return J.c(s.h(a,"type"),"expense")&&!r.fg(this.a.aV())&&r.fg(this.b.aV())},
 $S:2}
 A.aud.prototype={
-$1(a){var s=A.aE(J.p(a,"category"))
+$1(a){var s=A.aE(J.p(a,"cat"))
 return s==null?"Other":s},
 $S:40}
 A.auf.prototype={
