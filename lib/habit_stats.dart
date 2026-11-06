@@ -34,7 +34,7 @@ List<int> monthCounts(Rec h, int n) => [
       for (final m in lastMonths(n))
         (h['logs'] as Rec)
             .entries
-            .where((e) => e.key.startsWith('${m.year}-${two(m.month)}') && _done(h, DateTime.parsee.key))
+            .where((e) => e.key.startsWith('${m.year}-${two(m.month)}') && _done(h, DateTime.parse(e.key)))
             .length,
     ];
 
@@ -61,8 +61,8 @@ class Streak {
 List<Streak> bestStreaks(Rec h, int n) {
   final days = (h['logs'] as Rec)
       .entries
-      .where((e) => _done(h, DateTime.parsee.key))
-      .map((e) => DateTime.parsee.key)
+      .where((e) => _done(h, DateTime.parse(e.key)))
+      .map((e) => DateTime.parse(e.key))
       .toList()
     ..sort();
   final runs = <Streak>[];
@@ -82,7 +82,7 @@ List<Streak> bestStreaks(Rec h, int n) {
 List<int> weekdayCounts(Rec h) {
   final c = List.filled(7, 0);
   for (final e in (h['logs'] as Rec).entries) {
-    if (_done(h, DateTime.parsee.key)) c[DateTime.parsee.key.weekday - 1]++;
+    if (_done(h, DateTime.parse(e.key))) c[DateTime.parse(e.key).weekday - 1]++;
   }
   return c;
 }
