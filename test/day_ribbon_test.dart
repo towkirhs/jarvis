@@ -19,7 +19,9 @@ void main() {
   });
 
   test('done items do not count, and the end of the day is clear', () {
-    expect(DayRibbon.caption(items, DateTime(2026, 11, 6, 21, 30)), 'Clear for the rest of the day');
+    expect(DayRibbon.caption(items, DateTime(2026, 11, 6, 21, 30)), 'Nothing else today, 2 still not done');
+    expect(DayRibbon.caption(items.where((i) => i['title'] == 'Gym').toList(), DateTime(2026, 11, 6, 21, 30)),
+        'Clear for the rest of the day');
     expect(DayRibbon.caption(items, DateTime(2026, 11, 6, 8, 10)), '8h 20m free before Tuition at 4:30 pm');
   });
 }

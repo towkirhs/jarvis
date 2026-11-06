@@ -38,7 +38,10 @@ class DayRibbon extends StatelessWidget {
       }
     }
     final next = open.where((i) => (i['when'] as int) > nowMs).firstOrNull;
-    if (next == null) return 'Clear for the rest of the day';
+    if (next == null) {
+      final missed = open.where((i) => (i['when'] as int) + minutesOf(i) * 60000 <= nowMs).length;
+      return missed == 0 ? 'Clear for the rest of the day' : 'Nothing else today, $missed still not done';
+    }
     final gap = ((next['when'] as int) - nowMs) ~/ 60000;
     return '${_span(gap)} free before ${next['title']} at ${_clock(DateTime.fromMillisecondsSinceEpoch(next['when'] as int))}';
   }
@@ -148,7 +151,7 @@ class DayRibbon extends StatelessWidget {
                         Positioned(
                           left: frac(h * 60) * box.maxWidth - 12,
                           width: 24,
-                          child: Text(h % 12 == 0 ? '12' : '${h % 12}', textAlign: TextAlign.center, style: style),
+                          child: Text('${h % 12 == 0 ? 12 : h % 12}${h < 12 ? 'a' : 'p'}', textAlign: TextAlign.center, style: style),
                         ),
                   ]),
                 );
