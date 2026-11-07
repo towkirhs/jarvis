@@ -445,6 +445,16 @@ class Brain {
       'dur': (p['durationMinutes'] as num?)?.toInt(),
       'allDay': p['date'] != null && p['time'] == null,
     };
+    // "buy milk when I reach Shwapno": a saved place, by name.
+    final placeName = ((p['place'] as String?) ?? '').trim().toLowerCase();
+    final place = placeName.isEmpty
+        ? null
+        : s.list('places').where((x) => (x['name'] as String).toLowerCase() == placeName).firstOrNull;
+    if (place != null) {
+      extra['place'] = place['id'];
+      extra['placeWhen'] = p['placeWhen'] == 'leave' ? 'leave' : 'arrive';
+    }
+    final at = place == null ? '' : ' (${extra['placeWhen'] == 'leave' ? 'when you leave' : 'at'} ${place['name']})';
 
     if (type == 'task') {
       final est = (p['estimateMinutes'] as num?)?.toInt();
@@ -455,7 +465,7 @@ class Brain {
       final tail = sug == null
           ? ''
           : '. You usually take ${sug.ratio.toStringAsFixed(1)}x longer; try ${sug.est} min';
-      return 'Task: $title${when == null ? '' : ' (${niceWhen(when)})'}$tail';
+      return 'Task: $title${when == null ? '' : ' (${niceWhen(when)})'}$at$tail';
     }
     if (type == 'event' || type == 'alarm') {
       await s.addItem(kind: type, title: title, when: when, captureId: capId, undo: undo, extra: extra);
@@ -851,6 +861,7 @@ class Brain {
 
   static String _parserPrompt(Store s, String note, {bool photo = false, String? replyTo, bool web = false}) {
     final now = DateTime.now();
+    final places = [for (final p in s.list('places')) p['name'] as String];
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
     return '''You are Jarvis, the person's personal assistant. You turn what they tell you into actions in their life system, and answer their questions from their data. Today is ${days[now.weekday - 1]} ${dayKey(now)}, local time ${two(now.hour)}:${two(now.minute)}.
 
@@ -858,7 +869,7 @@ What you know about their life right now:
 ${_safeWorld(s)}
 
 Return ONLY JSON in this shape:
-{"cleaned": string, "reply": string, ${web ? '"web": string or null, ' : ''}"mood": integer or null, "topics": [string], "items": [ {"type": string, "title": string, "date": string or null, "time": string or null, "target": string or null, "person": string or null, "reason": string or null, "habit": string or null, "estimateMinutes": integer or null, "category": string or null, "times": integer or null, "per": "week" or "month" or null, "done": boolean or null, "description": string or null, "priority": "high" or "medium" or "low" or null, "tags": [string] or null, "list": string or null, "repeat": "daily" or "weekly" or "monthly" or "yearly" or null, "durationMinutes": integer or null, "amount": number or null, "moneyType": "income" or "expense" or "transfer" or null, "account": string or null, "toAccount": string or null, "confidence": number} ]}
+{"cleaned": string, "reply": string, ${web ? '"web": string or null, ' : ''}"mood": integer or null, "topics": [string], "items": [ {"type": string, "title": string, "date": string or null, "time": string or null, "target": string or null, "person": string or null, "reason": string or null, "habit": string or null, "estimateMinutes": integer or null, "category": string or null, "times": integer or null, "per": "week" or "month" or null, "done": boolean or null, "description": string or null, "priority": "high" or "medium" or "low" or null, "tags": [string] or null, "list": string or null, "repeat": "daily" or "weekly" or "monthly" or "yearly" or null, "durationMinutes": integer or null, "amount": number or null, "moneyType": "income" or "expense" or "transfer" or null, "account": string or null, "toAccount": string or null, ${places.isEmpty ? '' : '"place": string or null, "placeWhen": "arrive" or "leave" or null, '}"confidence": number} ]}
 
 "cleaned": the note with grammar fixed, same meaning, first person, nothing added.
 "topics": 1 to 4 lowercase single words about what the note covers.
@@ -877,7 +888,7 @@ Rules:
 - "priority": "high" for urgent or important things the person stresses, otherwise only if they say it. "tags" and "list" only if they name them (like "add to my study list", "tag it exam"). "repeat" only for things said to repeat ("every day", "every Monday" = weekly). "durationMinutes" is how long an event lasts. "description" holds extra details that do not fit the title.
 - "countdown" is a date to count down to or remember every year: a birthday, an anniversary, a holiday, or an exam or trip the person wants a countdown for. "category" is "birthday", "anniversary", "holiday" or "countdown", and "date" is required.
 - "money" is money spent, received or moved: "spent 250 on lunch", "got 5000 tuition fee", "sent 1000 from bank to bKash", or a receipt in a photo. "amount" is the number, "moneyType" is expense, income or transfer, "title" is a short note (what it was for), "category" is one word like Food, Transport, Shopping, Bills, Education, Health, Entertainment, Gifts, Salary, Tuition. "account" and "toAccount" only if named. "date"/"time" only if it was not today.
-- A promise is a commitment made to another person. A decision is a choice the person made.
+${places.isEmpty ? '' : '- "place" is, for a task tied to a place ("buy milk when I reach Shwapno", "call Ammu when I leave the office"), one of their saved places: ${places.join(', ')}. "placeWhen" is "arrive" or "leave". Otherwise null. A task with a place needs no date.\n'}- A promise is a commitment made to another person. A decision is a choice the person made.
 - "delay" moves an existing item; give the new date or time.
 - "complete" is when the person says they finished, did, sent, paid or submitted something that is an open item or promise above. "cancel" is when they say it is off or no longer needed. Never create a new task for something they say is already done.
 - Things connect: paying a bill that is an open task is a "money" item AND a "complete" item. Buying something on their list completes it too. Keeping a promise completes the promise.

@@ -24,6 +24,49 @@ class Native {
     });
   }
 
+  // ---------- alarm clock and places ----------
+
+  /// An alarm from the Clock page at [millis], repeating on the weekdays in [days] (Monday = bit 0; 0 = once),
+  /// ringing with the music file at [sound] (or the phone's alarm sound).
+  static Future<void> clock({required int id, required int millis, required String label, int days = 0, String? sound}) async {
+    if (!kIsWeb) await _ch.invokeMethod('clock', {'id': id, 'millis': millis, 'label': label, 'days': days, 'sound': sound});
+  }
+
+  /// Rings straight away, to try an alarm's sound.
+  static Future<void> ringNow(String label, String? sound) async {
+    if (!kIsWeb) await _ch.invokeMethod('ringNow', {'label': label, 'sound': sound});
+  }
+
+  /// Replaces the place triggers the phone watches.
+  static Future<void> geofences(String json) async {
+    if (!kIsWeb) await _ch.invokeMethod('geofences', {'json': json});
+  }
+
+  /// Keys of one-time place alarms that went off since the last call.
+  static Future<List<String>> takeGeoFired() async {
+    if (kIsWeb) return [];
+    return (jsonDecode(await _ch.invokeMethod<String>('takeGeoFired') ?? '[]') as List).cast<String>();
+  }
+
+  /// {fine, background}: location allowed while using the app, and all the time (needed for places).
+  static Future<Map<String, bool>> locationAccess() async {
+    if (kIsWeb) return {};
+    final m = await _ch.invokeMethod<Map>('locationAccess');
+    return {for (final e in (m ?? {}).entries) '${e.key}': e.value == true};
+  }
+
+  /// Asks for location: first "while using the app", then (called again) "all the time".
+  static Future<void> requestLocation() async {
+    if (!kIsWeb) await _ch.invokeMethod('requestLocation');
+  }
+
+  /// Where the phone is now, or null.
+  static Future<(double, double)?> here() async {
+    if (kIsWeb) return null;
+    final m = await _ch.invokeMethod<Map>('here');
+    return m == null ? null : ((m['lat'] as num).toDouble(), (m['lng'] as num).toDouble());
+  }
+
   /// Opens a web page in the phone's browser.
   static Future<void> openUrl(String url) async {
     if (kIsWeb) return;

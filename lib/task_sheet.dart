@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import 'clock.dart';
 import 'haptics.dart';
+import 'place_picker.dart';
 import 'store.dart';
 
 const priorityNames = ['None', 'Low', 'Medium', 'High'];
@@ -23,6 +25,8 @@ Future<void> showTaskSheet(BuildContext context, Store s, {Rec? item, DateTime? 
   var kind = (item?['kind'] as String?) ?? newKind ?? 'task';
   var priority = (item?['priority'] as int?) ?? 0;
   var repeat = item?['repeat'] as String?;
+  int? placeId = item?['place'] as int?;
+  var placeWhen = (item?['placeWhen'] as String?) ?? 'arrive';
   final w = item?['when'] as int?;
   DateTime? date = w != null ? fromMs(w) : day;
   TimeOfDay? time = w != null ? (item?['allDay'] == true ? null : TimeOfDay.fromDateTime(fromMs(w))) : at;
@@ -100,6 +104,8 @@ Future<void> showTaskSheet(BuildContext context, Store s, {Rec? item, DateTime? 
             'repeat': when == null ? null : repeat,
             'dur': kind == 'task' ? null : mins,
             'allDay': date != null && time == null,
+            'place': placeId,
+            'placeWhen': placeId == null ? null : placeWhen,
           };
           if (item == null) {
             final undo = <Rec>[];
@@ -124,6 +130,30 @@ Future<void> showTaskSheet(BuildContext context, Store s, {Rec? item, DateTime? 
             });
           }
           if (ctx.mounted) Navigator.pop(ctx);
+          if (placeId != null && context.mounted && !await ensureLocation(context) && context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Saved. It needs location "Allow all the time" to remind you at the place.'),
+            ));
+          }
+          await Clock.sync(s);
+        }
+
+        Future<void> pickWhere() async {
+          final id = await pickPlace(ctx, s, current: placeId);
+          if (id == null || !ctx.mounted) return;
+          final w = await showModalBottomSheet<String>(
+            context: ctx,
+            builder: (c2) => SafeArea(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                ListTile(leading: const Icon(Icons.login), title: const Text('When I arrive'), onTap: () => Navigator.pop(c2, 'arrive')),
+                ListTile(leading: const Icon(Icons.logout), title: const Text('When I leave'), onTap: () => Navigator.pop(c2, 'leave')),
+              ]),
+            ),
+          );
+          setS(() {
+            placeId = id;
+            placeWhen = w ?? placeWhen;
+          });
         }
 
         return Padding(
@@ -196,6 +226,15 @@ Future<void> showTaskSheet(BuildContext context, Store s, {Rec? item, DateTime? 
                         ],
                         onChanged: (v) => setS(() => repeat = v),
                       ),
+                    InputChip(
+                      avatar: const Icon(Icons.place_outlined, size: 18),
+                      label: Text(placeId == null
+                          ? 'Place'
+                          : '${placeWhen == 'leave' ? 'Leaving' : 'At'} '
+                              '${Clock.place(s.list('places'), placeId)?['name'] ?? 'place'}'),
+                      onPressed: pickWhere,
+                      onDeleted: placeId == null ? null : () => setS(() => placeId = null),
+                    ),
                     PopupMenuButton<int>(
                       tooltip: 'Priority',
                       initialValue: priority,

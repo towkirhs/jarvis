@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import 'clock.dart';
 import 'haptics.dart';
 import 'habits_screen.dart';
 import 'plan_day_page.dart';
@@ -82,6 +83,8 @@ class ItemTile extends StatelessWidget {
       if (postponed > 0) 'postponed ${postponed}x',
       if (started) 'started',
       if ((it['list'] ?? 'Inbox') != 'Inbox') '${it['list']}',
+      if (it['place'] != null)
+        '${it['placeWhen'] == 'leave' ? 'leaving' : 'at'} ${Clock.place(store.list('places'), it['place'])?['name'] ?? 'a place'}',
     ].join('  ·  ');
     final body = InkWell(
         borderRadius: BorderRadius.circular(12),

@@ -19,6 +19,20 @@ class AlarmReceiver : BroadcastReceiver() {
         val label = entry.getString("label")
         AlarmLog.add(context, "F|$id|${System.currentTimeMillis()}")
 
+        if (kind == "clock") {
+            val days = entry.optInt("days", 0)
+            val sound = entry.optString("sound", "").ifEmpty { null }
+            if (days != 0) {
+                AlarmScheduler.schedule(
+                    context, id, AlarmScheduler.nextOnDays(entry.getLong("millis"), days), kind, label, false, days, sound
+                )
+            } else {
+                AlarmScheduler.remove(context, id)
+            }
+            RingService.start(context, id, label, sound)
+            return
+        }
+
         if (entry.getBoolean("repeat")) {
             AlarmScheduler.schedule(context, id, AlarmScheduler.nextDaily(entry.getLong("millis")), kind, label, true)
         } else {

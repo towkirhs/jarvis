@@ -30,14 +30,14 @@ jobs:
           rm -f test/widget_test.dart analysis_options.yaml
           D=android/app/src/main/kotlin/com/towkirhs/jarcis
           cp android_overlay/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
-          for f in MainActivity AlarmReceiver AlarmScheduler BootReceiver NoteReceiver NativeChannel BackgroundRunner ActionReceiver ShareActivity MoneyCapture Conversation Voice WakeWord; do
+          for f in MainActivity AlarmReceiver AlarmScheduler BootReceiver NoteReceiver NativeChannel BackgroundRunner ActionReceiver ShareActivity MoneyCapture Conversation Voice WakeWord Ring Geo; do
             cp android_overlay/$f.kt $D/$f.kt
           done
           # Offline AI models (LiteRT-LM) need Android 11 or newer.
           sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 30/' android/app/build.gradle.kts
           grep -q 'minSdk = 30' android/app/build.gradle.kts
           # "Hey Jarvis" wake word, detected on the phone (openWakeWord models on LiteRT).
-          printf '\ndependencies {\n    implementation("com.google.ai.edge.litert:litert:1.4.1")\n}\n' >> android/app/build.gradle.kts
+          printf '\ndependencies {\n    implementation("com.google.ai.edge.litert:litert:1.4.1")\n    implementation("com.google.android.gms:play-services-location:21.3.0")\n}\n' >> android/app/build.gradle.kts
           # Keep LiteRT's classes: its native code calls them by name, so shrinking must not remove them.
           printf -- '-keep class org.tensorflow.lite.** { *; }\n' >> android/app/proguard-rules.pro
           # Phones are arm64; leave out the other chip types' copies of native libraries.

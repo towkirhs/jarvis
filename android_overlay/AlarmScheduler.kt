@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import org.json.JSONObject
+import java.util.Calendar
 
 /** Short text log of scheduled (S) and fired (F) alarms, shown in Settings for debugging. */
 object AlarmLog {
@@ -23,7 +24,8 @@ object AlarmLog {
 
 /**
  * Keeps every pending alarm and notice in SharedPreferences so they can be re-armed after a reboot
- * or an app update. kind "alarm" rings as an alarm clock; kind "notice" is a quiet reminder.
+ * or an app update. kind "alarm" rings as an alarm clock; kind "notice" is a quiet reminder; kind "clock" is an
+ * alarm from the Clock page: it rings with RingService and repeats on its weekdays ([days], Monday = bit 0).
  */
 object AlarmScheduler {
     private const val PREFS = "jarcis_alarms"
@@ -44,11 +46,15 @@ object AlarmScheduler {
         save(context, all)
     }
 
-    fun schedule(context: Context, id: Int, millis: Long, kind: String, label: String, repeatDaily: Boolean) {
+    fun schedule(
+        context: Context, id: Int, millis: Long, kind: String, label: String, repeatDaily: Boolean,
+        days: Int = 0, sound: String? = null
+    ) {
         val all = load(context)
         all.put(
             id.toString(),
             JSONObject().put("millis", millis).put("kind", kind).put("label", label).put("repeat", repeatDaily)
+                .put("days", days).put("sound", sound ?: "")
         )
         save(context, all)
         arm(context, id, millis, kind)
@@ -75,6 +81,13 @@ object AlarmScheduler {
             val e = all.getJSONObject(key)
             var millis = e.getLong("millis")
             if (millis <= now) {
+                val days = e.optInt("days", 0)
+                if (days != 0) {
+                    millis = nextOnDays(millis, days)
+                    e.put("millis", millis)
+                    arm(context, key.toInt(), millis, e.getString("kind"))
+                    continue
+                }
                 if (!e.getBoolean("repeat")) {
                     all.remove(key)
                     continue
@@ -94,13 +107,26 @@ object AlarmScheduler {
         return next
     }
 
+    /** The next time after now at the same clock time as [millis], on one of the weekdays in [mask]. */
+    fun nextOnDays(millis: Long, mask: Int): Long {
+        val now = Calendar.getInstance()
+        val c = Calendar.getInstance().apply { timeInMillis = millis }
+        c.set(now.get(Calendar.YEAR), now.get(Calendar.MONTH), now.get(Calendar.DAY_OF_MONTH))
+        repeat(9) {
+            val bit = (c.get(Calendar.DAY_OF_WEEK) + 5) % 7 // Monday = 0 … Sunday = 6
+            if (c.timeInMillis > now.timeInMillis && (mask shr bit) and 1 == 1) return c.timeInMillis
+            c.add(Calendar.DAY_OF_MONTH, 1)
+        }
+        return c.timeInMillis
+    }
+
     private fun arm(context: Context, id: Int, millis: Long, kind: String) {
         val manager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val fire = PendingIntent.getBroadcast(
             context, id, Intent(context, AlarmReceiver::class.java).putExtra("id", id),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        if (kind == "alarm") {
+        if (kind == "alarm" || kind == "clock") {
             val show = PendingIntent.getActivity(
                 context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE
             )

@@ -35,6 +35,17 @@ class MainActivity : FlutterActivity() {
                     )
                     result.success(null)
                 }
+                "requestLocation" -> {
+                    // Android asks for "all the time" separately, after "while using the app" is given.
+                    val fine = checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) ==
+                        android.content.pm.PackageManager.PERMISSION_GRANTED
+                    requestPermissions(
+                        if (fine) arrayOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                        else arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+                        4
+                    )
+                    result.success(null)
+                }
                 "requestSmsPermission" -> {
                     requestPermissions(arrayOf(Manifest.permission.RECEIVE_SMS), 2)
                     result.success(null)

@@ -25,6 +25,30 @@ object NativeChannel {
                 AlarmScheduler.cancel(context, call.argument<Number>("id")!!.toInt())
                 result.success(null)
             }
+            "clock" -> {
+                AlarmScheduler.schedule(
+                    context,
+                    call.argument<Number>("id")!!.toInt(),
+                    call.argument<Number>("millis")!!.toLong(),
+                    "clock",
+                    call.argument<String>("label") ?: "Alarm",
+                    false,
+                    call.argument<Number>("days")?.toInt() ?: 0,
+                    call.argument<String>("sound")
+                )
+                result.success(null)
+            }
+            "ringNow" -> {
+                RingService.start(context, 0, call.argument<String>("label") ?: "Test alarm", call.argument<String>("sound"))
+                result.success(null)
+            }
+            "geofences" -> {
+                Geo.set(context, call.argument<String>("json") ?: "[]")
+                result.success(null)
+            }
+            "takeGeoFired" -> result.success(GeoQueue.take(context))
+            "locationAccess" -> result.success(Geo.access(context))
+            "here" -> Geo.here(context, result)
             "openUrl" -> {
                 try {
                     context.startActivity(

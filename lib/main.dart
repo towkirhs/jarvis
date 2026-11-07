@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'ai.dart';
+import 'clock.dart';
 import 'haptics.dart';
 import 'brain.dart';
 import 'capture_page.dart';
@@ -159,6 +160,8 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
   /// Runs every minute while the app is open: retries waiting notes and writes the evening summary.
   Future<void> _tick() async {
     await _applyDone();
+    await Clock.drainFired(s);
+    await Clock.sync(s);
     await drainMoneyQueue(s);
     for (final (said, did, ts) in await Native.takeCommandLog()) {
       logCommand(s, said, did, ts: ts);

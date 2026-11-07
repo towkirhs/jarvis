@@ -7,7 +7,7 @@ import 'shapes.dart';
 import 'haptics.dart';
 import 'brain.dart';
 import 'countdown_screen.dart';
-import 'focus_screen.dart';
+import 'clock_screen.dart';
 import 'habit_core.dart';
 import 'habits_screen.dart';
 import 'native.dart';
@@ -65,10 +65,12 @@ class MoreScreen extends StatelessWidget {
               ]),
               group('Tools', [
                 tile(
-                  Icons.timer_outlined,
-                  'Focus',
-                  store.focusActive == null ? 'Pomodoro and stopwatch' : 'Running now',
-                  Scaffold(appBar: AppBar(title: const Text('Focus')), body: FocusScreen(store: store)),
+                  Icons.alarm,
+                  'Clock',
+                  store.focusActive == null
+                      ? 'Alarms, place alarms, focus timer'
+                      : 'Focus running now',
+                  ClockScreen(store: store),
                 ),
                 tile(Icons.insights, 'Insights', null, InsightsPage(store: store)),
               ]),
