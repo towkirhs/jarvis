@@ -76,9 +76,10 @@ object NativeChannel {
             "takeCommandLog" -> result.success(Commands.takeLog(context))
             "wake" -> {
                 val on = call.argument<Boolean>("on") == true
-                val key = call.argument<String>("key")
-                if (key != null) {
-                    context.getSharedPreferences("jarcis_cmds", Context.MODE_PRIVATE).edit().putString("picovoice", key).apply()
+                val threshold = call.argument<Number>("threshold")
+                if (threshold != null) {
+                    context.getSharedPreferences("jarcis_cmds", Context.MODE_PRIVATE).edit()
+                        .putFloat("wake_threshold", threshold.toFloat()).apply()
                 }
                 if (on) WakeService.start(context) else WakeService.stop(context)
                 result.success(null)

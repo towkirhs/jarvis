@@ -105,8 +105,9 @@ class Native {
     ];
   }
 
-  static Future<void> wake(bool on, {String? key}) async {
-    if (!kIsWeb) await _ch.invokeMethod('wake', {'on': on, 'key': key});
+  /// Starts or stops listening for "Hey Jarvis". [threshold] (0 to 1): lower hears it more easily.
+  static Future<void> wake(bool on, {double? threshold}) async {
+    if (!kIsWeb) await _ch.invokeMethod('wake', {'on': on, 'threshold': threshold});
   }
 
   static Future<Map<String, bool>> voiceAccess() async {

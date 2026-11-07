@@ -7,7 +7,7 @@ import 'home_screen.dart' show logCommand;
 import 'native.dart';
 import 'store.dart';
 
-/// "Jarvis" wake word, phone actions, and your own names and phrases for them.
+/// "Hey Jarvis" wake word, phone actions, and your own names and phrases for them.
 class VoicePage extends StatefulWidget {
   const VoicePage({super.key, required this.store});
   final Store store;
@@ -18,9 +18,10 @@ class VoicePage extends StatefulWidget {
 
 class _VoicePageState extends State<VoicePage> with WidgetsBindingObserver {
   Store get s => widget.store;
-  late final _key = TextEditingController(text: s.local('picovoice'));
   final _try = TextEditingController();
   Map<String, bool> _access = {};
+
+  double get _threshold => double.tryParse(s.local('wake_threshold') ?? '') ?? 0.5;
   String? _result;
 
   /// {people: {nickname: contact name or number}, apps: {name: app label}, phrases: {phrase: {kind, target, text}}}
@@ -41,7 +42,6 @@ class _VoicePageState extends State<VoicePage> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _key.dispose();
     _try.dispose();
     super.dispose();
   }
@@ -177,7 +177,7 @@ class _VoicePageState extends State<VoicePage> with WidgetsBindingObserver {
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
         children: [
           Text(
-            'Say "Jarvis", then a command: "open YouTube", "message Oishi on WhatsApp saying I\'m on my way", '
+            'Say "Hey Jarvis", then a command: "open YouTube", "message Oishi on WhatsApp saying I\'m on my way", '
             '"call Oishi on WhatsApp", "call Ammu", "turn on the flashlight", "directions to Dhanmondi 27". '
             'Anything else becomes a note for Jarvis. You can type the same commands in the chat.',
             style: tt.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
@@ -201,38 +201,47 @@ class _VoicePageState extends State<VoicePage> with WidgetsBindingObserver {
           const SizedBox(height: 16),
           Text('Wake word', style: tt.titleMedium),
           const SizedBox(height: 8),
-          TextField(
-            controller: _key,
-            obscureText: true,
-            decoration: const InputDecoration(
-              labelText: 'Picovoice AccessKey',
-              helperText: 'Free for personal use: sign up at console.picovoice.ai and copy your AccessKey.',
-              helperMaxLines: 2,
-            ),
-          ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('Listen for "Jarvis"'),
-            subtitle: const Text('Shows a small notification while listening. Turn it on again after restarting the phone.'),
+            title: const Text('Listen for "Hey Jarvis"'),
+            subtitle: const Text('Heard on this phone only, no account or key needed. Shows a small notification while '
+                'listening. Turn it on again after restarting the phone.'),
             value: wakeOn,
             onChanged: (v) async {
               Haptics.toggle(v);
-              final key = _key.text.trim();
-              if (v && key.isEmpty) {
-                Haptics.reject();
-                setState(() => _result = 'Paste your Picovoice AccessKey first.');
-                return;
-              }
               if (v && _access['mic'] != true) {
                 await Native.requestVoicePermissions();
                 await Future<void>.delayed(const Duration(seconds: 1));
               }
-              await s.setLocal('picovoice', key);
-              await Native.wake(v, key: key);
+              await Native.wake(v, threshold: _threshold);
               await Future<void>.delayed(const Duration(milliseconds: 500));
               _refresh();
             },
           ),
+          const SizedBox(height: 8),
+          Text('How easily it wakes', style: tt.labelLarge),
+          const SizedBox(height: 8),
+          SegmentedButton<double>(
+            segments: const [
+              ButtonSegment(value: 0.7, label: Text('Strict')),
+              ButtonSegment(value: 0.5, label: Text('Normal')),
+              ButtonSegment(value: 0.3, label: Text('Easy')),
+            ],
+            selected: {_threshold},
+            onSelectionChanged: (v) async {
+              Haptics.segment();
+              await s.setLocal('wake_threshold', '${v.first}');
+              setState(() {});
+              // Takes effect now if it is listening.
+              if (wakeOn) {
+                await Native.wake(false);
+                await Native.wake(true, threshold: v.first);
+              }
+            },
+          ),
+          const SizedBox(height: 4),
+          Text('Easy if it often misses you, Strict if it wakes up by itself. Wake word model: openWakeWord.',
+              style: tt.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
           const SizedBox(height: 16),
           Row(children: [
             Expanded(child: Text('Nicknames', style: tt.titleMedium)),

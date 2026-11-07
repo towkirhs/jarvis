@@ -32,8 +32,9 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
-import ai.picovoice.porcupine.Porcupine
-import ai.picovoice.porcupine.PorcupineManager
+import android.media.AudioFormat
+import android.media.AudioRecord
+import android.media.MediaRecorder
 import org.json.JSONObject
 
 /**
@@ -321,12 +322,14 @@ object Overlay {
 }
 
 /**
- * Listens for "Jarvis" (Picovoice Porcupine, on the phone, nothing recorded or sent), then hears one sentence
+ * Listens for "Hey Jarvis" (openWakeWord, on the phone, nothing recorded or sent), then hears one sentence
  * with the phone's speech recognizer: a command runs, anything else goes to Jarvis as a note and the answer
  * comes back as a notification. Runs as a foreground service with a notification while it listens.
  */
 class WakeService : Service() {
-    private var porcupine: PorcupineManager? = null
+    private var detector: WakeWord? = null
+    @Volatile private var listening = false
+    private var thread: Thread? = null
     private var recognizer: SpeechRecognizer? = null
     private val main = Handler(Looper.getMainLooper())
 
@@ -338,7 +341,7 @@ class WakeService : Service() {
             return START_NOT_STICKY
         }
         startForegroundNotice()
-        if (porcupine == null) startWake()
+        if (detector == null) startWake()
         return START_STICKY
     }
 
@@ -351,7 +354,7 @@ class WakeService : Service() {
         val open = PendingIntent.getActivity(this, 4, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         val n = Notification.Builder(this, CHANNEL)
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
-            .setContentTitle("Say \"Jarvis\"")
+            .setContentTitle("Say \"Hey Jarvis\"")
             .setContentText("Listening for the wake word on this phone only")
             .setContentIntent(open)
             .addAction(Notification.Action.Builder(null, "Stop", stop).build())
@@ -365,29 +368,73 @@ class WakeService : Service() {
     }
 
     private fun startWake() {
-        val key = getSharedPreferences("jarcis_cmds", Context.MODE_PRIVATE).getString("picovoice", null)
-        if (key.isNullOrEmpty()) {
-            Commands.toast(this, "Add your Picovoice key in Jarvis first")
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            Commands.toast(this, "Allow the microphone in Jarvis first")
             stopSelf()
             return
         }
         try {
-            porcupine = PorcupineManager.Builder()
-                .setAccessKey(key)
-                .setKeyword(Porcupine.BuiltInKeyword.JARVIS)
-                .setSensitivity(0.6f)
-                .setErrorCallback { e -> Commands.toast(this, "Wake word stopped: ${e.message}") }
-                .build(applicationContext) { _ -> main.post { heard() } }
-            porcupine?.start()
+            detector = WakeWord(this)
         } catch (e: Exception) {
             Commands.toast(this, "Wake word could not start: ${e.message}")
             stopSelf()
+            return
         }
+        listen()
     }
 
-    /** "Jarvis" was heard: let go of the mic, listen for one sentence, then go back to waiting. */
+    /** Reads the mic in 80 ms chunks on its own thread until the wake word scores above the threshold. */
+    private fun listen() {
+        if (listening) return
+        listening = true
+        val threshold = getSharedPreferences("jarcis_cmds", Context.MODE_PRIVATE).getFloat("wake_threshold", 0.5f)
+        thread = Thread {
+            val chunk = ShortArray(WakeWord.CHUNK)
+            var rec: AudioRecord? = null
+            var failed = false
+            try {
+                val min = AudioRecord.getMinBufferSize(16000, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
+                rec = AudioRecord(
+                    MediaRecorder.AudioSource.VOICE_RECOGNITION, 16000, AudioFormat.CHANNEL_IN_MONO,
+                    AudioFormat.ENCODING_PCM_16BIT, maxOf(min, WakeWord.CHUNK * 4)
+                )
+                rec.startRecording()
+                while (listening) {
+                    var n = 0
+                    while (n < chunk.size && listening) {
+                        val r = rec.read(chunk, n, chunk.size - n)
+                        if (r <= 0) throw IllegalStateException("the microphone stopped")
+                        n += r
+                    }
+                    if (!listening) break
+                    if ((detector?.score(chunk) ?: 0f) >= threshold) {
+                        listening = false
+                        main.post { heard() }
+                    }
+                }
+            } catch (e: Exception) {
+                failed = listening
+                listening = false
+                if (failed) main.post {
+                    Commands.toast(this, "Wake word stopped: ${e.message}")
+                    stopSelf()
+                }
+            } finally {
+                try { rec?.stop() } catch (_: Exception) {}
+                rec?.release()
+            }
+        }.apply { start() }
+    }
+
+    private fun stopListening() {
+        listening = false
+        try { thread?.join(1000) } catch (_: InterruptedException) {}
+        thread = null
+    }
+
+    /** "Hey Jarvis" was heard: let go of the mic, listen for one sentence, then go back to waiting. */
     private fun heard() {
-        try { porcupine?.stop() } catch (_: Exception) {}
+        stopListening()
         Overlay.show(this, "Listening…")
         val r = SpeechRecognizer.createSpeechRecognizer(this)
         recognizer = r
@@ -441,15 +488,16 @@ class WakeService : Service() {
         main.postDelayed({
             recognizer?.destroy()
             recognizer = null
-            try { porcupine?.start() } catch (_: Exception) {}
+            detector?.reset()
+            listen()
         }, 300)
     }
 
     override fun onDestroy() {
         recognizer?.destroy()
-        try { porcupine?.stop() } catch (_: Exception) {}
-        porcupine?.delete()
-        porcupine = null
+        stopListening()
+        detector?.close()
+        detector = null
         Overlay.hide(this)
         super.onDestroy()
     }

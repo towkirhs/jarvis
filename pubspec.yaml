@@ -27,6 +27,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/wakeword/
   fonts:
     - family: Bricolage
       fonts:
