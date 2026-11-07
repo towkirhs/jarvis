@@ -4,6 +4,7 @@ import 'ai.dart';
 import 'haptics.dart';
 import 'offline_llm.dart';
 import 'store.dart';
+import 'web.dart';
 
 /// Choose where Jarvis thinks, and in what order: phone rules, your server, hosted APIs.
 class AiPage extends StatefulWidget {
@@ -257,6 +258,23 @@ class _AiPageState extends State<AiPage> {
               ),
             ),
           ]),
+          const SizedBox(height: 12),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            secondary: const Icon(Icons.public),
+            title: const Text('Search the web when needed'),
+            subtitle: Text(Web.available(s)
+                ? 'For news, weather, prices and facts your notes cannot answer. Only the search words leave the phone. '
+                    '"search for …" always searches.'
+                : 'Needs Google Gemini or a Groq API (gpt-oss models) above.'),
+            value: Web.on(s),
+            onChanged: (v) {
+              Haptics.toggle(v);
+              s.settings['web'] = v;
+              s.save();
+              setState(() {});
+            },
+          ),
           if (OfflineLlm.supported) ...[
             const SizedBox(height: 24),
             Text('Offline models', style: tt.titleSmall),

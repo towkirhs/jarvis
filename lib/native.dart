@@ -24,6 +24,12 @@ class Native {
     });
   }
 
+  /// Opens a web page in the phone's browser.
+  static Future<void> openUrl(String url) async {
+    if (kIsWeb) return;
+    await _ch.invokeMethod('openUrl', {'url': url});
+  }
+
   static Future<String?> takeSharedText() async =>
       kIsWeb ? null : await _ch.invokeMethod<String>('takeSharedText');
 

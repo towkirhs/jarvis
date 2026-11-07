@@ -25,6 +25,17 @@ object NativeChannel {
                 AlarmScheduler.cancel(context, call.argument<Number>("id")!!.toInt())
                 result.success(null)
             }
+            "openUrl" -> {
+                try {
+                    context.startActivity(
+                        Intent(Intent.ACTION_VIEW, android.net.Uri.parse(call.argument<String>("url")))
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                } catch (_: Exception) {
+                    // No browser to open it.
+                }
+                result.success(null)
+            }
             "takeNotes" -> result.success(NoteQueue.take(context))
             "takeDone" -> result.success(DoneQueue.take(context))
             "takeMoney" -> result.success(MoneyQueue.take(context))

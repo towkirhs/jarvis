@@ -11,6 +11,7 @@ import 'local_parser.dart';
 import 'native.dart';
 import 'quick_answers.dart';
 import 'store.dart';
+import 'web.dart';
 
 /// Turns captured text into tasks, alarms, habits, promises, decisions and journal entries.
 class Brain {
@@ -32,7 +33,8 @@ class Brain {
     final skip = image == null &&
         (source == 'in-app' || source == 'journal') &&
         s.settings['prefilter'] == true &&
-        !looksLikeUpdate(raw);
+        !looksLikeUpdate(raw) &&
+        Web.asked(raw) == null;
     s.list('captures').add({
       'id': s.nextId(),
       'ts': DateTime.now().millisecondsSinceEpoch,
@@ -150,6 +152,23 @@ class Brain {
       c['via'] = 'phone';
       return _apply(s, c, {'items': <dynamic>[], 'reply': quick});
     }
+    // "search for X", "google X": straight to the web.
+    final webQ = c['image'] == null ? Web.asked(c['raw'] as String) : null;
+    if (webQ != null) {
+      if (!Web.available(s)) {
+        c['via'] = 'phone';
+        return _apply(s, c, {'items': <dynamic>[], 'reply': 'To search the web, add your Gemini key or a Groq API in Settings, AI models.'});
+      }
+      try {
+        final a = await Web.search(s, webQ);
+        c['via'] = AI.lastUsed;
+        return _apply(s, c, {'items': <dynamic>[], 'reply': a.text, 'sources': [for (final x in a.sources) x.toJson()]});
+      } catch (e) {
+        c['msg'] = 'Waiting to search the web: $e';
+        s.save();
+        return false;
+      }
+    }
     // "Should I…?", "X or Y?": a decision with odds, not a conversation.
     if (c['image'] == null && AI.available(s) && Decide.isDecisionRequest(c['raw'] as String)) {
       try {
@@ -200,7 +219,8 @@ class Brain {
       }
       text = await AI.generate(
         s,
-        _parserPrompt(s, c['raw'] as String, photo: bytes != null, replyTo: c['replyTo'] as String?),
+        _parserPrompt(s, c['raw'] as String,
+            photo: bytes != null, replyTo: c['replyTo'] as String?, web: Web.on(s) && Web.available(s)),
         json: true,
         image: bytes,
         mime: path != null && path.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg',
@@ -225,6 +245,18 @@ class Brain {
       return true;
     }
     c['via'] = AI.lastUsed ?? 'ai';
+    // The AI says the answer is on the internet: search, and answer from what was found.
+    final q = (data['web'] as String?)?.trim() ?? '';
+    if (q.isNotEmpty && Web.on(s) && Web.available(s)) {
+      try {
+        final a = await Web.search(s, q);
+        data['reply'] = a.text;
+        data['sources'] = [for (final x in a.sources) x.toJson()];
+        c['via'] = AI.lastUsed;
+      } catch (_) {
+        // The search failed: keep the AI's own reply rather than hold the note back.
+      }
+    }
     return _apply(s, c, data);
   }
 
@@ -262,6 +294,7 @@ class Brain {
       c['actionId'] = msgs.isEmpty ? null : s.logAction(msgs.join('; '), undo);
       c['msg'] = msgs.isEmpty ? (reply == null ? 'Saved to your journal.' : '') : msgs.join('\n');
       c['reply'] = reply;
+      c['sources'] = data['sources'];
       final mood = (data['mood'] as num?)?.toInt();
       c['mood'] = mood != null && mood >= 1 && mood <= 5 ? mood : null;
       c['status'] = 'done';
@@ -816,7 +849,7 @@ class Brain {
     return lines.join('\n');
   }
 
-  static String _parserPrompt(Store s, String note, {bool photo = false, String? replyTo}) {
+  static String _parserPrompt(Store s, String note, {bool photo = false, String? replyTo, bool web = false}) {
     final now = DateTime.now();
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
     return '''You are Jarvis, the person's personal assistant. You turn what they tell you into actions in their life system, and answer their questions from their data. Today is ${days[now.weekday - 1]} ${dayKey(now)}, local time ${two(now.hour)}:${two(now.minute)}.
@@ -825,7 +858,7 @@ What you know about their life right now:
 ${_safeWorld(s)}
 
 Return ONLY JSON in this shape:
-{"cleaned": string, "reply": string, "mood": integer or null, "topics": [string], "items": [ {"type": string, "title": string, "date": string or null, "time": string or null, "target": string or null, "person": string or null, "reason": string or null, "habit": string or null, "estimateMinutes": integer or null, "category": string or null, "times": integer or null, "per": "week" or "month" or null, "done": boolean or null, "description": string or null, "priority": "high" or "medium" or "low" or null, "tags": [string] or null, "list": string or null, "repeat": "daily" or "weekly" or "monthly" or "yearly" or null, "durationMinutes": integer or null, "amount": number or null, "moneyType": "income" or "expense" or "transfer" or null, "account": string or null, "toAccount": string or null, "confidence": number} ]}
+{"cleaned": string, "reply": string, ${web ? '"web": string or null, ' : ''}"mood": integer or null, "topics": [string], "items": [ {"type": string, "title": string, "date": string or null, "time": string or null, "target": string or null, "person": string or null, "reason": string or null, "habit": string or null, "estimateMinutes": integer or null, "category": string or null, "times": integer or null, "per": "week" or "month" or null, "done": boolean or null, "description": string or null, "priority": "high" or "medium" or "low" or null, "tags": [string] or null, "list": string or null, "repeat": "daily" or "weekly" or "monthly" or "yearly" or null, "durationMinutes": integer or null, "amount": number or null, "moneyType": "income" or "expense" or "transfer" or null, "account": string or null, "toAccount": string or null, "confidence": number} ]}
 
 "cleaned": the note with grammar fixed, same meaning, first person, nothing added.
 "topics": 1 to 4 lowercase single words about what the note covers.
@@ -849,7 +882,7 @@ Rules:
 - "complete" is when the person says they finished, did, sent, paid or submitted something that is an open item or promise above. "cancel" is when they say it is off or no longer needed. Never create a new task for something they say is already done.
 - Things connect: paying a bill that is an open task is a "money" item AND a "complete" item. Buying something on their list completes it too. Keeping a promise completes the promise.
 - A question ("what do I have tomorrow", "when is Ammu's birthday", "how much did I spend on food", "did I go to the gym this week") gets no items, only the answer in "reply".
-- A plain reflection or feeling is type "note" (it goes to their journal); still write a short, kind "reply" and set "mood".
+${web ? '- "web": if answering needs the internet (news, weather, prices, scores, facts about the world, places, public people) and their data above does not answer it, a short search query for it, with no personal details from their data; then "reply" can be empty. Otherwise null. Never for their own plans, money, habits or notes.\n' : ''}- A plain reflection or feeling is type "note" (it goes to their journal); still write a short, kind "reply" and set "mood".
 - Small talk, or anything that is not about plans, tasks, habits, promises, decisions or reflections, is type "ignore".
 - One note can hold several items, but one real-world thing is ONE item. A class or appointment at a time is one "event" (it already gets a reminder); do not also add a task or alarm for it unless the person separately asks to be woken or reminded.
 - If the note is about something already in the open items list, do not create it again: use "delay" if its time changed, "complete" if it is done, otherwise "ignore".

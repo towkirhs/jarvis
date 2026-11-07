@@ -492,6 +492,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final action = s.byId('actions', c['actionId'] as int?);
     final results = action == null || action['undone'] == true ? const <Widget>[] : _results(context, action);
     final past = ((c['past'] as List?) ?? const []).map((e) => e.toString()).toList();
+    final sources = ((c['sources'] as List?) ?? const []).cast<Map>();
     final via = c['via'] as String?;
     final text = status == 'pending'
         ? null
@@ -525,6 +526,23 @@ class _HomeScreenState extends State<HomeScreen> {
               if (results.isNotEmpty) ...[
                 if (text != null) const SizedBox(height: 8),
                 Wrap(spacing: 8, runSpacing: 8, children: results),
+              ],
+              if (sources.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Wrap(spacing: 8, runSpacing: 8, children: [
+                  for (final src in sources)
+                    ActionChip(
+                      avatar: const Icon(Icons.public, size: 16),
+                      label: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 180),
+                        child: Text('${src['title']}', maxLines: 1, overflow: TextOverflow.ellipsis),
+                      ),
+                      onPressed: () {
+                        Haptics.tap();
+                        Native.openUrl('${src['url']}');
+                      },
+                    ),
+                ]),
               ],
               for (final p in past) Padding(padding: const EdgeInsets.only(top: 4), child: Text(p, style: small?.copyWith(fontStyle: FontStyle.italic))),
               Row(mainAxisSize: MainAxisSize.min, children: [
@@ -637,6 +655,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ..['edited'] = true
           ..remove('msg')
           ..remove('reply')
+          ..remove('sources')
           ..remove('actionId')
           ..remove('via');
         s.save();
