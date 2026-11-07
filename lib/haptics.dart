@@ -17,7 +17,9 @@ class Haptics {
     }
     _ch.invokeMethod<bool>('haptic', {'kind': kind}).then((played) {
       if (played != true) fallback();
-    }, onError: (_) => fallback());
+    }, onError: (_) {
+      fallback();
+    });
   }
 
   /// A choice changed: switching tabs, flipping a filter, undo.
