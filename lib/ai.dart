@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 
 import 'gemini.dart';
+import 'offline_llm.dart';
 import 'store.dart';
 
 /// Where Jarvis's thinking happens, in the order you choose:
@@ -35,9 +36,21 @@ class AI {
     if (p['on'] != true) return false;
     return switch (p['type']) {
       'phone' => true,
+      'offline' => offlineReady,
       'gemini' => s.apiKey.isNotEmpty,
       _ => ((p['url'] as String?) ?? '').isNotEmpty && ((p['model'] as String?) ?? '').isNotEmpty,
     };
+  }
+
+  /// An offline model is downloaded (checked at start and after downloads).
+  static bool offlineReady = false;
+
+  static Future<void> checkOffline() async {
+    try {
+      offlineReady = await OfflineLlm.installed() != null;
+    } catch (_) {
+      offlineReady = false;
+    }
   }
 
   /// Any AI (not just phone rules) is set up.
@@ -65,9 +78,11 @@ class AI {
       if (p['type'] == 'phone' || !ready(s, p)) continue;
       if (image != null && p['type'] != 'gemini' && !mime.startsWith('image/')) continue; // only Gemini reads PDFs
       try {
-        final out = p['type'] == 'gemini'
-            ? await Gemini.generate(s, prompt, json: json, image: image, mime: mime)
-            : await _openai(p, key(s, p), prompt, json: json, image: image, mime: mime);
+        final out = switch (p['type']) {
+          'gemini' => await Gemini.generate(s, prompt, json: json, image: image, mime: mime),
+          'offline' => await OfflineLlm.generate(prompt, json: json, image: image),
+          _ => await _openai(p, key(s, p), prompt, json: json, image: image, mime: mime),
+        };
         lastUsed = p['name'] as String?;
         return out;
       } catch (e) {
@@ -128,9 +143,12 @@ class AI {
 
   /// A quick check that an entry answers, for the Test button.
   static Future<String> test(Store s, Map<String, dynamic> p) async {
-    final out = p['type'] == 'gemini'
-        ? await Gemini.generate(s, 'Reply with the JSON {"ok": true}', json: true)
-        : await _openai(p, key(s, p), 'Reply with the JSON {"ok": true}', json: true);
+    const ask = 'Reply with the JSON {"ok": true}';
+    final out = switch (p['type']) {
+      'gemini' => await Gemini.generate(s, ask, json: true),
+      'offline' => await OfflineLlm.generate(ask, json: true),
+      _ => await _openai(p, key(s, p), ask, json: true),
+    };
     return out.contains('ok') ? 'Works.' : 'Answered, but oddly: $out';
   }
 }

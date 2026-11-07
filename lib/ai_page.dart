@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'ai.dart';
 import 'haptics.dart';
+import 'offline_llm.dart';
 import 'store.dart';
 
 /// Choose where Jarvis thinks, and in what order: phone rules, your server, hosted APIs.
@@ -17,6 +18,51 @@ class _AiPageState extends State<AiPage> {
   Store get s => widget.store;
   late List<Map<String, dynamic>> _list = AI.providers(s);
   final _testing = <String, String>{};
+  String? _installed;
+  String? _downloading;
+  int _progress = 0;
+  String? _offlineError;
+
+  @override
+  void initState() {
+    super.initState();
+    if (OfflineLlm.supported) OfflineLlm.installed().then((id) => mounted ? setState(() => _installed = id) : null);
+  }
+
+  Future<void> _download(OfflineModel m) async {
+    setState(() {
+      _downloading = m.id;
+      _progress = 0;
+      _offlineError = null;
+    });
+    try {
+      await OfflineLlm.download(m.id, (p) {
+        if (mounted) setState(() => _progress = p);
+      });
+      await AI.checkOffline();
+      // Put it in the order right after the phone rules, switched on.
+      if (!_list.any((p) => p['type'] == 'offline')) {
+        final at = _list.indexWhere((p) => p['type'] == 'phone') + 1;
+        _list.insert(at, {'id': 'offline', 'type': 'offline', 'name': 'Offline model', 'on': true});
+      }
+      _save();
+      Haptics.success();
+      _installed = m.id;
+    } catch (e) {
+      Haptics.reject();
+      _offlineError = 'Download failed: ${e.toString().replaceFirst('Exception: ', '')}';
+    }
+    if (mounted) setState(() => _downloading = null);
+  }
+
+  Future<void> _removeOffline() async {
+    Haptics.warn();
+    await OfflineLlm.remove();
+    await AI.checkOffline();
+    _list.removeWhere((p) => p['type'] == 'offline');
+    _save();
+    setState(() => _installed = null);
+  }
 
   void _save() {
     AI.save(s, _list);
@@ -25,12 +71,16 @@ class _AiPageState extends State<AiPage> {
 
   String _describe(Map<String, dynamic> p) => switch (p['type']) {
         'phone' => 'Rules on this phone, no AI: alarms, timed tasks, money, habits, quick questions. Offline and instant.',
+        'offline' => AI.offlineReady
+            ? '${OfflineLlm.models.firstWhere((m) => m.id == _installed, orElse: () => OfflineLlm.models.first).name}, on this phone, no internet'
+            : 'Download a model below.',
         'gemini' => s.apiKey.isEmpty ? 'Add your Gemini key in Settings to use this.' : 'Model ${s.settings['model'] ?? 'gemini-2.5-flash-lite'}',
         _ => '${p['model'] ?? '?'} at ${p['url'] ?? '?'}',
       };
 
   IconData _icon(Map<String, dynamic> p) => switch (p['type']) {
         'phone' => Icons.phone_android,
+        'offline' => Icons.download_done,
         'gemini' => Icons.auto_awesome,
         _ => p['kind'] == 'server' ? Icons.dns_outlined : Icons.cloud_outlined,
       };
@@ -207,6 +257,40 @@ class _AiPageState extends State<AiPage> {
               ),
             ),
           ]),
+          if (OfflineLlm.supported) ...[
+            const SizedBox(height: 24),
+            Text('Offline models', style: tt.titleSmall),
+            const SizedBox(height: 4),
+            Text(
+              'Download once and Jarvis thinks on the phone, with no internet and nothing leaving it. '
+              'Slower than a server or Gemini, and uses battery while it works. One model at a time.',
+              style: tt.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+            ),
+            for (final m in OfflineLlm.models)
+              Card(
+                child: ListTile(
+                  title: Text('${m.name}, ${m.size}'),
+                  subtitle: _downloading == m.id
+                      ? Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: LinearProgressIndicator(value: _progress / 100),
+                        )
+                      : Text(m.about),
+                  trailing: _installed == m.id
+                      ? TextButton(onPressed: _removeOffline, child: const Text('Delete'))
+                      : (_downloading == m.id
+                          ? Text('$_progress%')
+                          : TextButton(
+                              onPressed: _downloading == null ? () => _download(m) : null,
+                              child: Text(_installed == null ? 'Download' : 'Switch'),
+                            )),
+                ),
+              ),
+            if (_offlineError != null)
+              Padding(padding: const EdgeInsets.only(top: 8), child: Text(_offlineError!, style: TextStyle(color: scheme.error))),
+            Text('Download on Wi-Fi and keep this screen open until it finishes.',
+                style: tt.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+          ],
           const SizedBox(height: 24),
           Text('Your own server', style: tt.titleSmall),
           const SizedBox(height: 8),

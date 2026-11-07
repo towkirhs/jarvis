@@ -33,6 +33,9 @@ jobs:
           for f in MainActivity AlarmReceiver AlarmScheduler BootReceiver NoteReceiver NativeChannel BackgroundRunner ActionReceiver ShareActivity MoneyCapture Conversation; do
             cp android_overlay/$f.kt $D/$f.kt
           done
+          # Offline AI models (LiteRT-LM) need Android 11 or newer.
+          sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 30/' android/app/build.gradle.kts
+          grep -q 'minSdk = 30' android/app/build.gradle.kts
 
       # Sign every release with the same key (a repository secret), so each new APK installs over the last one.
       - name: Use fixed signing key
@@ -63,7 +66,8 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze --no-fatal-infos
       - run: flutter test
-      - run: flutter build apk --release
+      # 64-bit ARM only: every phone from the last several years, and the offline AI engine only ships for it.
+      - run: flutter build apk --release --target-platform android-arm64
       - run: flutter build web --release --base-href /jarvis/
 
       - name: Show signing certificate

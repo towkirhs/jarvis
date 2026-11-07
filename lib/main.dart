@@ -22,6 +22,7 @@ Future<void> main() async {
   final store = Store();
   await store.load();
   Native.init();
+  AI.checkOffline(); // finds a downloaded offline model in the background
   runApp(JarcisApp(store: store));
 }
 
