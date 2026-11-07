@@ -162,7 +162,7 @@ class Brain {
       try {
         final a = await Web.search(s, webQ);
         c['via'] = AI.lastUsed;
-        return _apply(s, c, {'items': <dynamic>[], 'reply': a.text, 'sources': [for (final x in a.sources) x.toJson()]});
+        return await _apply(s, c, {'items': <dynamic>[], 'reply': a.text, 'sources': [for (final x in a.sources) x.toJson()]});
       } catch (e) {
         c['msg'] = 'Waiting to search the web: $e';
         s.save();
