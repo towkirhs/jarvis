@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'native.dart';
 import 'ai.dart';
 
 import 'shapes.dart';
@@ -46,6 +47,12 @@ class _HomeScreenState extends State<HomeScreen> {
     if (t.isEmpty) return;
     Haptics.tap();
     _ctrl.clear();
+    // Phone actions ("open YouTube", "message Oishi on WhatsApp") run right away; the rest goes to Jarvis.
+    final did = await Native.command(t);
+    if (did != null) {
+      logCommand(s, t, did);
+      return;
+    }
     await Brain.capture(s, t);
   }
 
@@ -637,4 +644,19 @@ class _HomeScreenState extends State<HomeScreen> {
         await Brain.drain(s);
     }
   }
+}
+
+/// Puts a phone action into the chat as a finished exchange.
+void logCommand(Store s, String said, String did, {int? ts}) {
+  s.list('captures').add({
+    'id': s.nextId(),
+    'ts': ts ?? DateTime.now().millisecondsSinceEpoch,
+    'raw': said,
+    'cleaned': said,
+    'source': 'in-app',
+    'status': 'done',
+    'reply': did,
+    'via': 'phone',
+  });
+  s.save();
 }

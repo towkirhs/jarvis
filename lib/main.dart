@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -23,6 +24,7 @@ Future<void> main() async {
   await store.load();
   Native.init();
   AI.checkOffline(); // finds a downloaded offline model in the background
+  Native.setShortcuts(jsonEncode(store.settings['shortcuts'] ?? {})); // nicknames and phrases for phone actions
   runApp(JarcisApp(store: store));
 }
 
@@ -158,6 +160,9 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
   Future<void> _tick() async {
     await _applyDone();
     await drainMoneyQueue(s);
+    for (final (said, did, ts) in await Native.takeCommandLog()) {
+      logCommand(s, said, did, ts: ts);
+    }
     for (final (text, image, source) in await Native.takeNotes()) {
       await Brain.capture(s, text.isEmpty ? '(shared image)' : text, source: source, image: image);
     }

@@ -44,6 +44,51 @@ object NativeChannel {
                 result.success(null)
             }
             "getLog" -> result.success(AlarmLog.read(context))
+            "command" -> {
+                // A phone action ("open WhatsApp", "call Oishi on WhatsApp"), or null if it is an ordinary note.
+                val text = call.argument<String>("text") ?: ""
+                val cmd = Commands.parse(context, text)
+                if (cmd == null) {
+                    result.success(null)
+                } else {
+                    try {
+                        result.success(Commands.run(context, cmd))
+                    } catch (e: Exception) {
+                        result.success("Couldn't: ${e.message}")
+                    }
+                }
+            }
+            "setShortcuts" -> {
+                Commands.setShortcuts(context, call.argument<String>("json") ?: "{}")
+                result.success(null)
+            }
+            "takeCommandLog" -> result.success(Commands.takeLog(context))
+            "wake" -> {
+                val on = call.argument<Boolean>("on") == true
+                val key = call.argument<String>("key")
+                if (key != null) {
+                    context.getSharedPreferences("jarcis_cmds", Context.MODE_PRIVATE).edit().putString("picovoice", key).apply()
+                }
+                if (on) WakeService.start(context) else WakeService.stop(context)
+                result.success(null)
+            }
+            "voiceAccess" -> {
+                fun has(p: String) = context.checkSelfPermission(p) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                result.success(mapOf(
+                    "mic" to has(android.Manifest.permission.RECORD_AUDIO),
+                    "contacts" to has(android.Manifest.permission.READ_CONTACTS),
+                    "call" to has(android.Manifest.permission.CALL_PHONE),
+                    "overlay" to Overlay.allowed(context),
+                    "wake" to WakeService.running,
+                ))
+            }
+            "openOverlaySettings" -> {
+                context.startActivity(
+                    Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:${context.packageName}"))
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+                result.success(null)
+            }
             "haptic" -> {
                 // Android's named haptics: crisp, tuned per phone, and they follow the system touch-feedback setting.
                 val view = (context as? android.app.Activity)?.window?.decorView

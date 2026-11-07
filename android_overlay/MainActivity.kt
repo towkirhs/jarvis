@@ -29,6 +29,12 @@ class MainActivity : FlutterActivity() {
                     result.success(pendingShared)
                     pendingShared = null
                 }
+                "requestVoicePermissions" -> {
+                    requestPermissions(
+                        arrayOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.READ_CONTACTS, Manifest.permission.CALL_PHONE), 3
+                    )
+                    result.success(null)
+                }
                 "requestSmsPermission" -> {
                     requestPermissions(arrayOf(Manifest.permission.RECEIVE_SMS), 2)
                     result.success(null)

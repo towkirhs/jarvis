@@ -30,12 +30,14 @@ jobs:
           rm -f test/widget_test.dart analysis_options.yaml
           D=android/app/src/main/kotlin/com/towkirhs/jarcis
           cp android_overlay/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
-          for f in MainActivity AlarmReceiver AlarmScheduler BootReceiver NoteReceiver NativeChannel BackgroundRunner ActionReceiver ShareActivity MoneyCapture Conversation; do
+          for f in MainActivity AlarmReceiver AlarmScheduler BootReceiver NoteReceiver NativeChannel BackgroundRunner ActionReceiver ShareActivity MoneyCapture Conversation Voice; do
             cp android_overlay/$f.kt $D/$f.kt
           done
           # Offline AI models (LiteRT-LM) need Android 11 or newer.
           sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 30/' android/app/build.gradle.kts
           grep -q 'minSdk = 30' android/app/build.gradle.kts
+          # "Jarvis" wake word, detected on the phone (Picovoice Porcupine).
+          printf '\ndependencies {\n    implementation("ai.picovoice:porcupine-android:4.0.2")\n}\n' >> android/app/build.gradle.kts
 
       # Sign every release with the same key (a repository secret), so each new APK installs over the last one.
       - name: Use fixed signing key

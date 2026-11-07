@@ -71,6 +71,52 @@ class Native {
     if (!kIsWeb) await _ch.invokeMethod('openNotificationAccess');
   }
 
+  // ---------- phone actions and "Jarvis" wake word ----------
+
+  /// Runs a phone action ("open WhatsApp", "call Oishi on WhatsApp") and says what happened, or returns null
+  /// when the text is an ordinary note.
+  static Future<String?> command(String text) async {
+    if (kIsWeb) return null;
+    try {
+      return await _ch.invokeMethod<String>('command', {'text': text});
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Nicknames, app names and your own phrases, for the phone side to use.
+  static Future<void> setShortcuts(String json) async {
+    if (!kIsWeb) await _ch.invokeMethod('setShortcuts', {'json': json});
+  }
+
+  /// Commands done by voice while the app was closed: (what you said, what happened, when).
+  static Future<List<(String, String, int)>> takeCommandLog() async {
+    if (kIsWeb) return [];
+    final raw = await _ch.invokeMethod<String>('takeCommandLog');
+    return [
+      for (final e in (jsonDecode(raw ?? '[]') as List).cast<Map>())
+        ('${e['said']}', '${e['did']}', (e['ts'] as num).toInt()),
+    ];
+  }
+
+  static Future<void> wake(bool on, {String? key}) async {
+    if (!kIsWeb) await _ch.invokeMethod('wake', {'on': on, 'key': key});
+  }
+
+  static Future<Map<String, bool>> voiceAccess() async {
+    if (kIsWeb) return {};
+    final m = await _ch.invokeMethod<Map>('voiceAccess');
+    return {for (final e in (m ?? {}).entries) '${e.key}': e.value == true};
+  }
+
+  static Future<void> requestVoicePermissions() async {
+    if (!kIsWeb) await _ch.invokeMethod('requestVoicePermissions');
+  }
+
+  static Future<void> openOverlaySettings() async {
+    if (!kIsWeb) await _ch.invokeMethod('openOverlaySettings');
+  }
+
   /// Notification ids the person tapped Done on.
   static Future<List<int>> takeDone() async {
     if (kIsWeb) return [];

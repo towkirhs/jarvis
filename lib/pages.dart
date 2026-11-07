@@ -13,6 +13,7 @@ import 'habits_screen.dart';
 import 'native.dart';
 import 'decide_page.dart';
 import 'drive_page.dart';
+import 'voice_page.dart';
 import 'rent_page.dart';
 import 'store.dart';
 import 'sync.dart';
@@ -56,6 +57,7 @@ class MoreScreen extends StatelessWidget {
                 tile(Icons.inbox_outlined, 'Review inbox', inbox == 0 ? 'All clear' : '$inbox waiting', InboxPage(store: store), badge: inbox),
                 tile(Icons.handshake_outlined, 'Promises', '$promises open', PromisesPage(store: store)),
                 tile(Icons.hourglass_bottom, 'Countdowns', '${store.list('countdowns').length} saved', CountdownPage(store: store)),
+                tile(Icons.record_voice_over_outlined, 'Hey Jarvis', 'Voice and phone actions', VoicePage(store: store)),
                 tile(Icons.add_to_drive, 'Google Drive', 'Ask your files', DrivePage(store: store)),
                 tile(Icons.meeting_room_outlined, 'Rooms and rent', '${store.list('rooms').length} rooms', RentPage(store: store)),
                 tile(Icons.balance, 'Decide', 'Odds, not chat', DecidePage(store: store)),
