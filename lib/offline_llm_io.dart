@@ -30,8 +30,8 @@ Future<String?> installed() async {
   final id = (await SharedPreferences.getInstance()).getString(_key);
   if (id == null) return null;
   await _init();
-  final file = _variant(id).file?.installFilename;
-  return file != null && await FlutterEdgeAi.isModelInstalled(file) ? id : null;
+  final file = _variant(id).file.installFilename;
+  return await FlutterEdgeAi.isModelInstalled(file) ? id : null;
 }
 
 Future<void> download(String id, void Function(int) progress) async {
@@ -49,7 +49,7 @@ Future<void> remove() async {
   _loaded = null;
   final prefs = await SharedPreferences.getInstance();
   final id = prefs.getString(_key);
-  final file = id == null ? null : _variant(id).file?.installFilename;
+  final file = id == null ? null : _variant(id).file.installFilename;
   if (file != null) await FlutterEdgeAi.uninstallModel(file);
   await prefs.remove(_key);
 }
