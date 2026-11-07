@@ -1,0 +1,4 @@
+Wake word models from openWakeWord by David Scripka, https://github.com/dscripka/openWakeWord (release v0.5.1):
+melspectrogram.tflite, embedding_model.tflite, hey_jarvis_v0.1.tflite.
+Licensed under Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International
+(https://creativecommons.org/licenses/by-nc-sa/4.0/). Used unchanged, for personal, non-commercial use.
