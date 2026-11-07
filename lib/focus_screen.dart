@@ -257,7 +257,7 @@ class FocusStatsPage extends StatelessWidget {
                 children: [
                   Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
                   if (sub.isNotEmpty) Text(sub, style: Theme.of(context).textTheme.bodySmall),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 8),
                   Text(value, style: TextStyle(fontSize: 28, color: color)),
                 ],
               ),

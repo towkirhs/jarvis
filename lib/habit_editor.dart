@@ -75,14 +75,14 @@ class _HabitEditorState extends State<HabitEditor> {
 
   Future<void> _save() async {
     final n = _name.text.trim();
-    if (n.isEmpty) return setState(() => _error = 'Give the habit a name.');
+    if (n.isEmpty) return setState(() => _error = Haptics.rejected() ?? 'Give the habit a name.');
     final target = num.tryParse(_target.text.trim().replaceAll(',', '.'));
-    if (_measured && (target == null || target <= 0)) return setState(() => _error = 'Set a target above 0.');
-    if (_type == 'time' && _by == null) return setState(() => _error = 'Pick the time it should be done by.');
+    if (_measured && (target == null || target <= 0)) return setState(() => _error = Haptics.rejected() ?? 'Set a target above 0.');
+    if (_type == 'time' && _by == null) return setState(() => _error = Haptics.rejected() ?? 'Pick the time it should be done by.');
     final steps = [for (final c in _steps) c.text.trim()]..removeWhere((x) => x.isEmpty);
-    if (_type == 'checklist' && steps.isEmpty) return setState(() => _error = 'Add at least one step.');
+    if (_type == 'checklist' && steps.isEmpty) return setState(() => _error = Haptics.rejected() ?? 'Add at least one step.');
     if (_sched['kind'] == 'days' && ((_sched['days'] as List?) ?? const []).isEmpty) {
-      return setState(() => _error = 'Pick at least one day.');
+      return setState(() => _error = Haptics.rejected() ?? 'Pick at least one day.');
     }
     final routine = _routine == 'custom' ? _customRoutine.text.trim() : _routine;
     final today = dayKey(DateTime.now());
@@ -192,7 +192,7 @@ class _HabitEditorState extends State<HabitEditor> {
                 ),
               ),
               if (_type != 'rating' && _type != 'percent') ...[
-                const SizedBox(width: 10),
+                const SizedBox(width: 12),
                 Expanded(
                   child: _type == 'duration'
                       ? const InputDecorator(decoration: InputDecoration(labelText: 'Unit'), child: Text('minutes'))
@@ -272,7 +272,7 @@ class _HabitEditorState extends State<HabitEditor> {
                     }),
               ),
           ]),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           if (kind == 'days')
             Wrap(spacing: 6, children: [
               for (var d = 1; d <= 7; d++)
@@ -312,7 +312,7 @@ class _HabitEditorState extends State<HabitEditor> {
             label('Grace days'),
             Text('Missed days in a row that do not break your streak.',
                 style: tt.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             SegmentedButton<int>(
               segments: const [
                 ButtonSegment(value: 0, label: Text('None')),
@@ -330,7 +330,10 @@ class _HabitEditorState extends State<HabitEditor> {
               title: const Text('Raise the target over time'),
               subtitle: const Text('Like 20 push-ups now, 5 more every week'),
               value: _progOn,
-              onChanged: (v) => setState(() => _progOn = v),
+              onChanged: (v) {
+                Haptics.toggle(v);
+                setState(() => _progOn = v);
+              },
             ),
             if (_progOn)
               Row(children: [
@@ -374,6 +377,7 @@ class _HabitEditorState extends State<HabitEditor> {
             title: Text(_remind == null ? 'No reminder' : 'Every day at ${time12(_remind!)}'),
             value: _remind != null,
             onChanged: (on) async {
+                Haptics.toggle(on);
               if (!on) return setState(() => _remind = null);
               final t = await showTimePicker(context: context, initialTime: const TimeOfDay(hour: 20, minute: 0));
               if (t != null) setState(() => _remind = '${two(t.hour)}:${two(t.minute)}');
@@ -439,7 +443,7 @@ class _TypeTile extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(typeIcons[type.key], color: fg),
-              const SizedBox(height: 6),
+              const SizedBox(height: 8),
               Text(
                 type.ready ? type.label : '${type.label}\n(coming)',
                 textAlign: TextAlign.center,

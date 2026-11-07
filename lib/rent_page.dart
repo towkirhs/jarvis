@@ -89,7 +89,7 @@ class RentPage extends StatelessWidget {
                               Text('House expenses', style: tt.labelLarge?.copyWith(color: scheme.primary)),
                               Icon(Icons.chevron_right, color: scheme.primary),
                             ]),
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 12),
                             Row(children: [
                               _figure(context, s.money(month.collected), 'collected'),
                               _figure(context, s.money(month.spent), 'spent on the house'),
@@ -200,7 +200,7 @@ class RoomPage extends StatelessWidget {
                       label: const Text('Record payment'),
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () => _bills(context, s, r),
@@ -216,7 +216,7 @@ class RoomPage extends StatelessWidget {
                     padding: const EdgeInsets.all(16),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text('Comes with ${Rent.name(Rent.shift(Rent.key(now), 1))} rent', style: tt.titleSmall),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 8),
                       for (final b in upcoming)
                         _line(context, '${Rent.billKinds[b['kind']] ?? 'Bill'} (${Rent.name(Rent.key(now), short: true)})',
                             s.money(b['amount'] as num),
@@ -268,7 +268,7 @@ class RoomPage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(Rent.name(x.month), style: tt.titleSmall),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             if (x.carried != 0)
               _line(context, x.carried > 0 ? 'Owed from before' : 'Paid ahead before', s.money(x.carried.abs()),
                   color: x.carried > 0 ? scheme.error : scheme.primary),
@@ -355,7 +355,7 @@ class RoomPage extends StatelessWidget {
             FilledButton(
               onPressed: () {
                 final v = _amount(amount);
-                if (v == null || v <= 0) return setD(() => error = 'Enter the amount paid');
+                if (v == null || v <= 0) return setD(() => error = Haptics.rejected() ?? 'Enter the amount paid');
                 final rec = {
                   'id': s.nextId(),
                   'room': r['id'],
@@ -420,7 +420,7 @@ class RoomPage extends StatelessWidget {
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     decoration: InputDecoration(labelText: Rent.billKinds[e.key]),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 12),
                 ],
               ],
             ),
@@ -547,7 +547,7 @@ class _BillsPageState extends State<BillsPage> {
                           ),
                         ),
                       ),
-                      if (k != Rent.billKinds.keys.last) const SizedBox(width: 6),
+                      if (k != Rent.billKinds.keys.last) const SizedBox(width: 8),
                     ],
                   ]),
                 ]),
@@ -616,7 +616,7 @@ class HouseCostsPage extends StatelessWidget {
                 ),
               for (final m in byMonth.entries) ...[
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(4, 16, 4, 6),
+                  padding: const EdgeInsets.fromLTRB(4, 16, 4, 8),
                   child: Row(children: [
                     Expanded(child: Text(Rent.name(m.key), style: tt.titleSmall)),
                     Text(s.money(sum(m.value)), style: tt.titleSmall),
@@ -699,8 +699,8 @@ Future<void> addHouseCost(BuildContext context, Store s) async {
           FilledButton(
             onPressed: () {
               final v = _amount(amount);
-              if (what.text.trim().isEmpty) return setD(() => error = 'Say what it was for');
-              if (v == null || v <= 0) return setD(() => error = 'Enter the amount');
+              if (what.text.trim().isEmpty) return setD(() => error = Haptics.rejected() ?? 'Say what it was for');
+              if (v == null || v <= 0) return setD(() => error = Haptics.rejected() ?? 'Enter the amount');
               final rec = {'id': s.nextId(), 'ts': day.millisecondsSinceEpoch, 'amount': v, 'what': what.text.trim(), 'room': room};
               s.list('houseCosts').add(rec);
               s.logAction('House expense: ${what.text.trim()} ${s.money(v)}', [
@@ -791,10 +791,10 @@ Future<void> editRoom(BuildContext context, Store s, Rec? r) async {
               final rentV = _amount(rent);
               final advV = advance.text.trim().isEmpty ? 0 : _amount(advance);
               final openV = opening.text.trim().isEmpty ? 0 : _amount(opening);
-              if (n.isEmpty || tenant.text.trim().isEmpty) return setD(() => error = 'Add the room number and tenant name.');
-              if (rentV == null || rentV <= 0) return setD(() => error = 'Add the monthly rent.');
-              if (advV == null || advV < 0) return setD(() => error = 'The advance must be a number.');
-              if (openV == null) return setD(() => error = 'What they already owed must be a number.');
+              if (n.isEmpty || tenant.text.trim().isEmpty) return setD(() => error = Haptics.rejected() ?? 'Add the room number and tenant name.');
+              if (rentV == null || rentV <= 0) return setD(() => error = Haptics.rejected() ?? 'Add the monthly rent.');
+              if (advV == null || advV < 0) return setD(() => error = Haptics.rejected() ?? 'The advance must be a number.');
+              if (openV == null) return setD(() => error = Haptics.rejected() ?? 'What they already owed must be a number.');
               final rec = r ?? {'id': s.nextId()};
               final old = r == null ? null : copyRec(r);
               rec

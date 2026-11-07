@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'shapes.dart';
 import 'brain.dart';
 import 'capture_page.dart';
 import 'countdown_screen.dart';
@@ -73,7 +74,7 @@ class _HomeScreenState extends State<HomeScreen> {
               height: 32,
               child: Row(
                 children: [
-                  if (icon != null) ...[Icon(icon, size: 18, color: iconColor), const SizedBox(width: 8)],
+                  if (icon != null) ...[ShapeIcon(icon, color: iconColor, size: 32), const SizedBox(width: 12)],
                   Expanded(child: Text(title, style: tt.titleSmall)),
                   if (trailing != null) trailing,
                 ],
@@ -115,7 +116,7 @@ class _HomeScreenState extends State<HomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Icon(icon, size: 20, color: scheme.primary),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
                 Text(value, style: tt.titleLarge, maxLines: 1, overflow: TextOverflow.ellipsis),
                 const SizedBox(height: 2),
                 Text(label, style: tt.bodySmall?.copyWith(color: scheme.onSurfaceVariant), maxLines: 2, overflow: TextOverflow.ellipsis),
@@ -173,7 +174,7 @@ class _HomeScreenState extends State<HomeScreen> {
           '${now.day} ${const ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][now.month - 1]}',
           style: tt.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 16),
         DayRibbon(
           now: now,
           items: s.list('items').where((i) {
@@ -185,10 +186,10 @@ class _HomeScreenState extends State<HomeScreen> {
           }).toList(),
           onTap: () => _open(context, PlanDayPage(store: s)),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 16),
         // The one thing every visit is for: telling Jarvis something.
         Container(
-          padding: const EdgeInsets.fromLTRB(16, 4, 6, 4),
+          padding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
           decoration: BoxDecoration(color: scheme.surfaceContainerHigh, borderRadius: BorderRadius.circular(26)),
           child: Row(
             children: [
@@ -260,7 +261,7 @@ class _HomeScreenState extends State<HomeScreen> {
               if (s.list('tx').isNotEmpty)
                 _stat(context, s.money(spentToday), 'spent today', Icons.account_balance_wallet_outlined,
                     () => _open(context, MoneyPage(store: s))),
-              if (countdowns.isNotEmpty && s.list('tx').isNotEmpty) const SizedBox(width: 10),
+              if (countdowns.isNotEmpty && s.list('tx').isNotEmpty) const SizedBox(width: 12),
               if (countdowns.isNotEmpty)
                 _stat(
                   context,
@@ -296,7 +297,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ], icon: Icons.local_fire_department_outlined, iconColor: scheme.primary),
         if (recent.isNotEmpty) ...[
           Padding(
-            padding: const EdgeInsets.fromLTRB(4, 20, 4, 6),
+            padding: const EdgeInsets.fromLTRB(4, 20, 4, 8),
             child: Text('Recent notes', style: tt.titleSmall?.copyWith(color: scheme.onSurfaceVariant)),
           ),
           Card(
@@ -318,8 +319,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _reply(BuildContext context, String text) {
     final scheme = Theme.of(context).colorScheme;
     return Container(
-      margin: const EdgeInsets.only(top: 6),
-      padding: const EdgeInsets.fromLTRB(10, 8, 12, 8),
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
       decoration: BoxDecoration(color: scheme.primaryContainer.withValues(alpha: 0.6), borderRadius: BorderRadius.circular(12)),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,

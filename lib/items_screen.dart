@@ -276,7 +276,7 @@ class _ListViewState extends State<_ListView> {
                   children: [
                     for (final f in filters)
                       Padding(
-                        padding: const EdgeInsets.only(right: 6),
+                        padding: const EdgeInsets.only(right: 8),
                         child: ChoiceChip(
                           label: Text(f),
                           selected: f == _filter,
@@ -883,7 +883,7 @@ class _TimelineGridState extends State<TimelineGrid> {
                   child: GestureDetector(
                     onTap: () => showTaskSheet(context, s, item: it),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
                       alignment: Alignment.centerLeft,
                       decoration: BoxDecoration(
                         color: _WeekGridState._colorOf(it, scheme).withValues(alpha: done ? 0.35 : 0.9),
@@ -1016,7 +1016,7 @@ class _MatrixView extends StatelessWidget {
                                             },
                                             child: const Icon(Icons.check_box_outline_blank, size: 20),
                                           ),
-                                          const SizedBox(width: 6),
+                                          const SizedBox(width: 8),
                                           Expanded(
                                             child: Column(
                                               crossAxisAlignment: CrossAxisAlignment.start,

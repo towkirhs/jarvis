@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
+import 'shapes.dart';
 import 'habit_core.dart';
 import 'habit_editor.dart';
 import 'habit_stats.dart';
@@ -122,7 +123,7 @@ class HabitsScreen extends StatelessWidget {
                     const SizedBox(height: 8),
                     Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
                       Text('${(dayP * 100).round()}%', style: tt.displaySmall),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 12),
                       Padding(
                         padding: const EdgeInsets.only(bottom: 8),
                         child: Text('of today, $doneToday of ${today.length} done', style: tt.bodyMedium),
@@ -139,7 +140,7 @@ class HabitsScreen extends StatelessWidget {
                   for (final g in groups.entries)
                     if (g.value.isNotEmpty) ...[
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(4, 20, 4, 6),
+                        padding: const EdgeInsets.fromLTRB(4, 20, 4, 8),
                         child: Text(g.key, style: tt.titleSmall?.copyWith(color: scheme.onSurfaceVariant)),
                       ),
                       Card(
@@ -153,7 +154,7 @@ class HabitsScreen extends StatelessWidget {
                       ),
                     ],
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(4, 24, 4, 6),
+                    padding: const EdgeInsets.fromLTRB(4, 24, 4, 8),
                     child: Text('Last 5 days', style: tt.titleSmall?.copyWith(color: scheme.onSurfaceVariant)),
                   ),
                   Card(
@@ -178,7 +179,7 @@ class HabitsScreen extends StatelessWidget {
                               child: InkWell(
                                 onTap: () => _openHabit(context, store, h),
                                 child: Padding(
-                                  padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
+                                  padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
                                   child: Row(children: [
                                     Icon(habitIcon(h), size: 16, color: Color(habitColor(h))),
                                     const SizedBox(width: 8),
@@ -275,6 +276,8 @@ class HabitOrderPage extends StatelessWidget {
             final habits = store.orderedHabits();
             return ReorderableListView(
               padding: const EdgeInsets.all(12),
+              onReorderStart: (_) => Haptics.dragStart(),
+              onReorderEnd: (_) => Haptics.dragEnd(),
               onReorder: (from, to) {
                 if (to > from) to--;
                 final moved = habits.removeAt(from);
@@ -285,7 +288,6 @@ class HabitOrderPage extends StatelessWidget {
                 // Moving next to another routine's habits joins that routine.
                 final neighbour = habits.length > 1 ? habits[to == 0 ? 1 : to - 1] : null;
                 if (neighbour != null && neighbour['routine'] != moved['routine']) moved['routine'] = neighbour['routine'];
-                Haptics.tick();
                 store.save();
               },
               children: [
@@ -383,7 +385,7 @@ class _HabitReportPageState extends State<HabitReportPage> {
           for (var i = 0; i < habits.length; i++)
             Card(
               child: Padding(
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.all(16),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
                     Icon(habitIcon(habits[i]), size: 18, color: Color(habitColor(habits[i]))),
@@ -391,7 +393,7 @@ class _HabitReportPageState extends State<HabitReportPage> {
                     Expanded(child: Text(habits[i]['name'] as String, style: tt.titleSmall)),
                     Text(rates[i] == null ? '–' : '${(rates[i]! * 100).round()}%', style: tt.titleSmall),
                   ]),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 8),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(4),
                     child: LinearProgressIndicator(
@@ -401,7 +403,7 @@ class _HabitReportPageState extends State<HabitReportPage> {
                       backgroundColor: scheme.surfaceContainerHighest,
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 8),
                   Text(
                     [
                       '${HabitCore.slots(habits[i], today, from: from).where((s) => s.$2 == Slot.done).length} done',
@@ -520,12 +522,20 @@ class HabitPage extends StatelessWidget {
                   _bigStat(context, '${HabitCore.missedCount(h, now, from: DateTime(now.year, now.month, now.day - 29))}', 'missed, 30 days', color),
                 ])),
                 _section('Milestones', color, Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Wrap(spacing: 6, runSpacing: 6, children: [
+                  Wrap(spacing: 8, runSpacing: 8, children: [
                     for (final m in HabitCore.milestones.take(reached.length + 2))
-                      Chip(
-                        avatar: Icon(reached.contains(m) ? Icons.emoji_events : Icons.lock_outline,
-                            size: 18, color: reached.contains(m) ? color : null),
-                        label: Text('$m ${m == 1 ? 'day' : 'days'}'),
+                      Tooltip(
+                        message: '$m ${m == 1 ? 'day' : 'days'}${reached.contains(m) ? ', reached' : ''}',
+                        child: Opacity(
+                          opacity: reached.contains(m) ? 1 : 0.4,
+                          child: ShapeIcon(
+                            Icons.emoji_events,
+                            shape: Lobed.burst,
+                            size: 52,
+                            color: reached.contains(m) ? Color.lerp(color, Theme.of(context).colorScheme.onSurface, 0.3) : null,
+                            child: Text('$m', style: Theme.of(context).textTheme.titleSmall),
+                          ),
+                        ),
                       ),
                   ]),
                   if (nextMilestone != null)
@@ -771,7 +781,7 @@ class HabitPage extends StatelessWidget {
             ),
           Column(
             children: [
-              const SizedBox(height: 18),
+              const SizedBox(height: 16),
               for (final d in _weekdays)
                 SizedBox(height: size + 3, child: Center(child: Text(' $d'))),
             ],

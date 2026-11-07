@@ -146,7 +146,7 @@ Future<void> showTxSheet(BuildContext context, Store s, {Rec? tx, DateTime? day}
               if (type != 'transfer') ...[
                 const SizedBox(height: 8),
                 TextField(controller: cat, decoration: const InputDecoration(labelText: 'Category', isDense: true)),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 Wrap(
                   spacing: 6,
                   runSpacing: 2,
@@ -381,7 +381,7 @@ class _MoneyPageState extends State<MoneyPage> {
           ]),
         );
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(children: [
         col('Income', inc, _incomeColor),
         col('Expenses', exp, _expenseColor),
@@ -404,7 +404,7 @@ class _MoneyPageState extends State<MoneyPage> {
         for (final e in days.entries) ...[
           Container(
             color: Theme.of(context).colorScheme.surfaceContainer,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(children: [
               Text(
                 '${DateTime.parse(e.key).day}  ${_weekdays[DateTime.parse(e.key).weekday - 1]}',
@@ -621,9 +621,9 @@ class _MoneyPageState extends State<MoneyPage> {
           FilledButton(
             onPressed: () async {
               final n = name.text.trim();
-              if (n.isEmpty) return setD(() => nameError = 'Give the account a name');
+              if (n.isEmpty) return setD(() => nameError = Haptics.rejected() ?? 'Give the account a name');
               if (s.list('accounts').any((x) => x != a && (x['name'] as String).toLowerCase() == n.toLowerCase())) {
-                return setD(() => nameError = 'You already have an account called $n');
+                return setD(() => nameError = Haptics.rejected() ?? 'You already have an account called $n');
               }
               final start = num.tryParse(initial.text.trim()) ?? 0;
               if (a == null) {

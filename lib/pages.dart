@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'shapes.dart';
 import 'haptics.dart';
 import 'brain.dart';
 import 'countdown_screen.dart';
@@ -29,7 +30,7 @@ class MoreScreen extends StatelessWidget {
           final inbox = store.list('inbox').length;
           final promises = store.list('promises').where((p) => p['status'] == 'open').length;
           Widget tile(IconData icon, String title, String? sub, Widget page, {int badge = 0}) => ListTile(
-                leading: Badge(isLabelVisible: badge > 0, label: Text('$badge'), child: Icon(icon)),
+                leading: Badge(isLabelVisible: badge > 0, label: Text('$badge'), child: ShapeIcon(icon)),
                 title: Text(title),
                 subtitle: sub == null ? null : Text(sub),
                 trailing: const Icon(Icons.chevron_right),
@@ -595,6 +596,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 value: s.settings['local'] != false,
                 onChanged: (v) {
+                Haptics.toggle(v);
                   s.settings['local'] = v;
                   s.save();
                   setState(() {});
@@ -607,6 +609,7 @@ class _SettingsPageState extends State<SettingsPage> {
               subtitle: const Text('Notes that do not look like plans, tasks or reflections are never sent to the AI.'),
               value: s.settings['prefilter'] == true,
               onChanged: (v) {
+                Haptics.toggle(v);
                 s.settings['prefilter'] = v;
                 s.save();
                 setState(() {});
@@ -625,6 +628,7 @@ class _SettingsPageState extends State<SettingsPage> {
               divisions: 9,
               label: '${(s.sureEnough * 100).round()}%',
               onChanged: (v) {
+                if (v != s.sureEnough) Haptics.segment();
                 s.settings['sure'] = v;
                 s.save();
                 setState(() {});
@@ -636,6 +640,7 @@ class _SettingsPageState extends State<SettingsPage> {
               subtitle: const Text('A light tap when you send, finish a task, or delete something.'),
               value: s.settings['haptics'] != false,
               onChanged: (v) {
+                Haptics.toggle(v);
                 s.settings['haptics'] = v;
                 s.save();
                 if (v) Haptics.success();

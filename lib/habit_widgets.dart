@@ -383,7 +383,10 @@ Future<void> showHabitDay(BuildContext context, Store s, Rec h, DateTime day) as
                       contentPadding: EdgeInsets.zero,
                       title: const Text('Done'),
                       value: done,
-                      onChanged: (v) => setS(() => done = v),
+                      onChanged: (v) {
+                        Haptics.toggle(v);
+                        setS(() => done = v);
+                      },
                     ),
                   'time' => ListTile(
                       contentPadding: EdgeInsets.zero,

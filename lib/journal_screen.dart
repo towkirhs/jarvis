@@ -434,7 +434,7 @@ class DayPage extends StatelessWidget {
                   padding: const EdgeInsets.only(top: 4),
                   child: Text(e['prompt'] as String, style: const TextStyle(fontStyle: FontStyle.italic)),
                 ),
-              if ((e['text'] as String).isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6), child: Text(e['text'] as String)),
+              if ((e['text'] as String).isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Text(e['text'] as String)),
               if (photo != null && !kIsWeb && File(photo).existsSync())
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
@@ -442,7 +442,7 @@ class DayPage extends StatelessWidget {
                 ),
               if (tags.isNotEmpty)
                 Padding(
-                  padding: const EdgeInsets.only(top: 6),
+                  padding: const EdgeInsets.only(top: 8),
                   child: Wrap(spacing: 6, children: [for (final t in tags) Chip(label: Text(t), visualDensity: VisualDensity.compact)]),
                 ),
             ],
@@ -591,7 +591,7 @@ class _EntryEditorState extends State<_EntryEditor> {
                     borderRadius: BorderRadius.circular(12),
                     onTap: () => setState(() => _mood = _mood == m ? null : m),
                     child: Container(
-                      padding: const EdgeInsets.all(6),
+                      padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
                         color: _mood == m ? moodColors[m] : null,
                         borderRadius: BorderRadius.circular(12),
@@ -658,7 +658,10 @@ class _EntryEditorState extends State<_EntryEditor> {
                 title: const Text('Let Jarvis pick out tasks and plans'),
                 subtitle: const Text('Off: this stays a private journal entry.'),
                 value: _toJarvis,
-                onChanged: (v) => setState(() => _toJarvis = v),
+                onChanged: (v) {
+                  Haptics.toggle(v);
+                  setState(() => _toJarvis = v);
+                },
               ),
           ],
         ),

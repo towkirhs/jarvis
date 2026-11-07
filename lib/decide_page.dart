@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'shapes.dart';
 import 'brain.dart';
 import 'decide.dart';
 import 'haptics.dart';
@@ -53,7 +54,7 @@ class _DecidePageState extends State<DecidePage> {
       Haptics.success();
       setState(() => _answers = answers);
     } catch (e) {
-      setState(() => _error = s.apiKey.isEmpty ? 'Add your Gemini key in Settings first.' : 'Could not decide: $e');
+      setState(() => _error = Haptics.rejected() ?? (s.apiKey.isEmpty ? 'Add your Gemini key in Settings first.' : 'Could not decide: $e'));
     }
     if (mounted) setState(() => _busy = false);
   }
@@ -137,7 +138,11 @@ class DecisionCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(sure ? 'Decision' : 'Too close to call', style: tt.labelLarge?.copyWith(color: scheme.primary)),
+            Row(children: [
+              ShapeIcon(sure ? Icons.balance : Icons.help_outline, shape: Lobed.clover, size: 36),
+              const SizedBox(width: 12),
+              Text(sure ? 'Decision' : 'Too close to call', style: tt.labelLarge?.copyWith(color: scheme.primary)),
+            ]),
             const SizedBox(height: 4),
             Text(sure ? pick.pick : 'Your call', style: tt.headlineMedium),
             const SizedBox(height: 12),
@@ -158,7 +163,7 @@ class DecisionCard extends StatelessWidget {
                   backgroundColor: scheme.surfaceContainerHighest,
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
             ],
             if (impact != null)
               Text(

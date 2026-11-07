@@ -95,7 +95,9 @@ ThemeData polish(ThemeData t) {
   TextStyle? display(TextStyle? s, FontWeight weight, [double? spacing]) =>
       w(s, weight, spacing)?.copyWith(fontFamily: 'Bricolage');
   RoundedRectangleBorder round(double r) => RoundedRectangleBorder(borderRadius: BorderRadius.circular(r));
-  final field = OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none);
+  // Material 3 shape scale: small 8 (chips), medium 12 (fields, list items), large 16 (cards, FAB),
+  // extra large 28 (dialogs, sheets); buttons and the nav indicator stay fully round.
+  final field = OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none);
   return t.copyWith(
     textTheme: tt.copyWith(
       displaySmall: display(tt.displaySmall, FontWeight.w800, -1),
@@ -109,8 +111,8 @@ ThemeData polish(ThemeData t) {
     cardTheme: CardThemeData(
       elevation: 0,
       color: c.surfaceContainerLow,
-      margin: const EdgeInsets.symmetric(vertical: 5),
-      shape: round(18),
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      shape: round(16),
       clipBehavior: Clip.antiAlias,
     ),
     appBarTheme: AppBarTheme(
@@ -137,15 +139,15 @@ ThemeData polish(ThemeData t) {
         (s) => tt.labelSmall?.copyWith(fontWeight: s.contains(WidgetState.selected) ? FontWeight.w700 : FontWeight.w500),
       ),
     ),
-    floatingActionButtonTheme: FloatingActionButtonThemeData(elevation: 1, highlightElevation: 2, shape: round(18)),
-    snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: round(12)),
+    floatingActionButtonTheme: FloatingActionButtonThemeData(elevation: 1, highlightElevation: 2, shape: round(16)),
+    snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: round(8)),
     dividerTheme: DividerThemeData(color: c.outlineVariant.withValues(alpha: 0.5), thickness: 1, space: 1),
-    listTileTheme: ListTileThemeData(shape: round(14)),
-    chipTheme: t.chipTheme.copyWith(shape: round(10)),
-    dialogTheme: DialogThemeData(shape: round(24)),
+    listTileTheme: ListTileThemeData(shape: round(12)),
+    chipTheme: t.chipTheme.copyWith(shape: round(8)),
+    dialogTheme: DialogThemeData(shape: round(28)),
     bottomSheetTheme: const BottomSheetThemeData(
       showDragHandle: true,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
     ),
   );
 }

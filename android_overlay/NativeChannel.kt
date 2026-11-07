@@ -44,6 +44,24 @@ object NativeChannel {
                 result.success(null)
             }
             "getLog" -> result.success(AlarmLog.read(context))
+            "haptic" -> {
+                // Android's named haptics: crisp, tuned per phone, and they follow the system touch-feedback setting.
+                val view = (context as? android.app.Activity)?.window?.decorView
+                val sdk = android.os.Build.VERSION.SDK_INT
+                val effect = when (call.argument<String>("kind")) {
+                    "confirm" -> if (sdk >= 30) android.view.HapticFeedbackConstants.CONFIRM else android.view.HapticFeedbackConstants.VIRTUAL_KEY
+                    "reject" -> if (sdk >= 30) android.view.HapticFeedbackConstants.REJECT else android.view.HapticFeedbackConstants.LONG_PRESS
+                    "toggleOn" -> if (sdk >= 34) android.view.HapticFeedbackConstants.TOGGLE_ON else android.view.HapticFeedbackConstants.CLOCK_TICK
+                    "toggleOff" -> if (sdk >= 34) android.view.HapticFeedbackConstants.TOGGLE_OFF else android.view.HapticFeedbackConstants.CLOCK_TICK
+                    "gestureStart" -> if (sdk >= 30) android.view.HapticFeedbackConstants.GESTURE_START else android.view.HapticFeedbackConstants.LONG_PRESS
+                    "gestureEnd" -> if (sdk >= 30) android.view.HapticFeedbackConstants.GESTURE_END else android.view.HapticFeedbackConstants.CLOCK_TICK
+                    "segment" -> if (sdk >= 34) android.view.HapticFeedbackConstants.SEGMENT_TICK else android.view.HapticFeedbackConstants.CLOCK_TICK
+                    "longPress" -> android.view.HapticFeedbackConstants.LONG_PRESS
+                    "key" -> android.view.HapticFeedbackConstants.VIRTUAL_KEY
+                    else -> android.view.HapticFeedbackConstants.CLOCK_TICK
+                }
+                result.success(view?.performHapticFeedback(effect) ?: false)
+            }
             "notify" -> {
                 Chat.jarvisSays(context, call.argument<String>("text") ?: "")
                 result.success(null)

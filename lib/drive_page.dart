@@ -45,6 +45,7 @@ class _DrivePageState extends State<DrivePage> {
     try {
       await job();
     } catch (e) {
+      Haptics.reject();
       _status = e.toString().replaceFirst('Exception: ', '');
     }
     if (mounted) setState(() => _busy = false);
@@ -143,6 +144,7 @@ class _DrivePageState extends State<DrivePage> {
                     Switch(
                       value: f['private'] == true,
                       onChanged: (v) async {
+                Haptics.toggle(v);
                         f['private'] = v;
                         await Drive.setFolders(s, folders);
                         setState(() {});
@@ -169,7 +171,7 @@ class _DrivePageState extends State<DrivePage> {
                   label: const Text('Add folder'),
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 12),
               Expanded(
                 child: FilledButton.icon(
                   onPressed: _busy || folders.isEmpty
@@ -284,7 +286,7 @@ class _SetupSteps extends StatelessWidget {
           const SizedBox(height: 8),
           for (var i = 0; i < steps.length; i++)
             Padding(
-              padding: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.only(bottom: 8),
               child: Text('${i + 1}. ${steps[i]}'),
             ),
           copy('Package name', package),

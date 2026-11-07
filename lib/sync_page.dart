@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'haptics.dart';
 import 'store.dart';
 import 'sync.dart';
 
@@ -38,6 +39,7 @@ class _SyncPageState extends State<SyncPage> {
       final m = await job();
       _message = m;
     } catch (e) {
+      Haptics.reject();
       _message = e.toString().replaceFirst('Exception: ', '');
     }
     if (mounted) setState(() => _busy = false);
