@@ -119,12 +119,11 @@ class AlarmsTab extends StatelessWidget {
     final label = (c['label'] as String?)?.isNotEmpty == true ? c['label'] as String : null;
     final lines = [
       if (atPlace)
-        '${c['when'] == 'leave' ? 'When I leave' : 'When I arrive at'} ${place?['name'] ?? 'a deleted place'}'
-            '${c['once'] == false ? ', every time' : ''}'
+        '${c['when'] == 'leave' ? 'When I leave' : 'When I arrive'}${c['once'] == false ? ', every time' : ''}'
       else
         Clock.daysText(Clock.days(c)),
       if (label != null) label,
-      if (c['soundName'] != null) '♪ ${c['soundName']}',
+      if (c['soundName'] != null) 'Music: ${c['soundName']}',
     ];
     final faded = on ? null : scheme.onSurfaceVariant;
     return Card(
@@ -141,7 +140,7 @@ class AlarmsTab extends StatelessWidget {
                     Icon(Icons.place, color: on ? scheme.primary : faded),
                     const SizedBox(width: 8),
                     Flexible(
-                      child: Text(place?['name'] as String? ?? 'Place', style: tt.headlineSmall?.copyWith(color: faded)),
+                      child: Text(place?['name'] as String? ?? 'A deleted place', style: tt.headlineSmall?.copyWith(color: faded)),
                     ),
                   ])
                 else
@@ -317,6 +316,7 @@ Future<void> showAlarmEditor(BuildContext context, Store s, {Rec? clock, bool at
                 },
               ),
             ],
+            const SizedBox(height: 16),
             TextField(
               controller: label,
               textCapitalization: TextCapitalization.sentences,

@@ -284,7 +284,7 @@ class _PlacePickerPageState extends State<PlacePickerPage> {
               ),
             Positioned(
               right: 16,
-              bottom: 24,
+              bottom: 56,
               child: FloatingActionButton.small(
                 heroTag: 'here',
                 tooltip: 'Where I am',
