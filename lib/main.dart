@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'ai.dart';
 import 'haptics.dart';
 import 'brain.dart';
 import 'capture_page.dart';
@@ -168,7 +169,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     final now = DateTime.now();
     final today = dayKey(now);
     if (now.hour >= 21 &&
-        s.apiKey.isNotEmpty &&
+        AI.available(s) &&
         s.summaries[today] == null &&
         _summaryTried != today &&
         s.capturesOn(today).isNotEmpty) {

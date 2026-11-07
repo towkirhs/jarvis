@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'ai_page.dart';
+import 'ai.dart';
 import 'shapes.dart';
 import 'haptics.dart';
 import 'brain.dart';
@@ -587,19 +589,17 @@ class _SettingsPageState extends State<SettingsPage> {
             Builder(builder: (context) {
               final recent = s.list('captures').where((c) => c['via'] != null).toList().reversed.take(100).toList();
               final onPhone = recent.where((c) => c['via'] == 'phone').length;
-              return SwitchListTile(
+              final order = AI.providers(s).where((p) => p['on'] == true).map((p) => p['name']).join(', then ');
+              return ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Understand simple notes on the phone'),
-                subtitle: Text(
-                  'Alarms, timed tasks, money, habits and birthdays are read without an AI call: faster, offline, '
-                  'and saves your Gemini quota.${recent.isEmpty ? '' : ' Recently $onPhone of ${recent.length} notes needed no AI.'}',
-                ),
-                value: s.settings['local'] != false,
-                onChanged: (v) {
-                Haptics.toggle(v);
-                  s.settings['local'] = v;
-                  s.save();
-                  setState(() {});
+                leading: const Icon(Icons.hub_outlined),
+                title: const Text('AI models and order'),
+                subtitle: Text('${order.isEmpty ? 'None on' : order}.'
+                    '${recent.isEmpty ? '' : ' Recently $onPhone of ${recent.length} notes needed no AI.'}'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () async {
+                  await Navigator.push(context, MaterialPageRoute(builder: (_) => AiPage(store: s)));
+                  if (mounted) setState(() {});
                 },
               );
             }),

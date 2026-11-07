@@ -4,8 +4,8 @@ import 'dart:typed_data';
 
 import 'package:image_picker/image_picker.dart';
 
+import 'ai.dart';
 import 'decide.dart';
-import 'gemini.dart';
 import 'habit_core.dart';
 import 'local_parser.dart';
 import 'native.dart';
@@ -102,15 +102,15 @@ class Brain {
       // Answered from a notification: say once why nothing happened yet, instead of leaving "…" hanging.
       c['told'] = true;
       s.save();
-      await Native.notify('Jarvis', s.apiKey.isEmpty
-          ? "I need the Gemini key (Settings) for that one. It's saved and I'll do it once the key is in."
+      await Native.notify('Jarvis', !AI.available(s)
+          ? "I need an AI set up (Settings, AI models) for that one. It's saved and I'll do it once the key is in."
           : "I can't reach the AI right now. Your answer is saved and I'll handle it when I can.");
     }
     return ok;
   }
 
   /// Everyday questions answered from your own data, without the AI.
-  static String? _quickAnswer(Store s, String raw) => s.settings['local'] == false
+  static String? _quickAnswer(Store s, String raw) => !AI.phoneOn(s)
       ? null
       : QuickAnswers.answer(
           raw,
@@ -151,7 +151,7 @@ class Brain {
       return _apply(s, c, {'items': <dynamic>[], 'reply': quick});
     }
     // "Should I…?", "X or Y?": a decision with odds, not a conversation.
-    if (c['image'] == null && s.apiKey.isNotEmpty && Decide.isDecisionRequest(c['raw'] as String)) {
+    if (c['image'] == null && AI.available(s) && Decide.isDecisionRequest(c['raw'] as String)) {
       try {
         final answers = await decide(s, c['raw'] as String, captureId: c['id'] as int);
         c['via'] = 'ai';
@@ -164,7 +164,7 @@ class Brain {
       }
     }
     // Simple notes (alarms, timed tasks, money, habits, birthdays) are understood on the phone: no AI call.
-    var local = c['image'] == null && s.settings['local'] != false
+    var local = c['image'] == null && AI.phoneOn(s)
         ? LocalParser.parse(
             c['raw'] as String,
             now: DateTime.now(),
@@ -177,12 +177,13 @@ class Brain {
     if (finished != null && finished['type'] == 'complete' && findTarget(s, finished['target'] as String?) == null) {
       local = null;
     }
-    if (local != null) {
+    // Phone rules first if they are first in your AI order (or there is no AI); otherwise they are the fallback.
+    if (local != null && (AI.phoneFirst(s) || !AI.available(s))) {
       c['via'] = 'phone';
       return _apply(s, c, local);
     }
-    if (s.apiKey.isEmpty) {
-      c['msg'] = 'Add your Gemini key in Settings. This note is saved and will be processed then.';
+    if (!AI.available(s)) {
+      c['msg'] = 'No AI is set up (Settings, AI models). This note is saved and will be processed then.';
       s.save();
       return false;
     }
@@ -197,7 +198,7 @@ class Brain {
           // The photo is gone (cleared from cache); go on with the text.
         }
       }
-      text = await Gemini.generate(
+      text = await AI.generate(
         s,
         _parserPrompt(s, c['raw'] as String, photo: bytes != null, replyTo: c['replyTo'] as String?),
         json: true,
@@ -205,6 +206,11 @@ class Brain {
         mime: path != null && path.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg',
       );
     } catch (e) {
+      if (local != null) {
+        // Every AI failed, but the phone understood it: use that rather than wait.
+        c['via'] = 'phone';
+        return _apply(s, c, local);
+      }
       c['msg'] = 'Waiting for the AI: $e';
       s.save();
       return false;
@@ -218,7 +224,7 @@ class Brain {
       s.save();
       return true;
     }
-    c['via'] = 'ai';
+    c['via'] = AI.lastUsed ?? 'ai';
     return _apply(s, c, data);
   }
 
@@ -609,7 +615,7 @@ class Brain {
   static Future<void> summarize(Store s, String day) async {
     final text = _dayText(s, day);
     if (text.isEmpty) return;
-    final out = await Gemini.generate(
+    final out = await AI.generate(
       s,
       'Write a short journal entry in first person, past tense, natural and warm, about this one day, '
       'from the person\'s own writing, notes and what they did. Use only what is given. '
@@ -629,7 +635,7 @@ class Brain {
         if (_dayText(s, d).isNotEmpty) '== $d ==\n${_dayText(s, d)}',
     ].join('\n');
     if (text.isEmpty) return 'Nothing written or done in the last 7 days yet.';
-    final out = (await Gemini.generate(
+    final out = (await AI.generate(
       s,
       'You help a person reflect on their week. From their journal, notes, moods and activities below, write: '
       '1) three short highlights, 2) patterns you can actually see (for example which activities came with better '
@@ -660,7 +666,7 @@ class Brain {
     if (scored.isEmpty) return 'I found nothing in your journal about that.';
     scored.sort((a, b) => b.value.compareTo(a.value));
     final notes = scored.take(15).map((e) => e.key).join('\n');
-    return (await Gemini.generate(
+    return (await AI.generate(
       s,
       'Answer the question using only these journal entries. Mention dates. '
       'If the entries do not answer it, say so.\nEntries:\n$notes\nQuestion: $question',
@@ -691,7 +697,7 @@ class Brain {
     }).join('\n');
     final state = 'The person asks: $situation\n\nTheir life right now:\n${_safeWorld(s)}\n\n'
         'Their past decisions:\n${past.isEmpty ? 'none' : past}';
-    final answers = Decide.parse(await Gemini.generate(s, Decide.prompt(state, questions), json: true), questions);
+    final answers = Decide.parse(await AI.generate(s, Decide.prompt(state, questions), json: true), questions);
     final pick = answers.first;
     if (pick.confidence >= s.sureEnough) {
       const stop = {'should', 'shall', 'would', 'which', 'what', 'with', 'this', 'that', 'tonight', 'today', 'tomorrow', 'jarvis', 'decide'};

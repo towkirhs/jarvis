@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'ai.dart';
 import 'shapes.dart';
 import 'brain.dart';
 import 'decide.dart';
@@ -54,7 +55,7 @@ class _DecidePageState extends State<DecidePage> {
       Haptics.success();
       setState(() => _answers = answers);
     } catch (e) {
-      setState(() => _error = Haptics.rejected() ?? (s.apiKey.isEmpty ? 'Add your Gemini key in Settings first.' : 'Could not decide: $e'));
+      setState(() => _error = Haptics.rejected() ?? (!AI.available(s) ? 'Set up an AI in Settings, AI models first.' : 'Could not decide: $e'));
     }
     if (mounted) setState(() => _busy = false);
   }

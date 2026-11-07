@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'ai.dart';
 import 'haptics.dart';
 import 'brain.dart';
 import 'habit_core.dart';
@@ -86,7 +87,7 @@ class _JournalScreenState extends State<JournalScreen> {
   Future<void> _ask() async {
     final q = _askCtrl.text.trim();
     if (q.isEmpty) return;
-    if (s.apiKey.isEmpty) return _say('Add your Gemini key in Settings first.');
+    if (!AI.available(s)) return _say('Set up an AI in Settings, AI models first.');
     setState(() => _asking = true);
     try {
       final a = await Brain.ask(s, q);
@@ -99,7 +100,7 @@ class _JournalScreenState extends State<JournalScreen> {
   }
 
   Future<void> _reflect() async {
-    if (s.apiKey.isEmpty) return _say('Add your Gemini key in Settings first.');
+    if (!AI.available(s)) return _say('Set up an AI in Settings, AI models first.');
     showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -389,7 +390,7 @@ class DayPage extends StatelessWidget {
                           alignment: Alignment.centerRight,
                           child: TextButton(
                             onPressed: () async {
-                              if (store.apiKey.isEmpty) return;
+                              if (!AI.available(store)) return;
                               try {
                                 await Brain.summarize(store, day);
                               } catch (e) {
