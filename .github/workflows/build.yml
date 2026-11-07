@@ -40,6 +40,8 @@ jobs:
           printf '\ndependencies {\n    implementation("com.google.ai.edge.litert:litert:1.4.1")\n}\n' >> android/app/build.gradle.kts
           # Keep LiteRT's classes: its native code calls them by name, so shrinking must not remove them.
           printf -- '-keep class org.tensorflow.lite.** { *; }\n' >> android/app/proguard-rules.pro
+          # Phones are arm64; leave out the other chip types' copies of native libraries.
+          printf '\nandroid {\n    defaultConfig {\n        ndk {\n            abiFilters += listOf("arm64-v8a")\n        }\n    }\n}\n' >> android/app/build.gradle.kts
 
       # Sign every release with the same key (a repository secret), so each new APK installs over the last one.
       - name: Use fixed signing key
