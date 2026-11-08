@@ -50,7 +50,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // Phone actions ("open YouTube", "message Oishi on WhatsApp") run right away; the rest goes to Jarvis.
     final did = await Native.command(t);
     if (did != null) {
-      logCommand(s, t, did);
+      logCommand(s, t, did.isEmpty ? 'Okay, quiet.' : did);
       return;
     }
     await Brain.capture(s, t);

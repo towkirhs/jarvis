@@ -67,6 +67,35 @@ class Native {
     return m == null ? null : ((m['lat'] as num).toDouble(), (m['lng'] as num).toDouble());
   }
 
+  // ---------- voice replies ----------
+
+  /// Says [text] if your Voice replies settings allow it. [kind]: answer, confirm or problem.
+  static Future<void> speak(String text, {String kind = 'answer', bool spoken = false}) async {
+    if (!kIsWeb) await _ch.invokeMethod('speak', {'text': text, 'kind': kind, 'spoken': spoken});
+  }
+
+  /// Says [text] now with your voice settings, whatever the rules.
+  static Future<void> speakTest(String text) async {
+    if (!kIsWeb) await _ch.invokeMethod('speakTest', {'text': text});
+  }
+
+  static Future<void> setSpeech(String json) async {
+    if (!kIsWeb) await _ch.invokeMethod('setSpeech', {'json': json});
+  }
+
+  /// The phone's voices: [{name, locale}]. Can be empty the first time while the speech engine starts.
+  static Future<List<Map<String, String>>> voices() async {
+    if (kIsWeb) return [];
+    final list = await _ch.invokeMethod<List>('voices') ?? [];
+    return [for (final v in list) (v as Map).map((k, x) => MapEntry('$k', '$x'))];
+  }
+
+  /// Alarms set by voice since the last call: [{id, at}].
+  static Future<List<Map<String, dynamic>>> takeNewClocks() async {
+    if (kIsWeb) return [];
+    return (jsonDecode(await _ch.invokeMethod<String>('takeNewClocks') ?? '[]') as List).cast<Map<String, dynamic>>();
+  }
+
   /// Keeps the screen from dimming and locking while [on].
   static Future<void> keepAwake(bool on) async {
     if (!kIsWeb) await _ch.invokeMethod('keepAwake', {'on': on});
@@ -181,10 +210,11 @@ class Native {
   }
 
   /// Shows Jarvis's reply to a note as a notification (replaces the previous reply).
-  static Future<void> notify(String title, String text) async {
+  /// Jarvis's answer as a notification. [spoken]: the note was said aloud, so the answer may be spoken too.
+  static Future<void> notify(String title, String text, {bool spoken = false}) async {
     if (kIsWeb) return;
     try {
-      await _ch.invokeMethod('notify', {'title': title, 'text': text});
+      await _ch.invokeMethod('notify', {'title': title, 'text': text, 'spoken': spoken});
     } catch (_) {
       // An older install without this method: the reply is still in the app.
     }

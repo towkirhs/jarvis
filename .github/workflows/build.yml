@@ -30,9 +30,13 @@ jobs:
           rm -f test/widget_test.dart analysis_options.yaml
           D=android/app/src/main/kotlin/com/towkirhs/jarcis
           cp android_overlay/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
-          for f in MainActivity AlarmReceiver AlarmScheduler BootReceiver NoteReceiver NativeChannel BackgroundRunner ActionReceiver ShareActivity MoneyCapture Conversation Voice WakeWord Ring Geo; do
+          for f in MainActivity AlarmReceiver AlarmScheduler BootReceiver NoteReceiver NativeChannel BackgroundRunner ActionReceiver ShareActivity MoneyCapture Conversation Voice WakeWord Ring Geo Talk; do
             cp android_overlay/$f.kt $D/$f.kt
           done
+          # Tests for the phone-side command parser (run below with Gradle).
+          T=android/app/src/test/kotlin/com/towkirhs/jarcis
+          mkdir -p $T && cp android_overlay/test/*.kt $T/
+          printf '\ndependencies {\n    testImplementation("junit:junit:4.13.2")\n    testImplementation("org.json:json:20240303")\n}\n' >> android/app/build.gradle.kts
           # Offline AI models (LiteRT-LM) need Android 11 or newer.
           sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 30/' android/app/build.gradle.kts
           grep -q 'minSdk = 30' android/app/build.gradle.kts
@@ -74,6 +78,8 @@ jobs:
       - run: flutter test
       # 64-bit ARM only: every phone from the last several years, and the offline AI engine only ships for it.
       - run: flutter build apk --release --target-platform android-arm64
+      - name: Test phone-side commands
+        run: cd android && ./gradlew :app:testReleaseUnitTest --console=plain
       - run: flutter build web --release --base-href /jarvis/
 
       - name: Show signing certificate

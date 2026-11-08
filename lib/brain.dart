@@ -96,10 +96,12 @@ class Brain {
     // Notes sent from outside the app get Jarvis's answer back as a notification you can answer again.
     final reply = c['reply'] as String?;
     final outside = !const {'in-app', 'journal'}.contains(c['source']);
+    // Typed in the app: spoken only if Voice replies is set to Always.
+    if (ok && c['status'] == 'done' && !outside && reply != null) await Native.speak(reply);
     if (ok && c['status'] == 'done' && outside) {
       final said = reply ?? (c['msg'] as String? ?? '');
       await s.setLocal('last_said', said);
-      await Native.notify('Jarvis', said);
+      await Native.notify('Jarvis', said, spoken: c['source'] == 'voice');
     } else if (!ok && outside && (c['source'] as String).startsWith('reply') && c['told'] != true) {
       // Answered from a notification: say once why nothing happened yet, instead of leaving "…" hanging.
       c['told'] = true;

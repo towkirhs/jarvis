@@ -145,6 +145,24 @@ class Clock {
     }
   }
 
+  /// Alarms set by voice ("wake me at 6:30") join the Clock page as one-time alarms.
+  static Future<void> drainVoiceAlarms(Store s) async {
+    final added = await Native.takeNewClocks();
+    for (final a in added) {
+      final at = DateTime.fromMillisecondsSinceEpoch(a['at'] as int);
+      if (s.byId('clocks', a['id'] as int) != null) continue;
+      s.list('clocks').add({
+        'id': a['id'],
+        'label': '',
+        'on': true,
+        'time': '${two(at.hour)}:${two(at.minute)}',
+        'days': <int>[],
+        'at': a['at'],
+      });
+    }
+    if (added.isNotEmpty) s.save();
+  }
+
   /// One-time place alarms that went off are switched off here too.
   static Future<void> drainFired(Store s) async {
     for (final key in await Native.takeGeoFired()) {

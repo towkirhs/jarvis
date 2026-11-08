@@ -87,8 +87,11 @@ object NativeChannel {
                     result.success(null)
                 } else {
                     try {
-                        result.success(Commands.run(context, cmd))
+                        val did = Commands.run(context, cmd)
+                        if (!cmd.quiet) Speaker.say(context, did, if (cmd.kind in setOf("time", "battery")) "answer" else "confirm", false)
+                        result.success(did)
                     } catch (e: Exception) {
+                        Speaker.say(context, e.message ?: "", "problem", false)
                         result.success("Couldn't: ${e.message}")
                     }
                 }
@@ -144,9 +147,32 @@ object NativeChannel {
                 result.success(view?.performHapticFeedback(effect) ?: false)
             }
             "notify" -> {
-                Chat.jarvisSays(context, call.argument<String>("text") ?: "")
+                val text = call.argument<String>("text") ?: ""
+                val spoken = call.argument<Boolean>("spoken") == true
+                Chat.jarvisSays(context, text)
+                // Said aloud if your Voice replies allow it; then, if you like, it listens for a follow-up.
+                Speaker.say(context, text, "answer", spoken) {
+                    if (spoken && Speaker.settings(context).optBoolean("followUp", true)) ListenActivity.open(context, true)
+                }
                 result.success(null)
             }
+            "speak" -> {
+                Speaker.say(
+                    context, call.argument<String>("text") ?: "", call.argument<String>("kind") ?: "answer",
+                    call.argument<Boolean>("spoken") == true
+                )
+                result.success(null)
+            }
+            "speakTest" -> {
+                Speaker.speak(context, call.argument<String>("text") ?: "Hello, I'm Jarvis.")
+                result.success(null)
+            }
+            "setSpeech" -> {
+                Speaker.setSettings(context, call.argument<String>("json") ?: "{}")
+                result.success(null)
+            }
+            "voices" -> result.success(Speaker.voices(context))
+            "takeNewClocks" -> result.success(NewClocks.take(context))
             else -> return false
         }
         return true

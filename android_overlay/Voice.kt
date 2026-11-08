@@ -16,15 +16,11 @@ import android.graphics.drawable.GradientDrawable
 import android.hardware.camera2.CameraManager
 import android.net.Uri
 import android.os.Build
-import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.provider.ContactsContract
 import android.provider.Settings
-import android.speech.RecognitionListener
-import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
@@ -33,9 +29,15 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import android.media.AudioFormat
+import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.app.SearchManager
+import android.os.BatteryManager
+import android.provider.MediaStore
+import android.view.KeyEvent
 import org.json.JSONObject
+import java.util.Calendar
 
 /**
  * Small phone actions by voice or text: open an app, open a WhatsApp chat, call someone (WhatsApp or phone,
@@ -43,7 +45,8 @@ import org.json.JSONObject
  * by itself: chats open with the text filled in, and you press send.
  */
 object Commands {
-    data class Cmd(val kind: String, val target: String, val text: String? = null)
+    /** [quiet]: one of your own commands set not to speak its confirmation. */
+    data class Cmd(val kind: String, val target: String, val text: String? = null, val quiet: Boolean = false)
 
     private const val PREFS = "jarcis_cmds"
     private val main = Handler(Looper.getMainLooper())
@@ -60,17 +63,79 @@ object Commands {
         "\\b(at \\d|by \\d|tomorrow|tonight|today|next|later|remind|in \\d+ (min|minute|hour|day)s?|on (mon|tue|wed|thu|fri|sat|sun))"
     )
 
+    fun isOwnPhrase(context: Context, text: String): Boolean =
+        shortcuts(context).optJSONObject("phrases")?.has(text.trim().lowercase().replace(Regex("[.!?]+$"), "")) == true
+
     /** A command, or null if this is an ordinary note (a reminder like "call Ammu at 8" stays a note). */
-    fun parse(context: Context, raw: String): Cmd? {
+    fun parse(context: Context, raw: String): Cmd? = parseText(raw, shortcuts(context).optJSONObject("phrases"))
+
+    private val numberWords = mapOf(
+        "a" to 1, "an" to 1, "one" to 1, "two" to 2, "three" to 3, "four" to 4, "five" to 5, "six" to 6, "seven" to 7,
+        "eight" to 8, "nine" to 9, "ten" to 10, "fifteen" to 15, "twenty" to 20, "thirty" to 30, "forty" to 40,
+        "forty five" to 45, "sixty" to 60, "ninety" to 90,
+    )
+
+    /** [parse] without the phone: [phrases] are your own commands ({phrase: {kind, target, text, speak}}). */
+    fun parseText(raw: String, phrases: JSONObject?): Cmd? {
         var t = raw.trim().lowercase().replace(Regex("[.!?]+$"), "")
         t = t.replace(Regex("^(hey |ok |okay )?jarvis[,:]?\\s*"), "").replace(Regex("^please\\s+"), "").trim()
         if (t.isEmpty()) return null
         // Your own phrases first.
-        val phrases = shortcuts(context).optJSONObject("phrases")
         if (phrases != null && phrases.has(t)) {
             val p = phrases.getJSONObject(t)
-            return Cmd(p.getString("kind"), p.getString("target"), p.optString("text").ifEmpty { null })
+            return Cmd(p.getString("kind"), p.getString("target"), p.optString("text").ifEmpty { null }, !p.optBoolean("speak", true))
         }
+        // Stop talking.
+        if (t in setOf("stop", "stop talking", "be quiet", "quiet", "shut up", "enough", "thanks", "thank you")) return Cmd("hush", "")
+        // Quick questions answered on the phone.
+        if (Regex("^(what(?:'s| is) the time|what time is it|tell me the time|time)( now)?$").matches(t)) return Cmd("time", "")
+        if (Regex("^(?:what(?:'s| is) (?:the |my )?)?battery(?: level| percentage| left)?$|^how much battery(?: is left| do i have| left)?$").matches(t)) {
+            return Cmd("battery", "")
+        }
+        // Music and sound.
+        if (Regex("^(?:pause|pause (?:the )?(?:music|song|video)|stop (?:the )?(?:music|song))$").matches(t)) return Cmd("media", "pause")
+        if (Regex("^(?:resume|play|continue|(?:resume|play) (?:the )?music)$").matches(t)) return Cmd("media", "play")
+        if (Regex("^(?:next|skip)(?: (?:song|track))?$|^skip (?:this )?(?:song|track)$|^next one$").matches(t)) return Cmd("media", "next")
+        if (Regex("^(?:previous|last)(?: (?:song|track))?$|^go back a (?:song|track)$").matches(t)) return Cmd("media", "previous")
+        if (Regex("^(?:volume up|turn (?:it|the volume) up|louder|increase (?:the )?volume)$").matches(t)) return Cmd("volume", "up")
+        if (Regex("^(?:volume down|turn (?:it|the volume) down|quieter|softer|lower (?:the )?volume|decrease (?:the )?volume)$").matches(t)) {
+            return Cmd("volume", "down")
+        }
+        if (Regex("^mute(?: (?:the )?(?:volume|sound|media|music))?$").matches(t)) return Cmd("volume", "mute")
+        if (Regex("^unmute(?: (?:the )?(?:volume|sound|media|music))?$").matches(t)) return Cmd("volume", "unmute")
+        if (Regex("^(?:max|full) volume$|^volume (?:to )?(?:max|full)$").matches(t)) return Cmd("volume", "100")
+        Regex("^(?:set )?(?:the )?volume (?:to |at )?(\\d{1,3})(?: ?%| percent)?$").find(t)?.let {
+            return Cmd("volume", it.groupValues[1].toInt().coerceIn(0, 100).toString())
+        }
+        Regex("^(?:play|put on) (.+?) on spotify$").find(t)?.let { return Cmd("play_in", SPOTIFY, it.groupValues[1]) }
+        Regex("^(?:play|put on) (.+?) on youtube music$").find(t)?.let { return Cmd("play_in", YT_MUSIC, it.groupValues[1]) }
+        // Ringer and Do Not Disturb.
+        if (Regex("^(?:silent mode|silent|silence (?:my |the )?phone|put (?:my |the )?phone on silent)$").matches(t)) return Cmd("ringer", "silent")
+        if (Regex("^(?:vibrate mode|vibrate|vibration mode|put (?:my |the )?phone on vibrate)$").matches(t)) return Cmd("ringer", "vibrate")
+        if (Regex("^(?:ring mode|normal mode|sound mode|sound on|ringer on|turn (?:the )?sound (?:back )?on)$").matches(t)) return Cmd("ringer", "normal")
+        Regex("^(?:turn |switch )?(on |off )?(?:do not disturb|dnd)(?: mode)?(?: (on|off))?$").find(t)?.let {
+            return Cmd("dnd", it.groupValues[1].trim().ifEmpty { it.groupValues[2].ifEmpty { "on" } })
+        }
+        // Timers and alarms (before the time-word check below, which would make them notes).
+        val num = "(\\d+|${numberWords.keys.sortedByDescending { it.length }.joinToString("|")})"
+        val unit = "(seconds?|secs?|minutes?|mins?|hours?|hrs?)"
+        (Regex("^(?:set |start )?(?:a |the )?timer (?:for )?$num ?$unit$").find(t)
+            ?: Regex("^(?:set |start )?(?:a |an )?$num ?$unit timer$").find(t))?.let {
+            val n = it.groupValues[1].toIntOrNull() ?: numberWords[it.groupValues[1]] ?: return null
+            val secs = n * when (it.groupValues[2].first()) { 's' -> 1; 'm' -> 60; else -> 3600 }
+            return Cmd("timer", secs.toString())
+        }
+        if (Regex("^(?:cancel|stop|delete) (?:the |my )?timer$").matches(t)) return Cmd("timer_cancel", "")
+        Regex(
+            "^(?:wake me(?: up)?|set (?:an |the |my )?alarm|alarm)(?: for| at)?(?: at)? (\\d{1,2})(?:[:. ](\\d{2}))? ?(a\\.? ?m|p\\.? ?m)?\\.?(?: tomorrow(?: morning)?)?$"
+        ).find(t)?.let {
+            val h = it.groupValues[1].toInt()
+            val m = it.groupValues[2].ifEmpty { "0" }.toInt()
+            if (h > 23 || m > 59) return null
+            val half = when (it.groupValues[3].firstOrNull()) { 'a' -> "am"; 'p' -> "pm"; else -> null }
+            return Cmd("alarm", "%02d:%02d".format(h, m), half)
+        }
+        if (Regex("^(?:take a (?:photo|picture|selfie)|open (?:the )?camera)$").matches(t)) return Cmd("camera", "")
         if (timeWords.containsMatchIn(t)) return null
         Regex("^video call (.+?) on whatsapp$").find(t)?.let { return Cmd("wa_video", it.groupValues[1]) }
         Regex("^(?:call|ring) (.+?) on whatsapp$").find(t)?.let { return Cmd("wa_call", it.groupValues[1]) }
@@ -149,8 +214,151 @@ object Commands {
                 start(context, Intent(Intent.ACTION_VIEW, Uri.parse("google.navigation:q=" + Uri.encode(cmd.target))))
                 "Directions to ${cmd.target}"
             }
+            // One of your own commands that runs built-in commands: "silent mode then set an alarm for 6:30".
+            "do" -> cmd.target.split(Regex("\\s+then\\s+|\\s*;\\s*")).filter { it.isNotBlank() }.joinToString(". ") { step ->
+                val inner = parseText(step, null) ?: throw Exception("\"$step\" is not a command Jarvis knows")
+                run(context, inner)
+            }
+            "hush" -> {
+                Speaker.stop()
+                ""
+            }
+            "time" -> "It's " + android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date())
+            "battery" -> {
+                val bm = context.getSystemService(BatteryManager::class.java)
+                val pct = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
+                "Battery is at $pct%" + if (bm.isCharging) ", charging" else ""
+            }
+            "media" -> {
+                val am = context.getSystemService(AudioManager::class.java)
+                val code = when (cmd.target) {
+                    "pause" -> KeyEvent.KEYCODE_MEDIA_PAUSE
+                    "play" -> KeyEvent.KEYCODE_MEDIA_PLAY
+                    "next" -> KeyEvent.KEYCODE_MEDIA_NEXT
+                    else -> KeyEvent.KEYCODE_MEDIA_PREVIOUS
+                }
+                am.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, code))
+                am.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, code))
+                when (cmd.target) { "pause" -> "Paused"; "play" -> "Playing"; "next" -> "Next song"; else -> "Previous song" }
+            }
+            "volume" -> {
+                val am = context.getSystemService(AudioManager::class.java)
+                val s = AudioManager.STREAM_MUSIC
+                val ui = AudioManager.FLAG_SHOW_UI
+                when (cmd.target) {
+                    "up" -> repeat(2) { am.adjustStreamVolume(s, AudioManager.ADJUST_RAISE, ui) }
+                    "down" -> repeat(2) { am.adjustStreamVolume(s, AudioManager.ADJUST_LOWER, ui) }
+                    "mute" -> am.adjustStreamVolume(s, AudioManager.ADJUST_MUTE, ui)
+                    "unmute" -> am.adjustStreamVolume(s, AudioManager.ADJUST_UNMUTE, ui)
+                    else -> am.setStreamVolume(s, am.getStreamMaxVolume(s) * cmd.target.toInt() / 100, ui)
+                }
+                when (cmd.target) {
+                    "up" -> "Volume up"; "down" -> "Volume down"; "mute" -> "Muted"; "unmute" -> "Unmuted"
+                    else -> "Volume at ${cmd.target}%"
+                }
+            }
+            "play_in" -> {
+                val app = if (cmd.target == SPOTIFY) "Spotify" else "YouTube Music"
+                val intent = Intent(MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH)
+                    .setPackage(cmd.target)
+                    .putExtra(SearchManager.QUERY, cmd.text)
+                    .putExtra(MediaStore.EXTRA_MEDIA_FOCUS, "vnd.android.cursor.item/*")
+                try {
+                    start(context, intent)
+                } catch (e: Exception) {
+                    throw Exception("$app is not installed")
+                }
+                "Playing ${cmd.text} on $app"
+            }
+            "ringer" -> {
+                val am = context.getSystemService(AudioManager::class.java)
+                needPolicyAccess(context)
+                am.ringerMode = when (cmd.target) {
+                    "silent" -> AudioManager.RINGER_MODE_SILENT
+                    "vibrate" -> AudioManager.RINGER_MODE_VIBRATE
+                    else -> AudioManager.RINGER_MODE_NORMAL
+                }
+                when (cmd.target) { "silent" -> "Phone on silent"; "vibrate" -> "Phone on vibrate"; else -> "Sound on" }
+            }
+            "dnd" -> {
+                needPolicyAccess(context)
+                context.getSystemService(NotificationManager::class.java).setInterruptionFilter(
+                    if (cmd.target == "on") NotificationManager.INTERRUPTION_FILTER_PRIORITY else NotificationManager.INTERRUPTION_FILTER_ALL
+                )
+                "Do not disturb ${cmd.target}"
+            }
+            "timer" -> {
+                val secs = cmd.target.toInt()
+                val id = TIMER_ID
+                val label = "Timer, ${span(secs)}"
+                AlarmScheduler.schedule(context, id, System.currentTimeMillis() + secs * 1000L, "clock", label, false, 0, null)
+                "Timer set for ${span(secs)}"
+            }
+            "timer_cancel" -> {
+                AlarmScheduler.cancel(context, TIMER_ID)
+                "Timer cancelled"
+            }
+            "alarm" -> {
+                val (h, m) = cmd.target.split(":").map { it.toInt() }
+                val at = nextAlarm(h, m, cmd.text, Calendar.getInstance())
+                val id = ALARM_ID_BASE + ((at / 60000) % 1_000_000).toInt()
+                AlarmScheduler.schedule(context, id, at, "clock", "Alarm", false, 0, null)
+                NewClocks.add(context, id, at)
+                val left = (at - System.currentTimeMillis()) / 60000 + 1
+                "Alarm set for " + android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(at)) +
+                    ", in ${span(left.toInt() * 60)}"
+            }
+            "camera" -> {
+                start(context, Intent(MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA))
+                "Opened the camera"
+            }
             else -> throw Exception("I don't know how to do that yet")
         }
+    }
+
+    const val SPOTIFY = "com.spotify.music"
+    const val YT_MUSIC = "com.google.android.apps.youtube.music"
+    private const val TIMER_ID = 1_799_999_999
+    const val ALARM_ID_BASE = 1_800_000_000
+
+    /** "10 minutes", "1 hour 30 minutes", "45 seconds". */
+    fun span(secs: Int): String {
+        if (secs < 60) return "$secs second${if (secs == 1) "" else "s"}"
+        val h = secs / 3600
+        val m = (secs % 3600) / 60
+        val parts = mutableListOf<String>()
+        if (h > 0) parts.add("$h hour${if (h == 1) "" else "s"}")
+        if (m > 0) parts.add("$m minute${if (m == 1) "" else "s"}")
+        return parts.joinToString(" ")
+    }
+
+    /**
+     * When "wake me at [h]:[m]" rings: the next time it comes. Without am or pm ([half] null), an hour of 1 to 12
+     * means whichever of the morning or evening time comes first.
+     */
+    fun nextAlarm(h: Int, m: Int, half: String?, now: Calendar): Long {
+        val hours = when {
+            half == "am" -> listOf(if (h == 12) 0 else h)
+            half == "pm" -> listOf(if (h == 12) 12 else h + 12)
+            h in 1..12 -> listOf(h % 12, h % 12 + 12)
+            else -> listOf(h)
+        }
+        return hours.map { hour ->
+            (now.clone() as Calendar).apply {
+                set(Calendar.HOUR_OF_DAY, hour)
+                set(Calendar.MINUTE, m)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+                if (timeInMillis <= now.timeInMillis) add(Calendar.DAY_OF_MONTH, 1)
+            }.timeInMillis
+        }.min()
+    }
+
+    /** Silent mode and Do Not Disturb need Android's "Do Not Disturb access"; opens that screen if missing. */
+    private fun needPolicyAccess(context: Context) {
+        if (context.getSystemService(NotificationManager::class.java).isNotificationPolicyAccessGranted) return
+        start(context, Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
+        throw Exception("Allow Do Not Disturb access for Jarvis, then say it again")
     }
 
     private fun start(context: Context, intent: Intent) {
@@ -330,15 +538,26 @@ class WakeService : Service() {
     private var detector: WakeWord? = null
     @Volatile private var listening = false
     private var thread: Thread? = null
-    private var recognizer: SpeechRecognizer? = null
     private val main = Handler(Looper.getMainLooper())
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_STOP) {
-            stopSelf()
-            return START_NOT_STICKY
+        when (intent?.action) {
+            ACTION_STOP -> {
+                stopSelf()
+                return START_NOT_STICKY
+            }
+            // The listening card has the mic; wait, then go back to listening for the wake word.
+            ACTION_PAUSE -> {
+                stopListening()
+                return START_STICKY
+            }
+            ACTION_RESUME -> {
+                detector?.reset()
+                listen()
+                return START_STICKY
+            }
         }
         startForegroundNotice()
         if (detector == null) startWake()
@@ -432,69 +651,13 @@ class WakeService : Service() {
         thread = null
     }
 
-    /** "Hey Jarvis" was heard: let go of the mic, listen for one sentence, then go back to waiting. */
+    /** "Hey Jarvis" was heard: let go of the mic and open the listening card, which hears one sentence. */
     private fun heard() {
         stopListening()
-        Overlay.show(this, "Listening…")
-        val r = SpeechRecognizer.createSpeechRecognizer(this)
-        recognizer = r
-        r.setRecognitionListener(object : RecognitionListener {
-            override fun onResults(results: Bundle?) {
-                val text = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
-                if (!text.isNullOrBlank()) handle(text) else Overlay.hide(this@WakeService)
-                resume()
-            }
-            override fun onError(error: Int) {
-                Overlay.hide(this@WakeService)
-                resume()
-            }
-            override fun onReadyForSpeech(params: Bundle?) {}
-            override fun onBeginningOfSpeech() {}
-            override fun onRmsChanged(rmsdB: Float) {}
-            override fun onBufferReceived(buffer: ByteArray?) {}
-            override fun onEndOfSpeech() {}
-            override fun onPartialResults(partialResults: Bundle?) {}
-            override fun onEvent(eventType: Int, params: Bundle?) {}
-        })
-        r.startListening(
-            Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-                .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-        )
-    }
-
-    private fun handle(text: String) {
-        val cmd = Commands.parse(this, text)
-        if (cmd == null) {
-            Overlay.show(this, "“$text”")
-            main.postDelayed({ Overlay.hide(this) }, 2000)
-            NoteQueue.add(this, text, null, "voice")
-            Chat.process(this, null)
-            return
-        }
-        try {
-            val did = Commands.run(this, cmd)
-            if (!did.startsWith("Calling")) {
-                Overlay.show(this, did)
-                main.postDelayed({ Overlay.hide(this) }, 1500)
-            }
-            Commands.log(this, text, did)
-        } catch (e: Exception) {
-            Overlay.show(this, e.message ?: "Could not do that")
-            main.postDelayed({ Overlay.hide(this) }, 2500)
-        }
-    }
-
-    private fun resume() {
-        main.postDelayed({
-            recognizer?.destroy()
-            recognizer = null
-            detector?.reset()
-            listen()
-        }, 300)
+        ListenActivity.open(this)
     }
 
     override fun onDestroy() {
-        recognizer?.destroy()
         stopListening()
         detector?.close()
         detector = null
@@ -506,6 +669,8 @@ class WakeService : Service() {
         const val CHANNEL = "wake"
         const val ID = 2_100_000_001
         const val ACTION_STOP = "com.towkirhs.jarcis.WAKE_STOP"
+        const val ACTION_PAUSE = "com.towkirhs.jarcis.WAKE_PAUSE"
+        const val ACTION_RESUME = "com.towkirhs.jarcis.WAKE_RESUME"
         var running = false
             private set
 
@@ -517,6 +682,14 @@ class WakeService : Service() {
         fun stop(context: Context) {
             running = false
             context.stopService(Intent(context, WakeService::class.java))
+        }
+
+        fun pause(context: Context) {
+            if (running) context.startService(Intent(context, WakeService::class.java).setAction(ACTION_PAUSE))
+        }
+
+        fun resume(context: Context) {
+            if (running) context.startService(Intent(context, WakeService::class.java).setAction(ACTION_RESUME))
         }
     }
 }

@@ -26,6 +26,7 @@ Future<void> main() async {
   Native.init();
   AI.checkOffline(); // finds a downloaded offline model in the background
   Native.setShortcuts(jsonEncode(store.settings['shortcuts'] ?? {})); // nicknames and phrases for phone actions
+  Native.setSpeech(jsonEncode(store.settings['speech'] ?? {})); // when and how Jarvis talks back
   runApp(JarcisApp(store: store));
 }
 
@@ -161,6 +162,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
   Future<void> _tick() async {
     await _applyDone();
     await Clock.drainFired(s);
+    await Clock.drainVoiceAlarms(s);
     await Clock.sync(s);
     await drainMoneyQueue(s);
     for (final (said, did, ts) in await Native.takeCommandLog()) {

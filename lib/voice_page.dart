@@ -1,11 +1,13 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'haptics.dart';
 import 'home_screen.dart' show logCommand;
 import 'native.dart';
 import 'store.dart';
+import 'voice_replies_page.dart';
 
 /// "Hey Jarvis" wake word, phone actions, and your own names and phrases for them.
 class VoicePage extends StatefulWidget {
@@ -58,13 +60,15 @@ class _VoicePageState extends State<VoicePage> with WidgetsBindingObserver {
     setState(() {});
   }
 
-  Future<void> _addNickname() async {
-    final nick = TextEditingController();
-    final who = TextEditingController();
+  /// Adds a nickname, or edits [old] (its key).
+  Future<void> _addNickname([String? old]) async {
+    final people = Map<String, dynamic>.from((_shortcuts['people'] as Map?) ?? {});
+    final nick = TextEditingController(text: old);
+    final who = TextEditingController(text: old == null ? null : '${people[old]}');
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Nickname'),
+        title: Text(old == null ? 'Nickname' : 'Edit nickname'),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           TextField(controller: nick, autofocus: true, decoration: const InputDecoration(labelText: 'What you say, like Oishi or Ammu')),
           const SizedBox(height: 12),
@@ -78,21 +82,26 @@ class _VoicePageState extends State<VoicePage> with WidgetsBindingObserver {
     );
     if (ok != true || nick.text.trim().isEmpty || who.text.trim().isEmpty) return;
     final sc = _shortcuts;
-    sc['people'] = {...((sc['people'] as Map?) ?? {}), nick.text.trim().toLowerCase(): who.text.trim()};
+    if (old != null) people.remove(old);
+    sc['people'] = {...people, nick.text.trim().toLowerCase(): who.text.trim()};
     Haptics.tap();
     await _saveShortcuts(sc);
   }
 
-  Future<void> _addPhrase() async {
-    final phrase = TextEditingController();
-    final target = TextEditingController();
-    final text = TextEditingController();
-    var kind = 'app';
+  /// Adds one of your own commands, or edits [old] (its phrase).
+  Future<void> _addPhrase([String? old]) async {
+    final phrases = Map<String, dynamic>.from((_shortcuts['phrases'] as Map?) ?? {});
+    final was = old == null ? const <String, dynamic>{} : Map<String, dynamic>.from(phrases[old] as Map);
+    final phrase = TextEditingController(text: old);
+    final target = TextEditingController(text: was['target'] as String?);
+    final text = TextEditingController(text: was['text'] as String?);
+    var kind = (was['kind'] as String?) ?? 'app';
+    var speak = was['speak'] != false;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setD) => AlertDialog(
-          title: const Text('Your own command'),
+          title: Text(old == null ? 'Your own command' : 'Edit command'),
           content: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               TextField(controller: phrase, autofocus: true, decoration: const InputDecoration(labelText: 'When I say, like "study music"')),
@@ -101,6 +110,7 @@ class _VoicePageState extends State<VoicePage> with WidgetsBindingObserver {
                 initialValue: kind,
                 decoration: const InputDecoration(labelText: 'Do this'),
                 items: const [
+                  DropdownMenuItem(value: 'do', child: Text('Jarvis commands, one or more')),
                   DropdownMenuItem(value: 'app', child: Text('Open an app')),
                   DropdownMenuItem(value: 'link', child: Text('Open a link')),
                   DropdownMenuItem(value: 'wa_chat', child: Text('WhatsApp chat with')),
@@ -114,16 +124,27 @@ class _VoicePageState extends State<VoicePage> with WidgetsBindingObserver {
                 controller: target,
                 decoration: InputDecoration(
                   labelText: switch (kind) {
+                    'do' => 'Commands, like: silent mode then set an alarm for 6:30',
                     'app' => 'App name',
                     'link' => 'Link (https://…)',
                     _ => 'Person (nickname, contact or number)',
                   },
+                  labelStyle: const TextStyle(overflow: TextOverflow.visible),
+                  helperText: kind == 'do' ? 'Separate steps with "then". Any command from the list below works.' : null,
+                  helperMaxLines: 2,
                 ),
               ),
               if (kind == 'wa_chat') ...[
                 const SizedBox(height: 12),
                 TextField(controller: text, decoration: const InputDecoration(labelText: 'Message to fill in (optional)')),
               ],
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Say what it did'),
+                subtitle: const Text('Off: does it quietly'),
+                value: speak,
+                onChanged: (v) => setD(() => speak = v),
+              ),
             ]),
           ),
           actions: [
@@ -135,12 +156,14 @@ class _VoicePageState extends State<VoicePage> with WidgetsBindingObserver {
     );
     if (ok != true || phrase.text.trim().isEmpty || target.text.trim().isEmpty) return;
     final sc = _shortcuts;
+    if (old != null) phrases.remove(old);
     sc['phrases'] = {
-      ...((sc['phrases'] as Map?) ?? {}),
+      ...phrases,
       phrase.text.trim().toLowerCase().replaceAll(RegExp(r'[.!?]+$'), ''): {
         'kind': kind,
         'target': target.text.trim(),
-        if (text.text.trim().isNotEmpty) 'text': text.text.trim(),
+        if (kind == 'wa_chat' && text.text.trim().isNotEmpty) 'text': text.text.trim(),
+        if (!speak) 'speak': false,
       },
     };
     Haptics.tap();
@@ -153,6 +176,69 @@ class _VoicePageState extends State<VoicePage> with WidgetsBindingObserver {
     sc[group] = m;
     Haptics.warn();
     await _saveShortcuts(sc);
+  }
+
+  static const _kindName = {
+    'do': 'Runs',
+    'app': 'Opens',
+    'link': 'Opens link',
+    'wa_chat': 'WhatsApp chat',
+    'wa_call': 'WhatsApp call',
+    'call': 'Calls',
+  };
+
+  /// Everything Jarvis understands, for the "What you can say" list.
+  static const _canSay = [
+    ('Apps and people', 'open YouTube · message Oishi on WhatsApp saying I\'m on my way · call Oishi on WhatsApp · '
+        'video call Oishi on WhatsApp · call Ammu · text Ammu saying I\'m late'),
+    ('Music and sound', 'pause · play · next song · previous song · volume up · volume down · set volume to 40% · '
+        'mute · play Arijit Singh on Spotify · play lofi on YouTube Music · play lofi on YouTube'),
+    ('Phone', 'silent mode · vibrate mode · sound on · do not disturb on · flashlight on · take a selfie · '
+        'what time is it · how much battery is left'),
+    ('Time', 'set a timer for 10 minutes · cancel the timer · wake me up at 6:30 · set an alarm for 7 pm'),
+    ('Places', 'directions to Dhanmondi 27'),
+    ('Jarvis', 'stop (stops talking) · anything else, like "what\'s my day" or "spent 200 on lunch", goes to '
+        'Jarvis, which answers'),
+  ];
+
+  /// How to put "Talk to Jarvis" on a button, like the Essential Key on Nothing phones.
+  Widget _button(TextTheme tt, ColorScheme scheme) {
+    Widget copy(String label, String value) => ListTile(
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+          title: Text(label),
+          subtitle: Text(value, style: const TextStyle(fontFamily: 'monospace')),
+          trailing: IconButton(
+            tooltip: 'Copy',
+            icon: const Icon(Icons.copy, size: 18),
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: value));
+              Haptics.tap();
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Copied $value')));
+            },
+          ),
+        );
+    return ExpansionTile(
+      tilePadding: EdgeInsets.zero,
+      leading: const Icon(Icons.smart_button_outlined),
+      title: const Text('Talk to Jarvis with a button'),
+      subtitle: const Text('Like the Essential Key: press, speak, done. No wake word, mic off the rest of the time.'),
+      childrenPadding: const EdgeInsets.only(bottom: 8),
+      expandedCrossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Jarvis has a second icon in your app list, "Talk to Jarvis". Any app or setting that can open an app with '
+          'a button can open it: Nothing\'s Essential Key setting when your phone gets it (Nothing OS 5.1), or apps '
+          'like The Everything Key or Key Mapper today.\n\n'
+          'For double and long press, Key Mapper can open these instead (Intent, Activity):',
+          style: tt.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+        ),
+        copy('Listen', 'com.towkirhs.jarcis.TALK'),
+        copy('Photo to Jarvis (receipt, bill, note)', 'com.towkirhs.jarcis.SNAP'),
+        copy('Run one of your own commands (extra "text" = the phrase)', 'com.towkirhs.jarcis.DO'),
+        copy('App package', 'com.towkirhs.jarcis'),
+      ],
+    );
   }
 
   Widget _check(String label, bool ok, String button, VoidCallback onTap) => ListTile(
@@ -177,9 +263,9 @@ class _VoicePageState extends State<VoicePage> with WidgetsBindingObserver {
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
         children: [
           Text(
-            'Say "Hey Jarvis", then a command: "open YouTube", "message Oishi on WhatsApp saying I\'m on my way", '
-            '"call Oishi on WhatsApp", "call Ammu", "turn on the flashlight", "directions to Dhanmondi 27". '
-            'Anything else becomes a note for Jarvis. You can type the same commands in the chat.',
+            'Say "Hey Jarvis" or press your button, then a command: "open YouTube", "pause", "set a timer for 10 '
+            'minutes", "message Oishi on WhatsApp". Anything else goes to Jarvis, which answers. You can type the '
+            'same commands in the chat.',
             style: tt.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
           ),
           const SizedBox(height: 8),
@@ -242,6 +328,20 @@ class _VoicePageState extends State<VoicePage> with WidgetsBindingObserver {
           const SizedBox(height: 4),
           Text('Easy if it often misses you, Strict if it wakes up by itself. Wake word model: openWakeWord.',
               style: tt.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+          _button(tt, scheme),
+          const SizedBox(height: 8),
+          Text('Talking back', style: tt.titleMedium),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.record_voice_over_outlined),
+            title: const Text('Voice replies'),
+            subtitle: Text('${VoiceRepliesPage.summary(s)}. When, what and how Jarvis speaks.'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () async {
+              await Navigator.push(context, MaterialPageRoute(builder: (_) => VoiceRepliesPage(store: s)));
+              if (mounted) setState(() {});
+            },
+          ),
           const SizedBox(height: 16),
           Row(children: [
             Expanded(child: Text('Nicknames', style: tt.titleMedium)),
@@ -256,7 +356,8 @@ class _VoicePageState extends State<VoicePage> with WidgetsBindingObserver {
               leading: const Icon(Icons.person_outline),
               title: Text(e.key),
               subtitle: Text('${e.value}'),
-              trailing: IconButton(icon: const Icon(Icons.close), onPressed: () => _remove('people', e.key)),
+              onTap: () => _addNickname(e.key),
+              trailing: IconButton(tooltip: 'Delete', icon: const Icon(Icons.close), onPressed: () => _remove('people', e.key)),
             ),
           const SizedBox(height: 8),
           Row(children: [
@@ -268,8 +369,10 @@ class _VoicePageState extends State<VoicePage> with WidgetsBindingObserver {
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.bolt),
               title: Text('"${e.key}"'),
-              subtitle: Text('${(e.value as Map)['kind']}: ${(e.value as Map)['target']}'),
-              trailing: IconButton(icon: const Icon(Icons.close), onPressed: () => _remove('phrases', e.key)),
+              subtitle: Text('${_kindName[(e.value as Map)['kind']] ?? (e.value as Map)['kind']}: ${(e.value as Map)['target']}'
+                  '${(e.value as Map)['speak'] == false ? ' · quiet' : ''}'),
+              onTap: () => _addPhrase(e.key),
+              trailing: IconButton(tooltip: 'Delete', icon: const Icon(Icons.close), onPressed: () => _remove('phrases', e.key)),
             ),
           const SizedBox(height: 16),
           Text('Try a command', style: tt.titleMedium),
@@ -285,13 +388,31 @@ class _VoicePageState extends State<VoicePage> with WidgetsBindingObserver {
                   final t = _try.text.trim();
                   if (t.isEmpty) return;
                   final did = await Native.command(t);
-                  if (did != null) logCommand(s, t, did);
+                  if (did != null) logCommand(s, t, did.isEmpty ? 'Okay, quiet.' : did);
                   setState(() => _result = did ?? 'Not a command: Jarvis would treat that as a note.');
                 },
               ),
             ),
           ),
           if (_result != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(_result!)),
+          const SizedBox(height: 16),
+          ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            leading: const Icon(Icons.list_alt),
+            title: const Text('What you can say'),
+            expandedCrossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final (group, lines) in _canSay)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(group, style: tt.labelLarge),
+                    const SizedBox(height: 2),
+                    Text(lines, style: tt.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
+                  ]),
+                ),
+            ],
+          ),
         ],
       ),
     );
