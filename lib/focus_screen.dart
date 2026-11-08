@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import 'haptics.dart';
+import 'native.dart';
 import 'store.dart';
 
 const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -32,6 +33,17 @@ class _FocusScreenState extends State<FocusScreen> {
   int get _pomoMin => (s.settings['pomoMin'] as int?) ?? 25;
   int get _breakMin => (s.settings['breakMin'] as int?) ?? 5;
 
+  /// "Keep screen on": while a timer runs and this page is open, the screen does not dim or lock.
+  bool get _keepOn => s.local('focus_awake') == '1';
+  bool _awake = false;
+
+  void _updateAwake() {
+    final want = _keepOn && s.focusActive != null;
+    if (want == _awake) return;
+    _awake = want;
+    Native.keepAwake(want);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -41,6 +53,7 @@ class _FocusScreenState extends State<FocusScreen> {
       await s.checkFocus();
       if (!mounted) return;
       if (running && s.focusActive == null && !wasBreak) _offerBreak();
+      _updateAwake();
       setState(() {});
     });
   }
@@ -48,6 +61,7 @@ class _FocusScreenState extends State<FocusScreen> {
   @override
   void dispose() {
     _tick?.cancel();
+    if (_awake) Native.keepAwake(false);
     super.dispose();
   }
 
@@ -211,6 +225,22 @@ class _FocusScreenState extends State<FocusScreen> {
           child: Text(
             'Today: ${_todayStats(s).$1} pomos, ${_hm(_todayStats(s).$2)} focused',
             style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Center(
+          child: FilterChip(
+            avatar: Icon(_keepOn ? Icons.light_mode : Icons.light_mode_outlined, size: 18),
+            label: const Text('Keep screen on'),
+            tooltip: 'While a Pomodoro or stopwatch runs, the screen stays on',
+            selected: _keepOn,
+            showCheckmark: false,
+            onSelected: (v) async {
+              Haptics.toggle(v);
+              await s.setLocal('focus_awake', v ? '1' : null);
+              _updateAwake();
+              setState(() {});
+            },
           ),
         ),
       ],

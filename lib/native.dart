@@ -67,6 +67,11 @@ class Native {
     return m == null ? null : ((m['lat'] as num).toDouble(), (m['lng'] as num).toDouble());
   }
 
+  /// Keeps the screen from dimming and locking while [on].
+  static Future<void> keepAwake(bool on) async {
+    if (!kIsWeb) await _ch.invokeMethod('keepAwake', {'on': on});
+  }
+
   /// Opens a web page in the phone's browser.
   static Future<void> openUrl(String url) async {
     if (kIsWeb) return;

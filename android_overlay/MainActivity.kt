@@ -35,6 +35,15 @@ class MainActivity : FlutterActivity() {
                     )
                     result.success(null)
                 }
+                "keepAwake" -> {
+                    // The screen stays on while a focus timer runs, if you asked for that.
+                    if (call.argument<Boolean>("on") == true) {
+                        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    } else {
+                        window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    }
+                    result.success(null)
+                }
                 "requestLocation" -> {
                     // Android asks for "all the time" separately, after "while using the app" is given.
                     val fine = checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) ==
