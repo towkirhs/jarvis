@@ -498,7 +498,7 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget build(BuildContext context) {
     final tt = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
-    final order = AI.providers(s).where((p) => AI.ready(s, p)).map((p) => p['name']).join(', then ');
+    final order = AI.providers(s).where((p) => AI.ready(s, p)).map((p) => p['name']).join(' → ');
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
@@ -508,7 +508,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ListTile(
               leading: const Icon(Icons.hub_outlined),
               title: const Text('AI models'),
-              subtitle: Text(order.isEmpty ? 'None set up. Add Gemini, Groq or your server.' : 'Uses $order',
+              subtitle: Text(order.isEmpty ? 'None set up. Add Gemini, Groq or your server.' : 'In order: $order',
                   maxLines: 2, overflow: TextOverflow.ellipsis),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => _open(AiPage(store: s)),
