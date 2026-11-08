@@ -79,5 +79,14 @@ class Destination {
     return {...data, 'items': items};
   }
 
+  /// Without "calendar", what would have been a calendar event becomes a task at the same time.
+  static Map<String, dynamic> noEvents(Map<String, dynamic> data) => {
+        ...data,
+        'items': [
+          for (final raw in ((data['items'] as List?) ?? const []))
+            (raw as Map)['type'] == 'event' ? {...Map<String, dynamic>.from(raw), 'type': 'task'} : raw,
+        ],
+      };
+
   static const names = {'event': 'calendar', 'task': 'tasks', 'alarm': 'alarms', 'note': 'journal'};
 }

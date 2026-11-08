@@ -277,6 +277,66 @@ class LocalParser {
     });
   }
 
+  /// What follows "calendar": a start time, an end time, and the event's name, with a day if said.
+  /// "3pm to 5pm team meeting", "tomorrow 10:30-12 dentist", "friday 3 5 pm football", "9am standup".
+  static Map<String, dynamic>? calendar(String raw, {required DateTime now}) {
+    final text = raw.trim();
+    final date = _date(text.toLowerCase(), now);
+    // The day comes out first, so "dec 12 3 to 5pm" is not read as 12 to 3.
+    final t = date == null ? text.toLowerCase() : text.toLowerCase().replaceFirst(date.$2, ' ');
+    const tm = r'(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?';
+    final range = RegExp('\\b(?:from\\s+)?$tm\\s*(to|till|until|-|–)?\\s*$tm(?![\\d:])').firstMatch(t);
+    int? start, end;
+    String? said;
+    if (range != null) {
+      // Two bare numbers ("3 5") are a range only with am/pm or minutes, so "2 tickets" is not.
+      final sure = range[4] != null || [range[2], range[3], range[6], range[7]].any((g) => g != null);
+      final h1 = int.parse(range[1]!), m1 = int.tryParse(range[2] ?? '') ?? 0;
+      final h2 = int.parse(range[5]!), m2 = int.tryParse(range[6] ?? '') ?? 0;
+      if (sure && h1 <= 23 && h2 <= 23 && m1 <= 59 && m2 <= 59) {
+        String? half(String? s) => s == null ? null : (s.startsWith('p') ? 'pm' : 'am');
+        int at(int h, String? ampm) => ampm == 'pm' && h < 12 ? h + 12 : (ampm == 'am' && h == 12 ? 0 : h);
+        final a2 = half(range[7]);
+        var a1 = half(range[3]);
+        // "3 to 5 pm" is 3 pm; "11 to 1 pm" is 11 am.
+        if (a1 == null && a2 != null) a1 = (a2 == 'pm' && h1 != 12 && h1 > h2 && h2 != 12) ? 'am' : a2;
+        var s = at(h1, a1) * 60 + m1;
+        var e = at(h2, a2) * 60 + m2;
+        // No am/pm at all: plans at 1-7 o'clock are afternoons, like elsewhere.
+        if (a1 == null && h1 >= 1 && h1 <= 7) s += 12 * 60;
+        if (a2 == null && e <= s && h2 < 12) e += 12 * 60;
+        if (e > s) {
+          start = s;
+          end = e;
+          said = range[0];
+        }
+      }
+    }
+    if (start == null) {
+      final one = _time(t, morningDefault: false);
+      if (one == null) return null;
+      start = one.$1 * 60 + one.$2;
+      said = one.$3;
+    }
+    final title = _title(text, [said!, if (date != null) date.$2])
+        .replaceAll(RegExp(r'^(event|for|called|named)\s+', caseSensitive: false), '');
+    if (title.isEmpty) return null;
+    return {
+      'cleaned': text,
+      'topics': <String>[],
+      'items': [
+        {
+          'type': 'event',
+          'title': title[0].toUpperCase() + title.substring(1),
+          'date': _day(date?.$1 ?? DateTime(now.year, now.month, now.day)),
+          'time': '${_two(start ~/ 60)}:${_two(start % 60)}',
+          'durationMinutes': end == null ? null : end - start,
+          'confidence': 1,
+        },
+      ],
+    };
+  }
+
   static Map<String, dynamic>? _timed(String text, String t, DateTime now) {
     // Telling about the day ("I woke up at 7 feeling great") is journal, not a plan: leave it to the AI.
     if (RegExp(r"\b(i was|i felt|i feel|feeling|i woke|i went|i had|i did|was|were|got|today was)\b").hasMatch(t)) return null;

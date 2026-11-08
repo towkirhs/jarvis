@@ -152,7 +152,18 @@ class Brain {
       c['via'] = 'phone';
       return _apply(s, c, {'items': <dynamic>[], 'cleaned': note});
     }
-    Rec forced(Rec data) => dest == null ? data : Destination.force(data, dest);
+    // Your rule: only notes that start with "calendar" go on the calendar; anything else with a time is a task.
+    // (A photo of a routine or exam schedule still makes events.)
+    Rec forced(Rec data) =>
+        dest != null ? Destination.force(data, dest) : (c['image'] == null ? Destination.noEvents(data) : data);
+    // "calendar 3pm to 5pm team meeting": read on the phone, exactly as said.
+    if (dest?.type == 'event' && c['image'] == null) {
+      final cal = LocalParser.calendar(note, now: DateTime.now());
+      if (cal != null) {
+        c['via'] = 'phone';
+        return _apply(s, c, cal);
+      }
+    }
     String? quick;
     try {
       quick = c['image'] == null && dest == null ? _quickAnswer(s, c['raw'] as String) : null;
@@ -238,6 +249,7 @@ class Brain {
             photo: bytes != null,
             replyTo: c['replyTo'] as String?,
             web: dest == null && Web.on(s) && Web.available(s),
+            events: dest != null || bytes != null,
             dest: dest?.type),
         json: true,
         image: bytes,
@@ -878,7 +890,7 @@ class Brain {
   }
 
   static String _parserPrompt(Store s, String note,
-      {bool photo = false, String? replyTo, bool web = false, String? dest}) {
+      {bool photo = false, String? replyTo, bool web = false, String? dest, bool events = true}) {
     final now = DateTime.now();
     final places = [for (final p in s.list('places')) p['name'] as String];
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -902,7 +914,7 @@ Return ONLY JSON in this shape:
 
 Rules:
 - Never invent a date or time that was not said. If it is unclear ("later", "soon"), set time to null and lower the confidence.
-- A meeting or appointment at a time is "event". Use "alarm" only when the person asks to be woken or reminded at a time.
+${events ? '- A meeting or appointment at a time is "event".' : '- Never use "event": the person puts things on their calendar by starting with the word "calendar". A meeting or appointment at a time is a "task" with that date and time.'} Use "alarm" only when the person asks to be woken or reminded at a time.
 - A habit is something repeated over weeks (gym, reading, praying, studying). Reporting that it was done or skipped is "habit_log" with the day it happened, never a task. Saying they want to start doing something regularly is "habit_new". A one-off thing to do is a task.
 - "priority": "high" for urgent or important things the person stresses, otherwise only if they say it. "tags" and "list" only if they name them (like "add to my study list", "tag it exam"). "repeat" only for things said to repeat ("every day", "every Monday" = weekly). "durationMinutes" is how long an event lasts. "description" holds extra details that do not fit the title.
 - "countdown" is a date to count down to or remember every year: a birthday, an anniversary, a holiday, or an exam or trip the person wants a countdown for. "category" is "birthday", "anniversary", "holiday" or "countdown", and "date" is required.
@@ -914,7 +926,7 @@ ${places.isEmpty ? '' : '- "place" is, for a task tied to a place ("buy milk whe
 - A question ("what do I have tomorrow", "when is Ammu's birthday", "how much did I spend on food", "did I go to the gym this week") gets no items, only the answer in "reply".
 ${web ? '- "web": if answering needs the internet (news, weather, prices, scores, facts about the world, places, public people) and their data above does not answer it, a short search query for it, with no personal details from their data; then "reply" can be empty. Otherwise null. Never for their own plans, money, habits or notes.\n' : ''}- A plain reflection or feeling is type "note" (it goes to their journal); still write a short, kind "reply" and set "mood".
 - Small talk, or anything that is not about plans, tasks, habits, promises, decisions or reflections, is type "ignore".
-- One note can hold several items, but one real-world thing is ONE item. A class or appointment at a time is one "event" (it already gets a reminder); do not also add a task or alarm for it unless the person separately asks to be woken or reminded.
+- One note can hold several items, but one real-world thing is ONE item. A class or appointment at a time is one item (it already gets a reminder); do not also add a task or alarm for it unless the person separately asks to be woken or reminded.
 - If the note is about something already in the open items list, do not create it again: use "delay" if its time changed, "complete" if it is done, otherwise "ignore".
 - Never output two items with the same title and time.
 - If the same thing happens on several dates, output one item per date.

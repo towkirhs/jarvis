@@ -107,4 +107,35 @@ void main() {
       test(note, () => expect(LocalParser.parse(note, now: now), isNull));
     }
   });
+
+  group('calendar: start, end, name', () {
+    Map<String, dynamic>? cal(String note) {
+      final r = LocalParser.calendar(note, now: now);
+      return r == null ? null : (r['items'] as List).single as Map<String, dynamic>;
+    }
+
+    Matcher ev(String title, String date, String time, int? minutes) => allOf(containsPair('type', 'event'),
+        containsPair('title', title), containsPair('date', date), containsPair('time', time), containsPair('durationMinutes', minutes));
+
+    test('start and end times', () {
+      expect(cal('3pm to 5pm team meeting'), ev('Team meeting', '2026-11-05', '15:00', 120));
+      expect(cal('3 5 pm football'), ev('Football', '2026-11-05', '15:00', 120));
+      expect(cal('10:30-12 dentist'), ev('Dentist', '2026-11-05', '10:30', 90));
+      expect(cal('11 to 1 pm lunch with Rafi'), ev('Lunch with Rafi', '2026-11-05', '11:00', 120));
+      expect(cal('from 2:15 pm until 3 pm call with bank'), ev('Call with bank', '2026-11-05', '14:15', 45));
+      expect(cal('8 - 10 pm movie'), ev('Movie', '2026-11-05', '20:00', 120));
+    });
+    test('with a day', () {
+      expect(cal('tomorrow 9am to 11am physics class'), ev('Physics class', '2026-11-06', '09:00', 120));
+      expect(cal('dec 12 3 to 5pm exam'), ev('Exam', '2026-12-12', '15:00', 120));
+      expect(cal('3pm 4pm meeting with supervisor on friday'), ev('Meeting with supervisor', '2026-11-06', '15:00', 60));
+    });
+    test('only a start time', () {
+      expect(cal('9am standup'), ev('Standup', '2026-11-05', '09:00', null));
+    });
+    test('no time or no name: left to the AI', () {
+      expect(cal('team meeting'), isNull);
+      expect(cal('3pm to 5pm'), isNull);
+    });
+  });
 }

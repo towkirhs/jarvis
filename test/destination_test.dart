@@ -55,4 +55,15 @@ void main() {
       {'type': 'task', 'title': 'buy milk', 'confidence': 1}
     ]);
   });
+
+  test('without "calendar", an event becomes a task at the same time', () {
+    final f = Destination.noEvents({
+      'items': [
+        {'type': 'event', 'title': 'Meeting', 'time': '15:00'},
+        {'type': 'alarm', 'title': 'Gym', 'time': '06:00'},
+      ]
+    });
+    expect([for (final i in f['items'] as List) i['type']], ['task', 'alarm']);
+    expect(((f['items'] as List).first as Map)['time'], '15:00');
+  });
 }
