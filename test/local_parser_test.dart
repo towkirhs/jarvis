@@ -138,4 +138,20 @@ void main() {
       expect(cal('3pm to 5pm'), isNull);
     });
   });
+
+  group('questions are not turned into tasks', () {
+    test('questions go to Jarvis', () {
+      expect(item('today any match?'), isNull);
+      expect(item('Today any match'), isNull);
+      expect(item('what is on tomorrow at 5'), isNull);
+      expect(item('is dinner at 8 tonight'), isNull);
+      expect(item('meeting tomorrow at 3pm?'), isNull);
+      expect(LocalParser.isQuestion('Hey Jarvis, when is my exam'), isTrue);
+    });
+    test('plain plans still are', () {
+      expect(item('call Ammu tomorrow at 8 pm'), allOf(containsPair('type', 'task'), containsPair('time', '20:00')));
+      expect(LocalParser.isQuestion('do laundry tomorrow'), isFalse);
+      expect(LocalParser.isQuestion('anything in the fridge to buy'), isFalse);
+    });
+  });
 }

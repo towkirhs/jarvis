@@ -139,6 +139,8 @@ class Web {
     }
     // Markdown links and bare links read badly in a chat bubble: keep the words, the links go below.
     text = text
+        // Citation markers like 【3†L5-L11】 that the search model leaves in its answer.
+        .replaceAll(RegExp(r'\s*【[^】]*】'), '')
         .replaceAllMapped(RegExp(r'\[([^\]]+)\]\(https?://[^)]+\)'), (m) => m.group(1)!)
         .replaceAll(RegExp(r'\(?https?://[^\s)]+\)?'), '')
         .replaceAll(RegExp(r'[*#]'), '')

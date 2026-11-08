@@ -54,4 +54,15 @@ void main() {
     expect(a.text, 'Bangladesh won by 5 wickets (ESPNcricinfo). More:');
     expect(a.sources.map((x) => x.title), ['www.espncricinfo.com', 'www.bbc.com']);
   });
+
+  test('citation markers from the search model are removed', () {
+    final a = Web.parseOpenAi({
+      'choices': [
+        {
+          'message': {'content': 'Real Madrid won 3-0 at Valencia on 8 Nov 2026, with goals from Valverde and Mbapp\u00e9\u30103\u2020L5-L11\u3011. They play again on Wednesday.\u30104\u2020L2-L4\u3011'}
+        }
+      ]
+    });
+    expect(a.text, 'Real Madrid won 3-0 at Valencia on 8 Nov 2026, with goals from Valverde and Mbapp\u00e9. They play again on Wednesday.');
+  });
 }

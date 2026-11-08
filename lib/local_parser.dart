@@ -136,6 +136,13 @@ class LocalParser {
         ],
       };
 
+  /// "…?", or a first word that asks (what, when, where, who, which, why, how, any, is, are, was, were, does).
+  static bool isQuestion(String text) {
+    final t = text.trim().toLowerCase();
+    return t.endsWith('?') ||
+        RegExp(r'^(?:(?:hey|ok) jarvis[,!]?\s+)?(what|when|where|who|which|why|how|any|is|are|was|were|does)\b').hasMatch(t);
+  }
+
   static Map<String, dynamic>? parse(
     String raw, {
     required DateTime now,
@@ -149,6 +156,8 @@ class LocalParser {
     if (words == 0 || words > 22 || text.contains('\n')) return null;
     if (RegExp(r'[.!?]\s+\S').hasMatch(text)) return null;
     if (RegExp(r'\b(and then|also|then|after that|tar por|tarpor)\b').hasMatch(t)) return null;
+    // A question is for Jarvis to answer, not to turn into a task ("today any match?").
+    if (isQuestion(text)) return null;
 
     return _money(text, t, now, accounts) ??
         _habit(text, t, now, habits) ??

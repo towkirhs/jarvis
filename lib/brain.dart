@@ -882,7 +882,13 @@ class Brain {
 
     final recent = s.list('captures').where((c) => c['status'] == 'done').toList().reversed.take(6).toList().reversed;
     if (recent.isNotEmpty) {
-      lines.add('Their last notes: ${recent.map((c) => '[${when(c['ts'] as int)}] ${c['cleaned']}').join(' | ')}');
+      // What Jarvis answered too, so a follow-up ("today any match?") can be understood.
+      String said(Rec c) {
+        final r = ((c['reply'] as String?) ?? '').replaceAll(RegExp(r'\s+'), ' ').trim();
+        return r.isEmpty ? '' : ' (Jarvis answered: ${r.length > 140 ? '${r.substring(0, 140)}…' : r})';
+      }
+
+      lines.add('Their last notes: ${recent.map((c) => '[${when(c['ts'] as int)}] ${c['cleaned']}${said(c)}').join(' | ')}');
     }
     final mood = s.dayMood(today);
     if (mood != null) lines.add('Mood today: ${moodNames[mood]}');
