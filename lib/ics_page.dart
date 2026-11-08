@@ -50,7 +50,7 @@ class _IcsPageState extends State<IcsPage> {
       final bytes = picked?.files.single.bytes;
       if (bytes == null) return;
       final found = Ics.parse(utf8.decode(bytes, allowMalformed: true));
-      final plan = plan(found);
+      final plan = _plan(found);
       if (!mounted) return;
       if (plan.add.isEmpty) {
         _say(found.isEmpty ? 'No events found in that file.' : 'Nothing new: ${plan.skipped} already here or in the past.');
@@ -105,7 +105,7 @@ class _IcsPageState extends State<IcsPage> {
   }
 
   /// Which of the file's items to add: not in the past (unless they repeat), not already here, at most 500.
-  ({List<IcsEvent> add, int skipped}) plan(List<IcsEvent> found) {
+  ({List<IcsEvent> add, int skipped}) _plan(List<IcsEvent> found) {
     final now = DateTime.now();
     final have = s.list('items');
     final uids = {for (final i in have) if (i['uid'] != null) i['uid']};
