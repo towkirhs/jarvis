@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 
 import 'ai_page.dart';
@@ -19,6 +20,7 @@ import 'store.dart';
 import 'sync.dart';
 import 'sync_page.dart';
 import 'theme.dart';
+import 'updater.dart';
 
 class MoreScreen extends StatelessWidget {
   const MoreScreen({super.key, required this.store});
@@ -672,6 +674,18 @@ class _SettingsPageState extends State<SettingsPage> {
               onTap: _restore,
             ),
           ]),
+          if (!kIsWeb)
+            _group('Updates', [
+              FutureBuilder<int>(
+                future: Native.appBuild(),
+                builder: (_, b) => ListTile(
+                  leading: const Icon(Icons.system_update_outlined),
+                  title: const Text('Update Jarvis'),
+                  subtitle: Text('${(b.data ?? 0) > 1 ? 'Build ${b.data}. ' : ''}Checks GitHub for a newer build'),
+                  onTap: () => Updater.check(context),
+                ),
+              ),
+            ]),
           _group('If something is not working', [
             ListTile(
               leading: const Icon(Icons.alarm_on_outlined),

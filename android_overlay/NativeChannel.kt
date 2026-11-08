@@ -173,6 +173,13 @@ object NativeChannel {
             }
             "voices" -> result.success(Speaker.voices(context))
             "takeNewClocks" -> result.success(NewClocks.take(context))
+            "appBuild" -> result.success(Updater.build(context))
+            "canInstall" -> result.success(Updater.canInstall(context))
+            "openInstallAccess" -> {
+                Updater.openInstallAccess(context)
+                result.success(null)
+            }
+            "installApk" -> Updater.install(context, call.argument<String>("path")!!) { result.success(it) }
             else -> return false
         }
         return true

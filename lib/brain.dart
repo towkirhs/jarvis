@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 
 import 'ai.dart';
 import 'decide.dart';
+import 'destination.dart';
 import 'habit_core.dart';
 import 'local_parser.dart';
 import 'native.dart';
@@ -144,9 +145,17 @@ class Brain {
         });
       }
     }
+    // "calendar: …", "task: …", "journal: …", "… to my calendar": you said where it goes, so it goes there.
+    final dest = Destination.of(c['raw'] as String);
+    final note = dest?.rest ?? c['raw'] as String;
+    if (dest?.type == 'note') {
+      c['via'] = 'phone';
+      return _apply(s, c, {'items': <dynamic>[], 'cleaned': note});
+    }
+    Rec forced(Rec data) => dest == null ? data : Destination.force(data, dest);
     String? quick;
     try {
-      quick = c['image'] == null ? _quickAnswer(s, c['raw'] as String) : null;
+      quick = c['image'] == null && dest == null ? _quickAnswer(s, c['raw'] as String) : null;
     } catch (_) {
       // Odd data must never block the note: let the parser or the AI take it.
     }
@@ -155,7 +164,7 @@ class Brain {
       return _apply(s, c, {'items': <dynamic>[], 'reply': quick});
     }
     // "search for X", "google X": straight to the web.
-    final webQ = c['image'] == null ? Web.asked(c['raw'] as String) : null;
+    final webQ = c['image'] == null && dest == null ? Web.asked(c['raw'] as String) : null;
     if (webQ != null) {
       if (!Web.available(s)) {
         c['via'] = 'phone';
@@ -172,7 +181,7 @@ class Brain {
       }
     }
     // "Should I…?", "X or Y?": a decision with odds, not a conversation.
-    if (c['image'] == null && AI.available(s) && Decide.isDecisionRequest(c['raw'] as String)) {
+    if (c['image'] == null && dest == null && AI.available(s) && Decide.isDecisionRequest(c['raw'] as String)) {
       try {
         final answers = await decide(s, c['raw'] as String, captureId: c['id'] as int);
         c['via'] = 'ai';
@@ -187,7 +196,7 @@ class Brain {
     // Simple notes (alarms, timed tasks, money, habits, birthdays) are understood on the phone: no AI call.
     var local = c['image'] == null && AI.phoneOn(s)
         ? LocalParser.parse(
-            c['raw'] as String,
+            note,
             now: DateTime.now(),
             habits: s.list('habits').map((h) => h['name'] as String).toList(),
             accounts: s.list('accounts').map((a) => a['name'] as String).toList(),
@@ -201,7 +210,11 @@ class Brain {
     // Phone rules first if they are first in your AI order (or there is no AI); otherwise they are the fallback.
     if (local != null && (AI.phoneFirst(s) || !AI.available(s))) {
       c['via'] = 'phone';
-      return _apply(s, c, local);
+      return _apply(s, c, forced(local));
+    }
+    if (!AI.available(s) && dest != null) {
+      c['via'] = 'phone';
+      return _apply(s, c, forced({'items': <dynamic>[]}));
     }
     if (!AI.available(s)) {
       c['msg'] = 'No AI is set up (Settings, AI models). This note is saved and will be processed then.';
@@ -221,8 +234,11 @@ class Brain {
       }
       text = await AI.generate(
         s,
-        _parserPrompt(s, c['raw'] as String,
-            photo: bytes != null, replyTo: c['replyTo'] as String?, web: Web.on(s) && Web.available(s)),
+        _parserPrompt(s, note,
+            photo: bytes != null,
+            replyTo: c['replyTo'] as String?,
+            web: dest == null && Web.on(s) && Web.available(s),
+            dest: dest?.type),
         json: true,
         image: bytes,
         mime: path != null && path.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg',
@@ -231,7 +247,7 @@ class Brain {
       if (local != null) {
         // Every AI failed, but the phone understood it: use that rather than wait.
         c['via'] = 'phone';
-        return _apply(s, c, local);
+        return _apply(s, c, forced(local));
       }
       c['msg'] = 'Waiting for the AI: $e';
       s.save();
@@ -259,7 +275,7 @@ class Brain {
         // The search failed: keep the AI's own reply rather than hold the note back.
       }
     }
-    return _apply(s, c, data);
+    return _apply(s, c, forced(data));
   }
 
   /// Turns the parsed items (from the phone or the AI) into tasks, alarms, money and so on.
@@ -861,7 +877,8 @@ class Brain {
     return lines.join('\n');
   }
 
-  static String _parserPrompt(Store s, String note, {bool photo = false, String? replyTo, bool web = false}) {
+  static String _parserPrompt(Store s, String note,
+      {bool photo = false, String? replyTo, bool web = false, String? dest}) {
     final now = DateTime.now();
     final places = [for (final p in s.list('places')) p['name'] as String];
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -903,6 +920,6 @@ ${web ? '- "web": if answering needs the internet (news, weather, prices, scores
 - If the same thing happens on several dates, output one item per date.
 - Notes may be in English, Bengali, or Bengali written in English letters (for example "kal" = tomorrow, "porshu" = day after tomorrow, "tarikh" = date, "tar por" = after that, "sondhay" = evening, "sokal" = morning). Understand them. Write "title" in short plain English; keep "cleaned" in the language the person used.
 
-${photo ? 'The note comes with a photo. Read everything useful in it (a class routine, exam schedule, poster, handwritten list, receipt, screenshot) and turn it into items. In "cleaned", after the note text, add one short line describing the photo.\n' : ''}${replyTo == null ? '' : 'This note is their answer to $replyTo. Words like "it", "that", "yes", "later" refer to that. For a reminder, "later", "in an hour" or a time means delay it; "done" means complete it; use its id as the target.\n'}Note: """$note"""''';
+${photo ? 'The note comes with a photo. Read everything useful in it (a class routine, exam schedule, poster, handwritten list, receipt, screenshot) and turn it into items. In "cleaned", after the note text, add one short line describing the photo.\n' : ''}${dest == null ? '' : 'The person said this goes in their ${Destination.names[dest]}: every thing in it is type "$dest" (one item per date), never another type.\n'}${replyTo == null ? '' : 'This note is their answer to $replyTo. Words like "it", "that", "yes", "later" refer to that. For a reminder, "later", "in an hour" or a time means delay it; "done" means complete it; use its id as the target.\n'}Note: """$note"""''';
   }
 }

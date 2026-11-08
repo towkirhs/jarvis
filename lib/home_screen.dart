@@ -421,7 +421,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   maxLines: 5,
                   textCapitalization: TextCapitalization.sentences,
                   decoration: const InputDecoration(
-                    hintText: 'Tell Jarvis anything',
+                    hintText: 'Tell Jarvis… or start with task:, calendar:, journal:',
                     filled: false,
                     border: InputBorder.none,
                     enabledBorder: InputBorder.none,

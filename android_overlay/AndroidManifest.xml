@@ -29,6 +29,7 @@
         <package android:name="com.whatsapp"/>
     </queries>
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY"/>
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
     <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32"/>
     <application
@@ -71,6 +72,7 @@
                 <data android:mimeType="image/*"/>
             </intent-filter>
         </activity>
+        <receiver android:name=".InstallReceiver" android:exported="false"/>
         <receiver
             android:name=".SmsReceiver"
             android:exported="true"

@@ -18,6 +18,7 @@ import 'pages.dart';
 import 'store.dart';
 import 'sync.dart';
 import 'theme.dart';
+import 'updater.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -127,6 +128,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     final launch = await Native.takeLaunchAction();
     if (launch != null) _openCapture(launch);
     await _tick();
+    if (mounted) await Updater.checkDaily(context, s);
   }
 
   /// Opened from Handy's Jarvis bubble: 'text' or 'photo'.

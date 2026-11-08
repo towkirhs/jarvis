@@ -30,7 +30,7 @@ jobs:
           rm -f test/widget_test.dart analysis_options.yaml
           D=android/app/src/main/kotlin/com/towkirhs/jarcis
           cp android_overlay/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
-          for f in MainActivity AlarmReceiver AlarmScheduler BootReceiver NoteReceiver NativeChannel BackgroundRunner ActionReceiver ShareActivity MoneyCapture Conversation Voice WakeWord Ring Geo Talk; do
+          for f in MainActivity AlarmReceiver AlarmScheduler BootReceiver NoteReceiver NativeChannel BackgroundRunner ActionReceiver ShareActivity MoneyCapture Conversation Voice WakeWord Ring Geo Talk Updater; do
             cp android_overlay/$f.kt $D/$f.kt
           done
           # Tests for the phone-side command parser (run below with Gradle).
@@ -77,7 +77,7 @@ jobs:
       - run: flutter analyze --no-fatal-infos
       - run: flutter test
       # 64-bit ARM only: every phone from the last several years, and the offline AI engine only ships for it.
-      - run: flutter build apk --release --target-platform android-arm64
+      - run: flutter build apk --release --target-platform android-arm64 --build-number=${{ github.run_number }}
       - name: Test phone-side commands
         run: cd android && ./gradlew :app:testDebugUnitTest --console=plain
       - run: flutter build web --release --base-href /jarvis/

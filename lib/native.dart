@@ -101,6 +101,20 @@ class Native {
     if (!kIsWeb) await _ch.invokeMethod('keepAwake', {'on': on});
   }
 
+  /// The installed build number (build-N on GitHub); 0 on the web.
+  static Future<int> appBuild() async => kIsWeb ? 0 : (await _ch.invokeMethod<int>('appBuild') ?? 0);
+
+  /// Whether Android lets Jarvis install its own updates.
+  static Future<bool> canInstall() async => !kIsWeb && (await _ch.invokeMethod<bool>('canInstall') ?? false);
+
+  static Future<void> openInstallAccess() async {
+    if (!kIsWeb) await _ch.invokeMethod('openInstallAccess');
+  }
+
+  /// Opens Android's "Update Jarvis?" screen for the APK at [path]; returns an error, or null.
+  static Future<String?> installApk(String path) async =>
+      kIsWeb ? 'Not on the web' : await _ch.invokeMethod<String>('installApk', {'path': path});
+
   /// Opens a web page in the phone's browser.
   static Future<void> openUrl(String url) async {
     if (kIsWeb) return;
