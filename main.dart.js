@@ -135512,7 +135512,7 @@ return A.w($async$Bf,r)},
 apD(a,b){var s,r=null,q=new A.baS(this),p=a.Q
 if(p==null)p=r
 else{s=b.rx
-p=p.au(s==null?b.k3:s)}return A.bp4(A.b([A.p('Jarvis has a second icon in your app list, "Talk to Jarvis". Any app or setting that can open an app with a button can open it: Nothing\'s Essential Key setting when your phone gets it (Nothing OS 5.1), or apps like The Everything Key or Key Mapper today.\n\nFor double and long press, Key Mapper can open these instead (Intent, Activity):',r,r,r,r,p,r,r,r),q.$2("Listen","com.towkirhs.jarcis.TALK"),q.$2("Photo to Jarvis (receipt, bill, note)","com.towkirhs.jarcis.SNAP"),q.$2('Run one of your own commands (extra "text" = the phrase)',"com.towkirhs.jarcis.DO"),q.$2("App package","com.towkirhs.jarcis")],t.p),B.k3,B.S,B.ZR,B.akU,B.J,B.an5)},
+p=p.au(s==null?b.k3:s)}return A.bp4(A.b([A.p('Jarvis has a second icon in your app list, "Talk to Jarvis". An app that lets you pick an app for a button (like The Everything Key) can only remember "Jarvis", so picking Jarvis there opens Talk to Jarvis; the card has an Open Jarvis link for the chat. The home screen icon still opens the app.\n\nFor double and long press, Key Mapper can open these instead (Intent, Activity):',r,r,r,r,p,r,r,r),q.$2("Listen","com.towkirhs.jarcis.TALK"),q.$2("Photo to Jarvis (receipt, bill, note)","com.towkirhs.jarcis.SNAP"),q.$2('Run one of your own commands (extra "text" = the phrase)',"com.towkirhs.jarcis.DO"),q.$2("App package","com.towkirhs.jarcis")],t.p),B.k3,B.S,B.ZR,B.akU,B.J,B.an5)},
 a__(a,b,c,d){var s,r=null,q=b?B.kt:B.vw
 if(b){s=this.c
 s.toString
