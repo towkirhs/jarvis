@@ -36,6 +36,29 @@
         android:label="Jarvis"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <!-- "Talk to Jarvis": its own icon, so a button remapper (like Nothing's Essential Key) can open it.
+             It is declared before MainActivity on purpose: an app that opens Jarvis "by package" (a button app that only lets you pick
+             an app) gets the first launcher activity, so picking Jarvis there starts Talk to Jarvis. The home screen icon still opens the app. -->
+        <activity
+            android:name=".ListenActivity"
+            android:label="Talk to Jarvis"
+            android:icon="@mipmap/ic_launcher"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="com.towkirhs.jarcis.TALK"/>
+                <action android:name="com.towkirhs.jarcis.SNAP"/>
+                <action android:name="com.towkirhs.jarcis.DO"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+            </intent-filter>
+        </activity>
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -139,27 +162,6 @@
             android:excludeFromRecents="true"
             android:taskAffinity=""
             android:theme="@android:style/Theme.Translucent.NoTitleBar"/>
-        <!-- "Talk to Jarvis": its own icon, so a button remapper (like Nothing's Essential Key) can open it. -->
-        <activity
-            android:name=".ListenActivity"
-            android:label="Talk to Jarvis"
-            android:icon="@mipmap/ic_launcher"
-            android:exported="true"
-            android:excludeFromRecents="true"
-            android:noHistory="true"
-            android:taskAffinity=""
-            android:theme="@android:style/Theme.Translucent.NoTitleBar">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN"/>
-                <category android:name="android.intent.category.LAUNCHER"/>
-            </intent-filter>
-            <intent-filter>
-                <action android:name="com.towkirhs.jarcis.TALK"/>
-                <action android:name="com.towkirhs.jarcis.SNAP"/>
-                <action android:name="com.towkirhs.jarcis.DO"/>
-                <category android:name="android.intent.category.DEFAULT"/>
-            </intent-filter>
-        </activity>
         <receiver android:name=".NoteReceiver" android:exported="true">
           <intent-filter>
             <action android:name="com.towkirhs.jarcis.NEW_NOTE" />

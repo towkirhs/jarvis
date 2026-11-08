@@ -227,9 +227,9 @@ class _VoicePageState extends State<VoicePage> with WidgetsBindingObserver {
       expandedCrossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Jarvis has a second icon in your app list, "Talk to Jarvis". Any app or setting that can open an app with '
-          'a button can open it: Nothing\'s Essential Key setting when your phone gets it (Nothing OS 5.1), or apps '
-          'like The Everything Key or Key Mapper today.\n\n'
+          'Jarvis has a second icon in your app list, "Talk to Jarvis". An app that lets you pick an app for a button '
+          '(like The Everything Key) can only remember "Jarvis", so picking Jarvis there opens Talk to Jarvis; the '
+          'card has an Open Jarvis link for the chat. The home screen icon still opens the app.\n\n'
           'For double and long press, Key Mapper can open these instead (Intent, Activity):',
           style: tt.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
         ),

@@ -290,6 +290,18 @@ class ListenActivity : Activity() {
                 setColor(0xF01E2A33.toInt())
             }
             addView(line)
+            // The way into the chat: opening Jarvis by package (a button app) lands here instead.
+            addView(TextView(this@ListenActivity).apply {
+                text = "Open Jarvis"
+                textSize = 14f
+                setTextColor(0xFF9FD3D3.toInt())
+                gravity = Gravity.END
+                setPadding(0, (14 * dp).toInt(), 0, 0)
+                setOnClickListener {
+                    startActivity(Intent(this@ListenActivity, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    finish()
+                }
+            })
             isClickable = true
         }
         setContentView(FrameLayout(this).apply {
