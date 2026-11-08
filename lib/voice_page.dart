@@ -382,7 +382,7 @@ class _VoicePageState extends State<VoicePage> with WidgetsBindingObserver {
             textInputAction: TextInputAction.go,
             decoration: InputDecoration(
               hintText: 'open WhatsApp',
-              suffixIcon: IconButton(
+              suffixIcon: IconButton(tooltip: 'Try it',
                 icon: const Icon(Icons.play_arrow),
                 onPressed: () async {
                   final t = _try.text.trim();

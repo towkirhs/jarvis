@@ -86,7 +86,7 @@ class _DecidePageState extends State<DecidePage> {
                   decoration: const InputDecoration(hintText: 'Options (optional): add one'),
                 ),
               ),
-              IconButton(onPressed: _addOption, icon: const Icon(Icons.add)),
+              IconButton(tooltip: 'Add option', onPressed: _addOption, icon: const Icon(Icons.add)),
             ],
           ),
           if (_options.isNotEmpty)

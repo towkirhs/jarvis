@@ -277,6 +277,11 @@ class _HomeScreenState extends State<HomeScreen> {
     final chats = s.list('captures').where((c) => c['source'] != 'journal').toList();
     final shown = chats.length > 200 ? chats.sublist(chats.length - 200) : chats;
 
+    // The one thing to do now, and what comes after it.
+    final next = (s.list('items').where((i) => i['status'] == 'open' && i['when'] is int && (i['when'] as int) > now.millisecondsSinceEpoch && i['id'] != nowPick?['id']).toList()
+          ..sort((a, b) => (a['when'] as int).compareTo(b['when'] as int)))
+        .firstOrNull;
+
     // Small things worth a glance, as chips under the day strip; tap for the full Today panel.
     final chips = <Widget>[
       if (!AI.available(s))
@@ -284,7 +289,6 @@ class _HomeScreenState extends State<HomeScreen> {
       if (inbox > 0)
         _chip(context, Icons.inbox_outlined, '$inbox to review', scheme.primary, () => _open(context, InboxPage(store: s))),
       if (warn != null) _chip(context, Icons.warning_amber_rounded, 'Busy day', scheme.error, () => _open(context, PlanDayPage(store: s))),
-      if (nowPick != null) _chip(context, Icons.bolt, 'Now: ${nowPick['title']}', scheme.primary, () => _openToday(context)),
       if (s.list('tx').isNotEmpty)
         _chip(context, Icons.account_balance_wallet_outlined, '${s.money(_spentToday())} today', null, () => _open(context, MoneyPage(store: s))),
     ];
@@ -321,6 +325,33 @@ class _HomeScreenState extends State<HomeScreen> {
             onTap: () => _openToday(context),
           ),
         ),
+        if (nowPick != null || next != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+            child: Card(
+              margin: EdgeInsets.zero,
+              child: InkWell(
+                onTap: () => _openToday(context),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+                  child: Row(children: [
+                    ShapeIcon(nowPick != null ? Icons.bolt : Icons.schedule, color: scheme.primary, size: 36),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(nowPick != null ? 'DO NOW' : 'UP NEXT', style: tt.labelSmall?.copyWith(color: scheme.primary, fontWeight: FontWeight.w700, letterSpacing: 0.8)),
+                        Text((nowPick ?? next!)['title'] as String, style: tt.titleSmall, maxLines: 1, overflow: TextOverflow.ellipsis),
+                        if (nowPick != null && next != null)
+                          Text('Next: ${next['title']} · ${niceWhen(next['when'] as int)}',
+                              style: tt.bodySmall?.copyWith(color: scheme.onSurfaceVariant), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      ]),
+                    ),
+                    Icon(Icons.chevron_right, color: scheme.onSurfaceVariant),
+                  ]),
+                ),
+              ),
+            ),
+          ),
         if (chips.isNotEmpty)
           SizedBox(
             height: 44,

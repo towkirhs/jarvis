@@ -101,15 +101,15 @@ class _FocusScreenState extends State<FocusScreen> {
             children: [
               Row(children: [
                 const Expanded(child: Text('Focus')),
-                IconButton(onPressed: pomo > 5 ? () => setS(() => pomo -= 5) : null, icon: const Icon(Icons.remove)),
+                IconButton(tooltip: 'Decrease', onPressed: pomo > 5 ? () => setS(() => pomo -= 5) : null, icon: const Icon(Icons.remove)),
                 Text('$pomo min'),
-                IconButton(onPressed: pomo < 120 ? () => setS(() => pomo += 5) : null, icon: const Icon(Icons.add)),
+                IconButton(tooltip: 'Increase', onPressed: pomo < 120 ? () => setS(() => pomo += 5) : null, icon: const Icon(Icons.add)),
               ]),
               Row(children: [
                 const Expanded(child: Text('Break')),
-                IconButton(onPressed: brk > 1 ? () => setS(() => brk -= 1) : null, icon: const Icon(Icons.remove)),
+                IconButton(tooltip: 'Decrease', onPressed: brk > 1 ? () => setS(() => brk -= 1) : null, icon: const Icon(Icons.remove)),
                 Text('$brk min'),
-                IconButton(onPressed: brk < 30 ? () => setS(() => brk += 1) : null, icon: const Icon(Icons.add)),
+                IconButton(tooltip: 'Increase', onPressed: brk < 30 ? () => setS(() => brk += 1) : null, icon: const Icon(Icons.add)),
               ]),
             ],
           ),
@@ -386,9 +386,9 @@ class _NavCard extends StatelessWidget {
               Row(children: [
                 Text(title, style: Theme.of(context).textTheme.titleMedium),
                 const Spacer(),
-                IconButton(icon: const Icon(Icons.chevron_left), onPressed: onPrev),
+                IconButton(tooltip: 'Previous', icon: const Icon(Icons.chevron_left), onPressed: onPrev),
                 Text(label),
-                IconButton(icon: const Icon(Icons.chevron_right), onPressed: onNext),
+                IconButton(tooltip: 'Next', icon: const Icon(Icons.chevron_right), onPressed: onNext),
               ]),
               child,
             ],

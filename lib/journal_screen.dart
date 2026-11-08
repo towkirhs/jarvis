@@ -273,12 +273,12 @@ class _MoodCalendar extends StatelessWidget {
           children: [
             Row(
               children: [
-                IconButton(
+                IconButton(tooltip: 'Previous',
                   icon: const Icon(Icons.chevron_left),
                   onPressed: () => onMonth(DateTime(month.year, month.month - 1)),
                 ),
                 Expanded(child: Center(child: Text('${_months[month.month - 1]} ${month.year}'))),
-                IconButton(
+                IconButton(tooltip: 'Next',
                   icon: const Icon(Icons.chevron_right),
                   onPressed: () => onMonth(DateTime(month.year, month.month + 1)),
                 ),

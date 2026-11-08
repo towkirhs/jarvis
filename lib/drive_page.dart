@@ -200,7 +200,7 @@ class _DrivePageState extends State<DrivePage> {
               onSubmitted: (_) => _ask(),
               decoration: InputDecoration(
                 hintText: 'What does my rent agreement say about notice?',
-                suffixIcon: IconButton(icon: const Icon(Icons.search), onPressed: _ask),
+                suffixIcon: IconButton(tooltip: 'Search', icon: const Icon(Icons.search), onPressed: _ask),
               ),
             ),
           ],
@@ -328,7 +328,7 @@ class _FolderPickerState extends State<_FolderPicker> {
       appBar: AppBar(
         title: Text(here['name'] as String),
         leading: _path.length > 1
-            ? IconButton(
+            ? IconButton(tooltip: 'Back',
                 icon: const Icon(Icons.arrow_back),
                 onPressed: () => setState(() {
                   _path.removeLast();

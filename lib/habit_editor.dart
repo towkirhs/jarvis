@@ -466,9 +466,9 @@ class _Stepper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Row(children: [
-        IconButton(onPressed: value > min ? () => onChanged(value - 1) : null, icon: const Icon(Icons.remove)),
+        IconButton(tooltip: 'Decrease', onPressed: value > min ? () => onChanged(value - 1) : null, icon: const Icon(Icons.remove)),
         Text('$value', style: Theme.of(context).textTheme.titleMedium),
-        IconButton(onPressed: value < max ? () => onChanged(value + 1) : null, icon: const Icon(Icons.add)),
+        IconButton(tooltip: 'Increase', onPressed: value < max ? () => onChanged(value + 1) : null, icon: const Icon(Icons.add)),
         Text(suffix),
       ]);
 }

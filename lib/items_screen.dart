@@ -261,6 +261,17 @@ class _ListViewState extends State<_ListView> {
           if (!filters.contains(_filter)) _filter = 'All';
           final open = s.list('items').where((i) => i['status'] == 'open' && _matches(i)).toList()..sort(_byWhen);
           final done = s.list('items').where((i) => i['status'] == 'done' && _matches(i)).toList().reversed.take(10).toList();
+          final hasOverdue = open.any((i) => _groupOf(i) == 'Overdue');
+          final habitRows = <Widget>[
+            if ((_filter == 'All' || _filter == 'Today') && s.habitsDueToday().isNotEmpty) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 12, 4, 4),
+                child: Text('Habits today',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(color: Theme.of(context).colorScheme.primary)),
+              ),
+              for (final h in s.habitsDueToday()) HabitTodayRow(store: s, habit: h),
+            ],
+          ];
           return ListView(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 80),
             children: [
@@ -291,14 +302,7 @@ class _ListViewState extends State<_ListView> {
                 ),
               ),
               const SizedBox(height: 8),
-              if ((_filter == 'All' || _filter == 'Today') && s.habitsDueToday().isNotEmpty) ...[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(4, 12, 4, 4),
-                  child: Text('Habits today',
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(color: Theme.of(context).colorScheme.primary)),
-                ),
-                for (final h in s.habitsDueToday()) HabitTodayRow(store: s, habit: h),
-              ],
+              if (!hasOverdue) ...habitRows,
               if (open.isEmpty) const Padding(padding: EdgeInsets.all(16), child: Text('Nothing here. Tap + or tell Jarvis.')),
               for (final g in _groups)
                 if (open.any((i) => _groupOf(i) == g)) ...[
@@ -312,6 +316,8 @@ class _ListViewState extends State<_ListView> {
                     ),
                   ),
                   for (final it in open.where((i) => _groupOf(i) == g)) ItemTile(store: s, it: it),
+                  // What is behind comes first; today's habits follow it.
+                  if (g == 'Overdue') ...habitRows,
                 ],
               if (done.isNotEmpty) ...[
                 const SizedBox(height: 16),
@@ -361,12 +367,12 @@ class _CalendarViewState extends State<_CalendarView> {
                   children: [
                     Text('${_months[_day.month - 1]} ${_day.year}', style: Theme.of(context).textTheme.titleLarge),
                     const Spacer(),
-                    IconButton(
+                    IconButton(tooltip: 'Previous',
                       icon: const Icon(Icons.chevron_left),
                       onPressed: () => _go(-1),
                     ),
                     TextButton(onPressed: () => setState(() => _day = DateTime.now()), child: const Text('Today')),
-                    IconButton(
+                    IconButton(tooltip: 'Next',
                       icon: const Icon(Icons.chevron_right),
                       onPressed: () => _go(1),
                     ),
@@ -512,7 +518,7 @@ class WeekGrid extends StatefulWidget {
 
 class _WeekGridState extends State<WeekGrid> {
   static const _hourH = 60.0;
-  static const _gutter = 44.0;
+  static const _gutter = 48.0;
   late final ScrollController _scroll =
       ScrollController(initialScrollOffset: _hourH * ((DateTime.now().hour - 2).clamp(0, 16)));
 
@@ -991,11 +997,12 @@ class _MatrixView extends StatelessWidget {
   const _MatrixView({required this.store});
   final Store store;
 
+  // (priority, title, what it means, colour)
   static const _quadrants = [
-    (3, 'Urgent & Important', Colors.red),
-    (2, 'Not Urgent & Important', Colors.orange),
-    (1, 'Urgent & Unimportant', Colors.blue),
-    (0, 'Not Urgent & Unimportant', Colors.teal),
+    (3, 'Do first', 'Urgent, important', Colors.red),
+    (2, 'Schedule', 'Important, not urgent', Colors.orange),
+    (1, 'Quick', 'Urgent, less important', Colors.blue),
+    (0, 'Later', 'Neither', Colors.teal),
   ];
 
   @override
@@ -1003,8 +1010,8 @@ class _MatrixView extends StatelessWidget {
         listenable: store,
         builder: (context, _) {
           final open = store.list('items').where((i) => i['status'] == 'open').toList()..sort(_byWhen);
-          Widget quadrant((int, String, MaterialColor) q) {
-            final (p, name, color) = q;
+          Widget quadrant((int, String, String, MaterialColor) q) {
+            final (p, name, meaning, color) = q;
             final items = open.where((i) => ((i['priority'] as int?) ?? 0) == p).toList();
             return Card(
               child: Padding(
@@ -1012,7 +1019,8 @@ class _MatrixView extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(name, style: TextStyle(color: color, fontWeight: FontWeight.w600)),
+                    Text(name, style: TextStyle(color: color, fontWeight: FontWeight.w700)),
+                    Text(meaning, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
                     const SizedBox(height: 4),
                     Expanded(
                       child: items.isEmpty

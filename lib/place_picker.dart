@@ -212,7 +212,7 @@ class _PlacePickerPageState extends State<PlacePickerPage> {
             decoration: InputDecoration(
               hintText: 'Search an address or a place',
               prefixIcon: const Icon(Icons.search),
-              suffixIcon: IconButton(icon: const Icon(Icons.arrow_forward), onPressed: _find),
+              suffixIcon: IconButton(tooltip: 'Go', icon: const Icon(Icons.arrow_forward), onPressed: _find),
             ),
           ),
         ),

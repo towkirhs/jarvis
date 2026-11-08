@@ -1,3 +1,5 @@
+import 'dart:ui' show FontFeature;
+
 import 'package:flutter/material.dart';
 
 /// Catppuccin Latte palette (https://catppuccin.com/palette).
@@ -90,6 +92,9 @@ ThemeData polish(ThemeData t) {
   final tt = t.textTheme;
   TextStyle? w(TextStyle? s, FontWeight weight, [double? spacing]) =>
       s?.copyWith(fontWeight: weight, letterSpacing: spacing);
+  // Digits of equal width, so amounts, times and counts line up down a list.
+  const tabular = [FontFeature.tabularFigures()];
+  TextStyle? nums(TextStyle? s) => s?.copyWith(fontFeatures: tabular);
   // Bricolage Grotesque for titles and big numbers: the app's voice. Body text stays the system font, which
   // reads best small and covers Bangla.
   TextStyle? display(TextStyle? s, FontWeight weight, [double? spacing]) =>
@@ -107,6 +112,11 @@ ThemeData polish(ThemeData t) {
       titleMedium: w(tt.titleMedium, FontWeight.w600),
       titleSmall: w(tt.titleSmall, FontWeight.w600),
       labelLarge: w(tt.labelLarge, FontWeight.w600),
+      bodyLarge: nums(tt.bodyLarge),
+      bodyMedium: nums(tt.bodyMedium),
+      bodySmall: nums(tt.bodySmall),
+      labelMedium: nums(tt.labelMedium),
+      labelSmall: nums(tt.labelSmall),
     ),
     cardTheme: CardThemeData(
       elevation: 0,

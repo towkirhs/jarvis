@@ -276,9 +276,9 @@ class _MoneyPageState extends State<MoneyPage> {
             title: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                IconButton(icon: const Icon(Icons.chevron_left), onPressed: () => _shift(-1)),
+                IconButton(tooltip: 'Previous', icon: const Icon(Icons.chevron_left), onPressed: () => _shift(-1)),
                 Text('${_months[_month.month - 1]} ${_month.year}'),
-                IconButton(icon: const Icon(Icons.chevron_right), onPressed: () => _shift(1)),
+                IconButton(tooltip: 'Next', icon: const Icon(Icons.chevron_right), onPressed: () => _shift(1)),
               ],
             ),
             actions: [
@@ -560,10 +560,11 @@ class _MoneyPageState extends State<MoneyPage> {
         for (final a in accts)
           ListTile(
             title: Text(a['name'] as String),
-            subtitle: Text(a['group'] as String? ?? ''),
+            // Skip the type when it only repeats the name ("Cash / Cash").
+            subtitle: (a['group'] as String? ?? '').isEmpty || a['group'] == a['name'] ? null : Text(a['group'] as String),
             trailing: Text(
               s.money(s.balance(a)),
-              style: TextStyle(color: s.balance(a) < 0 ? _expenseColor : _incomeColor),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(color: s.balance(a) < 0 ? _expenseColor : null),
             ),
             onTap: () => _editAccount(context, a),
           ),
