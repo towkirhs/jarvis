@@ -6,6 +6,7 @@ import 'ai_page.dart';
 import 'ai.dart';
 import 'shapes.dart';
 import 'haptics.dart';
+import 'memory_page.dart';
 import 'brain.dart';
 import 'countdown_screen.dart';
 import 'clock_screen.dart';
@@ -70,6 +71,7 @@ class MoreScreen extends StatelessWidget {
                 tile(Icons.balance, 'Decide', 'Odds, not chat', DecidePage(store: store)),
                 tile(Icons.history_edu_outlined, 'Decisions', '${store.list('decisions').length} recorded', DecisionsPage(store: store)),
                 tile(Icons.insights, 'Insights', 'How your week went', InsightsPage(store: store)),
+                tile(Icons.psychology_outlined, 'Memory', '${store.list('memories').length} remembered', MemoryPage(store: store)),
               ]),
               group('Home', [
                 tile(Icons.meeting_room_outlined, 'Rooms and rent', '${store.list('rooms').length} rooms', RentPage(store: store)),
