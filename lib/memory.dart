@@ -16,7 +16,7 @@ class Memory {
     'the', 'and', 'for', 'with', 'that', 'this', 'from', 'are', 'was', 'were', 'has', 'have', 'had', 'his',
     'her', 'their', 'its', 'you', 'your', 'who', 'what', 'when', 'where', 'how', 'any', 'does', 'did',
     'not', 'but', 'about', 'into', 'than', 'then', 'they', 'them', 'will', 'can', 'one', 'now', 'user',
-    'person', 'they', 'usually', 'always', 'often',
+    'person', 'usually', 'always', 'often',
   };
 
   static Set<String> words(String text) => RegExp(r"[a-z0-9ঀ-৿']+")
