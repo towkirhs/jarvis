@@ -100,7 +100,7 @@ object Speaker {
     /** Speaks with your voice settings, whatever the rules (for Test voice). */
     fun speak(context: Context, text: String, s: JSONObject = settings(context), then: (() -> Unit)? = null) {
         val app = context.applicationContext
-        val go = {
+        val go: () -> Unit = {
             val t = tts!!
             t.setSpeechRate(s.optDouble("rate", 1.0).toFloat())
             t.setPitch(s.optDouble("pitch", 1.0).toFloat())
