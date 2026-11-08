@@ -130727,9 +130727,9 @@ return A.n(A.aV(o,!1).dD(p),$async$Ai)
 case 2:if(q.c!=null)q.I(new A.b4Y())
 return A.v(null,r)}})
 return A.w($async$Ai,r)},
-F(a){var s,r,q,p,o,n,m,l=this,k=null,j="settings",i=A.t(a),h=A.t(a).ax,g=A.j_(l.a.c),f=A.a0(g),e=new A.e2(new A.Q(g,new A.b5a(l),f.i("Q<1>")),new A.b5b(),f.i("e2<1,@>")).aW(0,", then ")
+F(a){var s,r,q,p,o,n,m,l=this,k=null,j="settings",i=A.t(a),h=A.t(a).ax,g=A.j_(l.a.c),f=A.a0(g),e=new A.e2(new A.Q(g,new A.b5a(l),f.i("Q<1>")),new A.b5b(),f.i("e2<1,@>")).aW(0," \u2192 ")
 f=A.em(k,k,k,B.akM)
-g=A.ch(!1,k,k,k,!0,k,k,k,!0,k,k,B.Zs,k,k,k,k,k,new A.b5c(l),!1,k,k,k,k,k,A.r(e.length===0?"None set up. Add Gemini, Groq or your server.":"Uses "+e,2,B.aj,k,k,k,k,k,k),k,B.HT,k,B.dF,k)
+g=A.ch(!1,k,k,k,!0,k,k,k,!0,k,k,B.Zs,k,k,k,k,k,new A.b5c(l),!1,k,k,k,k,k,A.r(e.length===0?"None set up. Add Gemini, Groq or your server.":"In order: "+e,2,B.aj,k,k,k,k,k,k),k,B.HT,k,B.dF,k)
 s=t.P
 r=A.ub(k,new A.b5f(l),B.Z3,B.akI,B.ajp,J.c(J.j(s.a(J.j(l.a.c.b,j)),"prefilter"),!0))
 i=A.ch(!1,k,k,k,!0,k,k,k,!0,k,k,B.YO,k,k,k,k,k,k,!1,k,k,k,k,k,B.alk,k,B.alz,k,A.r(""+B.d.ag(l.a.c.go9()*100)+"% sure",k,k,k,k,i.ok.x,k,k,k),k)
