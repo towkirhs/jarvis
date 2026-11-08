@@ -22,7 +22,8 @@ class Memory {
   static Set<String> words(String text) => RegExp(r"[a-z0-9ঀ-৿']+")
       .allMatches(text.toLowerCase())
       .map((m) => m.group(0)!)
-      .where((w) => w.length >= 3 && !_stop.contains(w))
+      // Numbers count even when short, so "gym at 6" and "gym at 7" are different facts.
+      .where((w) => (w.length >= 3 || RegExp(r'\d').hasMatch(w)) && !_stop.contains(w))
       .toSet();
 
   /// The same fact in other words: one holds most of the other's words.

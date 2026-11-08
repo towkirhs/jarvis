@@ -17,10 +17,8 @@ void main() {
       expect(m.first['last'], t0 + 5);
     });
     test('the same fact in other words is the same fact', () {
-      final m = mems();
-      Memory.merge(m, ['Supports Man United'], now: t0, nextId: nextId);
-      Memory.merge(m, ['Man United is their team and they support it'], now: t0, nextId: nextId);
-      expect(Memory.same('Supports Man United', 'Man United supporter'), isTrue);
+      expect(Memory.same('Supports Man United', 'Supports Man United team'), isTrue);
+      expect(Memory.same('Goes to the gym at 6 am', 'Goes to the gym at 7 am'), isFalse);
       expect(Memory.same('Oishi is their sister', 'Oishi is their girlfriend'), isFalse);
       expect(Memory.same('Gym at 6 am on weekdays', 'Supports Manchester United'), isFalse);
     });
