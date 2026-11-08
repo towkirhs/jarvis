@@ -136,11 +136,12 @@ class LocalParser {
         ],
       };
 
-  /// "…?", or a first word that asks (what, when, where, who, which, why, how, any, is, are, was, were, does).
+  /// "…?", or a first word that asks (what, when, where, who, which, why, how, any, is, are, was, were, does),
+  /// even after "today" or "tomorrow" ("today any match", as spoken with no question mark).
   static bool isQuestion(String text) {
     final t = text.trim().toLowerCase();
     return t.endsWith('?') ||
-        RegExp(r'^(?:(?:hey|ok) jarvis[,!]?\s+)?(what|when|where|who|which|why|how|any|is|are|was|were|does)\b').hasMatch(t);
+        RegExp(r'^(?:(?:hey|ok) jarvis[,!]?\s+)?(?:(?:today|tomorrow|tonight)\s+)?(what|when|where|who|which|why|how|any|is|are|was|were|does)\b').hasMatch(t);
   }
 
   static Map<String, dynamic>? parse(
