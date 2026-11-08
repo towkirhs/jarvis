@@ -1091,10 +1091,10 @@ class _MatrixView extends StatelessWidget {
       builder: (ctx) => SimpleDialog(
         title: Text('Move "${it['title']}"'),
         children: [
-          for (final (p, name, color) in _quadrants)
+          for (final (p, name, meaning, color) in _quadrants)
             SimpleDialogOption(
               onPressed: () => Navigator.pop(ctx, p),
-              child: Text(name, style: TextStyle(color: color)),
+              child: Text('$name · $meaning', style: TextStyle(color: color)),
             ),
         ],
       ),
