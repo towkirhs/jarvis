@@ -79,7 +79,7 @@ jobs:
       # 64-bit ARM only: every phone from the last several years, and the offline AI engine only ships for it.
       - run: flutter build apk --release --target-platform android-arm64
       - name: Test phone-side commands
-        run: cd android && ./gradlew :app:testReleaseUnitTest --console=plain
+        run: cd android && ./gradlew :app:testDebugUnitTest --console=plain
       - run: flutter build web --release --base-href /jarvis/
 
       - name: Show signing certificate
