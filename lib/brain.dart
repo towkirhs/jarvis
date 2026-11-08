@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
 
 import 'ai.dart';
+import 'clash.dart';
 import 'decide.dart';
 import 'destination.dart';
 import 'habit_core.dart';
@@ -505,8 +506,12 @@ class Brain {
       return 'Task: $title${when == null ? '' : ' (${niceWhen(when)})'}$at$tail';
     }
     if (type == 'event' || type == 'alarm') {
+      // Warn about an overlap, but still add it: the person decides.
+      final clash = type == 'event' && when != null && extra['allDay'] != true
+          ? Clash.sentence(Clash.find(s.list('items'), when, (extra['dur'] as int?) ?? Clash.defaultMinutes), clock)
+          : '';
       await s.addItem(kind: type, title: title, when: when, captureId: capId, undo: undo, extra: extra);
-      return '${type == 'alarm' ? 'Alarm' : 'Event'}: $title${when == null ? '' : ' (${niceWhen(when)})'}';
+      return '${type == 'alarm' ? 'Alarm' : 'Event'}: $title${when == null ? '' : ' (${niceWhen(when)})'}${clash.isEmpty ? '' : '. $clash'}';
     }
     if (type == 'delay') {
       final found = findTarget(s, p['target'] as String?);

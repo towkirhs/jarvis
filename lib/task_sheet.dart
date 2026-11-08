@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'clash.dart';
 import 'clock.dart';
 import 'haptics.dart';
 import 'place_picker.dart';
@@ -25,6 +26,9 @@ Future<void> showTaskSheet(BuildContext context, Store s, {Rec? item, DateTime? 
   var kind = (item?['kind'] as String?) ?? newKind ?? 'task';
   var priority = (item?['priority'] as int?) ?? 0;
   var repeat = item?['repeat'] as String?;
+  // A new event starts with your usual reminder (Settings); you can change it here.
+  var lead = item != null ? ((item['lead'] as num?)?.toInt() ?? 0) : ((newKind ?? 'task') == 'event' ? Lead.defaultFor(s.settings) : 0);
+  var leadTouched = false;
   int? placeId = item?['place'] as int?;
   var placeWhen = (item?['placeWhen'] as String?) ?? 'arrive';
   final w = item?['when'] as int?;
@@ -102,6 +106,7 @@ Future<void> showTaskSheet(BuildContext context, Store s, {Rec? item, DateTime? 
             'tags': tags.text.split(',').map((t) => t.trim()).where((t) => t.isNotEmpty).toList(),
             'list': listCtrl.text.trim().isEmpty ? 'Inbox' : listCtrl.text.trim(),
             'repeat': when == null ? null : repeat,
+            'lead': kind == 'alarm' || when == null || time == null ? 0 : lead,
             'dur': kind == 'task' ? null : mins,
             'allDay': date != null && time == null,
             'place': placeId,
@@ -182,7 +187,10 @@ Future<void> showTaskSheet(BuildContext context, Store s, {Rec? item, DateTime? 
                     ButtonSegment(value: 'alarm', label: Text('Alarm')),
                   ],
                   selected: {kind},
-                  onSelectionChanged: (v) => setS(() => kind = v.first),
+                  onSelectionChanged: (v) => setS(() {
+                    kind = v.first;
+                    if (!leadTouched && item == null) lead = kind == 'event' ? Lead.defaultFor(s.settings) : 0;
+                  }),
                 ),
                 const SizedBox(height: 8),
                 Wrap(
@@ -217,6 +225,20 @@ Future<void> showTaskSheet(BuildContext context, Store s, {Rec? item, DateTime? 
                           date = null;
                           time = null;
                         }),
+                      ),
+                    if (date != null && time != null && kind != 'alarm')
+                      PopupMenuButton<int>(
+                        tooltip: 'Remind me',
+                        initialValue: lead,
+                        onSelected: (v) => setS(() {
+                          lead = v;
+                          leadTouched = true;
+                        }),
+                        itemBuilder: (_) => [for (final m in Lead.options) PopupMenuItem(value: m, child: Text(Lead.name(m)))],
+                        child: Chip(
+                          avatar: const Icon(Icons.notifications_none, size: 18),
+                          label: Text(Lead.name(lead)),
+                        ),
                       ),
                     if (date != null)
                       DropdownButton<String?>(
@@ -259,6 +281,24 @@ Future<void> showTaskSheet(BuildContext context, Store s, {Rec? item, DateTime? 
                     ),
                   ],
                 ),
+                if (kind == 'event' && date != null && time != null)
+                  Builder(builder: (_) {
+                    final start = DateTime(date!.year, date!.month, date!.day, time!.hour, time!.minute).millisecondsSinceEpoch;
+                    final clash = Clash.sentence(
+                      Clash.find(s.list('items'), start, currentMinutes() ?? Clash.defaultMinutes, excludeId: item?['id'] as int?),
+                      clock,
+                    );
+                    return clash.isEmpty
+                        ? const SizedBox.shrink()
+                        : Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Row(children: [
+                              const Icon(Icons.warning_amber_rounded, size: 18, color: Colors.orange),
+                              const SizedBox(width: 6),
+                              Expanded(child: Text(clash, style: const TextStyle(color: Colors.orange, fontSize: 13))),
+                            ]),
+                          );
+                  }),
                 Row(
                   children: [
                     Expanded(

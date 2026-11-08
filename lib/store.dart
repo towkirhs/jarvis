@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'clash.dart';
 import 'habit_core.dart';
 import 'native.dart';
 
@@ -172,6 +173,7 @@ class Store extends ChangeNotifier {
     final nid = r['nid'] as int?;
     if (nid == null) return;
     final at = col == 'items' ? r['when'] as int? : r['remindAt'] as int?;
+    if (col == 'items') await _syncLead(r, nid, at);
     if (at == null || r['status'] != 'open' || at <= DateTime.now().millisecondsSinceEpoch) {
       await Native.cancel(nid);
       return;
@@ -185,6 +187,17 @@ class Store extends ChangeNotifier {
         ? (isAlarm ? r['title'] as String : 'Due: ${r['title']}')
         : 'Promise to ${r['person']}: ${r['what']}';
     await Native.schedule(id: nid, millis: at, kind: isAlarm ? 'alarm' : 'notice', label: label);
+  }
+
+  /// The reminder a while before an item ("In 15 min: Physics class"), if it has one and it is still ahead.
+  Future<void> _syncLead(Rec r, int nid, int? at) async {
+    final lead = (r['lead'] as num?)?.toInt() ?? 0;
+    final from = at == null ? null : at - lead * 60000;
+    if (lead <= 0 || from == null || r['status'] != 'open' || r['allDay'] == true || from <= DateTime.now().millisecondsSinceEpoch) {
+      await Native.cancel(Lead.id(nid));
+      return;
+    }
+    await Native.schedule(id: Lead.id(nid), millis: from, kind: 'notice', label: '${Lead.short(lead)}: ${r['title']}');
   }
 
   Future<void> ensureDaily() async {
@@ -318,6 +331,7 @@ class Store extends ChangeNotifier {
         col.removeWhere((r) => r['id'] == op['id']);
         final nid = op['nid'] as int?;
         if (nid != null) await Native.cancel(nid);
+        if (nid != null && op['col'] == 'items') await Native.cancel(Lead.id(nid));
       } else {
         final old = copyRec(op['rec'] as Rec);
         final i = col.indexWhere((r) => r['id'] == old['id']);
@@ -351,6 +365,7 @@ class Store extends ChangeNotifier {
     list(col).removeWhere((x) => x['id'] == r['id']);
     final rid = (col == 'habits' ? r['rid'] : r['nid']) as int?;
     if (rid != null) Native.cancel(rid);
+    if (rid != null && col == 'items') Native.cancel(Lead.id(rid));
     logAction(desc, [
       {'op': 'put', 'col': col, 'rec': old},
     ]);
@@ -376,6 +391,7 @@ class Store extends ChangeNotifier {
       'est': est, 'cat': cat, 'startedAt': null, 'doneAt': null, 'actual': null,
       'postponed': 0, 'captureId': captureId,
       'desc': null, 'priority': 0, 'tags': <String>[], 'list': 'Inbox', 'repeat': null, 'dur': null,
+      'lead': kind == 'event' ? Lead.defaultFor(settings) : 0,
       ...extra,
     };
     list('items').add(it);

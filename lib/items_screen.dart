@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'clock.dart';
 import 'haptics.dart';
 import 'habits_screen.dart';
+import 'month_view.dart';
 import 'plan_day_page.dart';
 import 'store.dart';
 import 'task_sheet.dart';
@@ -333,7 +334,7 @@ class _CalendarView extends StatefulWidget {
 
 class _CalendarViewState extends State<_CalendarView> {
   DateTime _day = DateTime.now();
-  String _view = '3day'; // week, 3day, 2day, timeline or list
+  String _view = '3day'; // month, week, 3day, 2day, timeline or list
 
   /// How many days the arrows move by.
   int get _step => switch (_view) {
@@ -341,6 +342,11 @@ class _CalendarViewState extends State<_CalendarView> {
         '2day' => 2,
         _ => 7,
       };
+
+  /// The arrows: a month at a time in the month view, otherwise a few days.
+  void _go(int dir) => setState(() => _day = _view == 'month'
+      ? DateTime(_day.year, _day.month + dir, 1)
+      : DateTime(_day.year, _day.month, _day.day + dir * _step));
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -357,16 +363,17 @@ class _CalendarViewState extends State<_CalendarView> {
                     const Spacer(),
                     IconButton(
                       icon: const Icon(Icons.chevron_left),
-                      onPressed: () => setState(() => _day = DateTime(_day.year, _day.month, _day.day - _step)),
+                      onPressed: () => _go(-1),
                     ),
                     TextButton(onPressed: () => setState(() => _day = DateTime.now()), child: const Text('Today')),
                     IconButton(
                       icon: const Icon(Icons.chevron_right),
-                      onPressed: () => setState(() => _day = DateTime(_day.year, _day.month, _day.day + _step)),
+                      onPressed: () => _go(1),
                     ),
                     PopupMenuButton<String>(
                       tooltip: 'View',
                       icon: Icon(switch (_view) {
+                        'month' => Icons.calendar_view_month,
                         '3day' => Icons.view_column_outlined,
                         '2day' => Icons.view_week_outlined,
                         'timeline' => Icons.view_timeline_outlined,
@@ -376,6 +383,7 @@ class _CalendarViewState extends State<_CalendarView> {
                       initialValue: _view,
                       onSelected: (v) => setState(() => _view = v),
                       itemBuilder: (_) => const [
+                        PopupMenuItem(value: 'month', child: Text('Month')),
                         PopupMenuItem(value: '2day', child: Text('2 days')),
                         PopupMenuItem(value: '3day', child: Text('3 days')),
                         PopupMenuItem(value: 'week', child: Text('Week')),
@@ -389,6 +397,14 @@ class _CalendarViewState extends State<_CalendarView> {
               Expanded(
                 child: switch (_view) {
                   'list' => _dayList(context, s),
+                  'month' => MonthView(
+                      store: s,
+                      month: _day,
+                      onDayTap: (d) => setState(() {
+                        _day = d;
+                        _view = 'list';
+                      }),
+                    ),
                   'timeline' => TimelineGrid(
                       store: s,
                       start: s.mondayOf(_day),

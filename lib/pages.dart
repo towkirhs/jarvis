@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 
 import 'ai_page.dart';
+import 'clash.dart';
+import 'ics_page.dart';
 import 'ai.dart';
 import 'shapes.dart';
 import 'haptics.dart';
@@ -65,6 +67,7 @@ class MoreScreen extends StatelessWidget {
                   ClockScreen(store: store),
                 ),
                 tile(Icons.handshake_outlined, 'Promises', '$promises open', PromisesPage(store: store)),
+                tile(Icons.event_note_outlined, 'Calendar file (.ics)', 'Import and export', IcsPage(store: store)),
                 tile(Icons.hourglass_bottom, 'Countdowns', '${store.list('countdowns').length} saved', CountdownPage(store: store)),
               ]),
               group('Think', [
@@ -632,6 +635,22 @@ class _SettingsPageState extends State<SettingsPage> {
                   s.settings['cap'] = v;
                   s.save();
                   s.resyncAll();
+                  setState(() {});
+                },
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.notifications_none),
+              title: const Text('Remind before events'),
+              subtitle: const Text('For new events. You can change it on each one.'),
+              trailing: DropdownButton<int>(
+                value: Lead.options.contains(Lead.defaultFor(s.settings)) ? Lead.defaultFor(s.settings) : 10,
+                underline: const SizedBox.shrink(),
+                items: [for (final m in Lead.options) DropdownMenuItem(value: m, child: Text(Lead.name(m)))],
+                onChanged: (v) {
+                  if (v == null) return;
+                  s.settings['lead'] = v;
+                  s.save();
                   setState(() {});
                 },
               ),
