@@ -18,8 +18,8 @@ dependencies:
   cryptography: ^2.7.0
   archive: ^3.6.1
   google_sign_in: ^7.2.0
-  flutter_edge_ai: ^2.5.5
-  flutter_edge_ai_litertlm: ^1.19.2
+  flutter_edge_ai: 2.5.6 # pinned: newer versions change the offline model library
+  flutter_edge_ai_litertlm: 1.19.2
   flutter_map: ^8.3.2
   latlong2: ^0.9.1
 
