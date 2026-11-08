@@ -182,6 +182,11 @@ class LocalParser {
     var amount = num.parse(amounts.single.group(1)!.replaceAll(',', ''));
     if (RegExp(r'\d\s*k\b').hasMatch(amounts.single.group(0)!)) amount *= 1000;
     if (amount <= 0) return null;
+    // "500 remains in cash, spent the rest on transport": the number is what is LEFT, not what was spent.
+    final mentionsLeft = RegExp(r'\d\s*(?:tk|taka|৳|bdt|/-)?\s*(?:is\s+|are\s+)?(?:remains?|left|baki)\b').hasMatch(rest);
+    final left = mentionsLeft && (expense || RegExp(r'\b(rest|everything else|all else|remaining|baki)\b').hasMatch(t));
+    // A balance with no spending ("I have 500 left") is not an expense: leave it to the AI.
+    if (mentionsLeft && !left) return null;
     var category = income ? 'Other' : 'Other';
     for (final e in _categories.entries) {
       if (e.value.any((w) => RegExp('(^|[^a-z])${RegExp.escape(w)}').hasMatch(t))) {
@@ -201,9 +206,12 @@ class LocalParser {
         ?.group(1)
         ?.trim();
     final title = note == null || note.isEmpty ? category : note[0].toUpperCase() + note.substring(1);
+    if (left && income) return null;
+    if (left && account == null && t.contains('cash')) account = 'Cash';
     return _result(text, {
       'type': 'money',
       'moneyType': income ? 'income' : 'expense',
+      if (left) 'leaves': amount,
       'amount': amount,
       'title': title,
       'category': category,

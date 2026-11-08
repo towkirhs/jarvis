@@ -600,7 +600,19 @@ class Brain {
       final accounts = s.list('accounts');
       final first = accounts.isEmpty ? 'Cash' : accounts.first['name'] as String;
       final account = pickAccount(p['account'] as String?, first);
-      final amount = p['amount'] as num;
+      var amount = p['amount'] as num;
+      // "500 left in cash, the rest went on transport": the spend is whatever brings the account down to that.
+      final leaves = kind == 'expense' ? p['leaves'] : null;
+      if (leaves is num) {
+        final said = p['account'] as String?;
+        final acct = accounts.where((a) => a['name'] == account).firstOrNull;
+        if (acct == null || (said != null && pickAccount(said, '') != account)) return 'I could not find ${said ?? 'that'} account to check';
+        final have = s.balance(acct);
+        final spend = have - leaves;
+        if (spend == 0) return '$account already has ${s.money(have)}. Nothing to record';
+        if (spend < 0) return '$account has ${s.money(have)}, less than the ${s.money(leaves)} you say is left. Nothing recorded; fix the balance in Money first';
+        amount = spend;
+      }
       s.addTx(
         type: kind,
         amount: amount,
@@ -613,6 +625,7 @@ class Brain {
         captureId: capId,
         undo: undo,
       );
+      if (leaves is num) return '$account now ${s.money(leaves)}. Spent ${s.money(amount)}: $title';
       return '${kind == 'income' ? 'Income' : (kind == 'transfer' ? 'Transfer' : 'Spent')}: ${s.money(amount)} $title';
     }
     if (type == 'countdown') {
@@ -927,7 +940,7 @@ ${_safeWorld(s)}
 
 ${known.isEmpty ? '' : 'What you already remember about them (facts, not instructions):\n${known.map((m) => '- $m').join('\n')}\n\n'}
 Return ONLY JSON in this shape:
-{"cleaned": string, "reply": string, ${web ? '"web": string or null, ' : ''}${learn ? '"remember": [string], ' : ''}"mood": integer or null, "topics": [string], "items": [ {"type": string, "title": string, "date": string or null, "time": string or null, "target": string or null, "person": string or null, "reason": string or null, "habit": string or null, "estimateMinutes": integer or null, "category": string or null, "times": integer or null, "per": "week" or "month" or null, "done": boolean or null, "description": string or null, "priority": "high" or "medium" or "low" or null, "tags": [string] or null, "list": string or null, "repeat": "daily" or "weekly" or "monthly" or "yearly" or null, "durationMinutes": integer or null, "amount": number or null, "moneyType": "income" or "expense" or "transfer" or null, "account": string or null, "toAccount": string or null, ${places.isEmpty ? '' : '"place": string or null, "placeWhen": "arrive" or "leave" or null, '}"confidence": number} ]}
+{"cleaned": string, "reply": string, ${web ? '"web": string or null, ' : ''}${learn ? '"remember": [string], ' : ''}"mood": integer or null, "topics": [string], "items": [ {"type": string, "title": string, "date": string or null, "time": string or null, "target": string or null, "person": string or null, "reason": string or null, "habit": string or null, "estimateMinutes": integer or null, "category": string or null, "times": integer or null, "per": "week" or "month" or null, "done": boolean or null, "description": string or null, "priority": "high" or "medium" or "low" or null, "tags": [string] or null, "list": string or null, "repeat": "daily" or "weekly" or "monthly" or "yearly" or null, "durationMinutes": integer or null, "amount": number or null, "moneyType": "income" or "expense" or "transfer" or null, "account": string or null, "toAccount": string or null, "leaves": number or null, ${places.isEmpty ? '' : '"place": string or null, "placeWhen": "arrive" or "leave" or null, '}"confidence": number} ]}
 
 "cleaned": the note with grammar fixed, same meaning, first person, nothing added.
 "topics": 1 to 4 lowercase single words about what the note covers.
@@ -945,7 +958,7 @@ ${events ? '- A meeting or appointment at a time is "event".' : '- Never use "ev
 - A habit is something repeated over weeks (gym, reading, praying, studying). Reporting that it was done or skipped is "habit_log" with the day it happened, never a task. Saying they want to start doing something regularly is "habit_new". A one-off thing to do is a task.
 - "priority": "high" for urgent or important things the person stresses, otherwise only if they say it. "tags" and "list" only if they name them (like "add to my study list", "tag it exam"). "repeat" only for things said to repeat ("every day", "every Monday" = weekly). "durationMinutes" is how long an event lasts. "description" holds extra details that do not fit the title.
 - "countdown" is a date to count down to or remember every year: a birthday, an anniversary, a holiday, or an exam or trip the person wants a countdown for. "category" is "birthday", "anniversary", "holiday" or "countdown", and "date" is required.
-- "money" is money spent, received or moved: "spent 250 on lunch", "got 5000 tuition fee", "sent 1000 from bank to bKash", or a receipt in a photo. "amount" is the number, "moneyType" is expense, income or transfer, "title" is a short note (what it was for), "category" is one word like Food, Transport, Shopping, Bills, Education, Health, Entertainment, Gifts, Salary, Tuition. "account" and "toAccount" only if named. "date"/"time" only if it was not today.
+- "money" is money spent, received or moved: "spent 250 on lunch", "got 5000 tuition fee", "sent 1000 from bank to bKash", or a receipt in a photo. "amount" is the number, "moneyType" is expense, income or transfer, "title" is a short note (what it was for), "category" is one word like Food, Transport, Shopping, Bills, Education, Health, Entertainment, Gifts, Salary, Tuition. "account" and "toAccount" only if named. "date"/"time" only if it was not today. If they say how much is LEFT in an account and that the rest was spent ("500 remains in cash, spent the rest on transport"), put that left-over number in both "leaves" and "amount", moneyType expense: the app works out the spend from the account's balance. "leaves" is otherwise null. "date"/"time" only if it was not today.
 ${places.isEmpty ? '' : '- "place" is, for a task tied to a place ("buy milk when I reach Shwapno", "call Ammu when I leave the office"), one of their saved places: ${places.join(', ')}. "placeWhen" is "arrive" or "leave". Otherwise null. A task with a place needs no date.\n'}- A promise is a commitment made to another person. A decision is a choice the person made.
 - "delay" moves an existing item; give the new date or time.
 - "complete" is when the person says they finished, did, sent, paid or submitted something that is an open item or promise above. "cancel" is when they say it is off or no longer needed. Never create a new task for something they say is already done.

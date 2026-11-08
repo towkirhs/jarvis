@@ -62,6 +62,20 @@ void main() {
   });
 
   group('money', () {
+    test('"500 remains in cash, spent the rest" gives what is left, not what was spent', () {
+      final r = LocalParser.parse('500 remains in cash spent remaining in transport', now: DateTime(2026, 11, 9, 1), accounts: ['Cash', 'bKash'])!;
+      expect(
+        (r['items'] as List).single,
+        allOf(containsPair('moneyType', 'expense'), containsPair('leaves', 500), containsPair('category', 'Transport'), containsPair('account', 'Cash')),
+      );
+    });
+    test('a plain spend has no "leaves"', () {
+      final r = LocalParser.parse('spent 250 on lunch', now: DateTime(2026, 11, 9, 1))!;
+      expect((r['items'] as List).single.containsKey('leaves'), isFalse);
+    });
+    test('"500 left" with no spending is not guessed', () {
+      expect(LocalParser.parse('I have 500 tk left', now: DateTime(2026, 11, 9, 1)), isNull);
+    });
     const accounts = ['Cash', 'Bank', 'bKash'];
     test('expense with an account', () {
       expect(item('spent 250 on lunch with bKash', accounts: accounts),
