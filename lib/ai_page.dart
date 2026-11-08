@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'ai.dart';
+import 'brain.dart';
 import 'haptics.dart';
 import 'offline_llm.dart';
 import 'store.dart';
@@ -75,7 +76,7 @@ class _AiPageState extends State<AiPage> {
         'offline' => AI.offlineReady
             ? '${OfflineLlm.models.firstWhere((m) => m.id == _installed, orElse: () => OfflineLlm.models.first).name}, on this phone, no internet'
             : 'Download a model below.',
-        'gemini' => s.apiKey.isEmpty ? 'Add your Gemini key in Settings to use this.' : 'Model ${s.settings['model'] ?? 'gemini-2.5-flash-lite'}',
+        'gemini' => s.apiKey.isEmpty ? 'Tap to add your Gemini key' : 'Model ${s.settings['model'] ?? 'gemini-2.5-flash-lite'}',
         _ => '${p['model'] ?? '?'} at ${p['url'] ?? '?'}',
       };
 
@@ -163,6 +164,51 @@ class _AiPageState extends State<AiPage> {
     if (saved == true) _save();
   }
 
+  /// Your Gemini key and model, kept on this phone only.
+  Future<void> _editGemini() async {
+    final key = TextEditingController(text: s.apiKey);
+    final model = TextEditingController(text: (s.settings['model'] as String?) ?? '');
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Google Gemini'),
+        content: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(
+              controller: key,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'API key',
+                helperText: 'Free at aistudio.google.com. Stays on this phone, never in backups or sync.',
+                helperMaxLines: 2,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: model,
+              decoration: const InputDecoration(
+                labelText: 'Model',
+                hintText: 'gemini-2.5-flash-lite',
+                helperText: 'Leave empty for the default.',
+              ),
+            ),
+          ]),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Save')),
+        ],
+      ),
+    );
+    if (saved != true) return;
+    await s.setApiKey(key.text);
+    s.settings['model'] = model.text.trim().isEmpty ? 'gemini-2.5-flash-lite' : model.text.trim();
+    _save();
+    Haptics.tap();
+    // Notes that waited for an AI can go now.
+    await Brain.drain(s);
+  }
+
   Future<void> _test(Map<String, dynamic> p) async {
     setState(() => _testing[p['id'] as String] = 'Testing…');
     String result;
@@ -226,7 +272,11 @@ class _AiPageState extends State<AiPage> {
                           _save();
                         },
                       ),
-                      onTap: _list[i]['type'] == 'openai' ? () => _edit(_list[i]) : null,
+                      onTap: switch (_list[i]['type']) {
+                        'openai' => () => _edit(_list[i]),
+                        'gemini' => _editGemini,
+                        _ => null,
+                      },
                     ),
                     if (_list[i]['type'] != 'phone')
                       Align(

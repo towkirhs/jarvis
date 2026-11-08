@@ -55,24 +55,26 @@ class MoreScreen extends StatelessWidget {
               Text('More', style: Theme.of(context).textTheme.headlineSmall),
               group('Plan', [
                 tile(Icons.inbox_outlined, 'Review inbox', inbox == 0 ? 'All clear' : '$inbox waiting', InboxPage(store: store), badge: inbox),
-                tile(Icons.handshake_outlined, 'Promises', '$promises open', PromisesPage(store: store)),
-                tile(Icons.hourglass_bottom, 'Countdowns', '${store.list('countdowns').length} saved', CountdownPage(store: store)),
-                tile(Icons.record_voice_over_outlined, 'Hey Jarvis', 'Voice and phone actions', VoicePage(store: store)),
-                tile(Icons.add_to_drive, 'Google Drive', 'Ask your files', DrivePage(store: store)),
-                tile(Icons.meeting_room_outlined, 'Rooms and rent', '${store.list('rooms').length} rooms', RentPage(store: store)),
-                tile(Icons.balance, 'Decide', 'Odds, not chat', DecidePage(store: store)),
-                tile(Icons.history_edu_outlined, 'Decisions', null, DecisionsPage(store: store)),
-              ]),
-              group('Tools', [
                 tile(
                   Icons.alarm,
                   'Clock',
-                  store.focusActive == null
-                      ? 'Alarms, place alarms, focus timer'
-                      : 'Focus running now',
+                  store.focusActive == null ? 'Alarms, place alarms, focus timer' : 'Focus running now',
                   ClockScreen(store: store),
                 ),
-                tile(Icons.insights, 'Insights', null, InsightsPage(store: store)),
+                tile(Icons.handshake_outlined, 'Promises', '$promises open', PromisesPage(store: store)),
+                tile(Icons.hourglass_bottom, 'Countdowns', '${store.list('countdowns').length} saved', CountdownPage(store: store)),
+              ]),
+              group('Think', [
+                tile(Icons.balance, 'Decide', 'Odds, not chat', DecidePage(store: store)),
+                tile(Icons.history_edu_outlined, 'Decisions', '${store.list('decisions').length} recorded', DecisionsPage(store: store)),
+                tile(Icons.insights, 'Insights', 'How your week went', InsightsPage(store: store)),
+              ]),
+              group('Home', [
+                tile(Icons.meeting_room_outlined, 'Rooms and rent', '${store.list('rooms').length} rooms', RentPage(store: store)),
+              ]),
+              group('Connections', [
+                tile(Icons.record_voice_over_outlined, 'Hey Jarvis', 'Wake word and phone actions', VoicePage(store: store)),
+                tile(Icons.add_to_drive, 'Google Drive', 'Ask your files', DrivePage(store: store)),
               ]),
               group('App', [
                 tile(Icons.undo, 'Activity and undo', null, ActivityPage(store: store)),
@@ -427,29 +429,10 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  late final TextEditingController _key = TextEditingController(text: widget.store.apiKey);
-  late final TextEditingController _model =
-      TextEditingController(text: (widget.store.settings['model'] as String?) ?? '');
-
   Store get s => widget.store;
-
-  @override
-  void dispose() {
-    _key.dispose();
-    _model.dispose();
-    super.dispose();
-  }
 
   void _say(String text) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
-  }
-
-  Future<void> _saveAi() async {
-    await s.setApiKey(_key.text);
-    s.settings['model'] = _model.text.trim().isEmpty ? 'gemini-2.5-flash-lite' : _model.text.trim();
-    s.save();
-    _say('Saved.');
-    await Brain.drain(s);
   }
 
   Future<void> _restore() async {
@@ -493,124 +476,47 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  /// A titled group of settings on one card, like the More page.
+  Widget _group(String name, List<Widget> children) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 16, 8, 4),
+            child: Text(name,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(color: Theme.of(context).colorScheme.primary)),
+          ),
+          Card(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children)),
+        ],
+      );
+
+  Future<void> _open(Widget page) async {
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+    if (mounted) setState(() {});
+  }
+
   @override
-  Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: const Text('Settings')),
-        body: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            Text('AI', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _key,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'Gemini API key',
-                helperText: 'Stored only on this device. Not part of backups.',
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _model,
-              decoration: const InputDecoration(
-                labelText: 'Model',
-                helperText: 'Change this if Google retires the default.',
-              ),
-            ),
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerRight,
-              child: FilledButton(onPressed: _saveAi, child: const Text('Save')),
-            ),
-            const Divider(height: 32),
+  Widget build(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    final order = AI.providers(s).where((p) => AI.ready(s, p)).map((p) => p['name']).join(', then ');
+    return Scaffold(
+      appBar: AppBar(title: const Text('Settings')),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 32),
+        children: [
+          _group('Jarvis\'s brain', [
             ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Currency sign'),
-              trailing: SizedBox(
-                width: 60,
-                child: TextFormField(
-                  initialValue: s.currency,
-                  textAlign: TextAlign.center,
-                  onChanged: (v) {
-                    s.settings['currency'] = v.trim();
-                    s.save();
-                  },
-                ),
-              ),
+              leading: const Icon(Icons.hub_outlined),
+              title: const Text('AI models'),
+              subtitle: Text(order.isEmpty ? 'None set up. Add Gemini, Groq or your server.' : 'Uses $order',
+                  maxLines: 2, overflow: TextOverflow.ellipsis),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _open(AiPage(store: s)),
             ),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Theme'),
-              trailing: DropdownButton<String>(
-                value: (s.settings['theme'] as String?) ?? 'system',
-                items: [for (final e in themeNames.entries) DropdownMenuItem(value: e.key, child: Text(e.value))],
-                onChanged: (v) {
-                  if (v == null) return;
-                  s.settings['theme'] = v;
-                  s.save();
-                  setState(() {});
-                },
-              ),
-            ),
-            const Text('Colour'),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                for (final e in accents.entries)
-                  Builder(builder: (context) {
-                    final picked = ((s.settings['accent'] as String?) ?? 'default') == e.key;
-                    return Semantics(
-                      label: e.key,
-                      selected: picked,
-                      child: InkResponse(
-                        onTap: () {
-                          Haptics.tick();
-                          s.settings['accent'] = e.key;
-                          s.save();
-                          setState(() {});
-                        },
-                        child: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: e.value,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: picked ? Theme.of(context).colorScheme.onSurface : Colors.transparent,
-                              width: 3,
-                            ),
-                          ),
-                          child: picked ? const Icon(Icons.check, color: Colors.white, size: 20) : null,
-                        ),
-                      ),
-                    );
-                  }),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Builder(builder: (context) {
-              final recent = s.list('captures').where((c) => c['via'] != null).toList().reversed.take(100).toList();
-              final onPhone = recent.where((c) => c['via'] == 'phone').length;
-              final order = AI.providers(s).where((p) => p['on'] == true).map((p) => p['name']).join(', then ');
-              return ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.hub_outlined),
-                title: const Text('AI models and order'),
-                subtitle: Text('${order.isEmpty ? 'None on' : order}.'
-                    '${recent.isEmpty ? '' : ' Recently $onPhone of ${recent.length} notes needed no AI.'}'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () async {
-                  await Navigator.push(context, MaterialPageRoute(builder: (_) => AiPage(store: s)));
-                  if (mounted) setState(() {});
-                },
-              );
-            }),
             SwitchListTile(
-              contentPadding: EdgeInsets.zero,
+              secondary: const Icon(Icons.phonelink_lock_outlined),
               title: const Text('Keep small talk on this phone'),
-              subtitle: const Text('Notes that do not look like plans, tasks or reflections are never sent to the AI.'),
+              subtitle: const Text('Notes that are not plans, tasks or reflections never go to the AI'),
               value: s.settings['prefilter'] == true,
               onChanged: (v) {
                 Haptics.toggle(v);
@@ -620,42 +526,102 @@ class _SettingsPageState extends State<SettingsPage> {
               },
             ),
             ListTile(
-              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.verified_outlined),
               title: const Text('Act on its own when at least'),
-              subtitle: const Text('Below this, notes go to your review inbox and decisions are left to you.'),
-              trailing: Text('${(s.sureEnough * 100).round()}% sure', style: Theme.of(context).textTheme.titleSmall),
+              subtitle: const Text('Below this, notes wait in your review inbox'),
+              trailing: Text('${(s.sureEnough * 100).round()}% sure', style: tt.titleSmall),
             ),
-            Slider(
-              value: s.sureEnough,
-              min: 0.5,
-              max: 0.95,
-              divisions: 9,
-              label: '${(s.sureEnough * 100).round()}%',
-              onChanged: (v) {
-                if (v != s.sureEnough) Haptics.segment();
-                s.settings['sure'] = v;
-                s.save();
-                setState(() {});
-              },
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+              child: Slider(
+                value: s.sureEnough,
+                min: 0.5,
+                max: 0.95,
+                divisions: 9,
+                label: '${(s.sureEnough * 100).round()}%',
+                onChanged: (v) {
+                  if (v != s.sureEnough) Haptics.segment();
+                  s.settings['sure'] = v;
+                  s.save();
+                  setState(() {});
+                },
+              ),
+            ),
+          ]),
+          _group('Look and feel', [
+            ListTile(
+              leading: const Icon(Icons.dark_mode_outlined),
+              title: const Text('Theme'),
+              trailing: DropdownButton<String>(
+                value: (s.settings['theme'] as String?) ?? 'system',
+                underline: const SizedBox.shrink(),
+                items: [for (final e in themeNames.entries) DropdownMenuItem(value: e.key, child: Text(e.value))],
+                onChanged: (v) {
+                  if (v == null) return;
+                  s.settings['theme'] = v;
+                  s.save();
+                  setState(() {});
+                },
+              ),
+            ),
+            const ListTile(leading: Icon(Icons.palette_outlined), title: Text('Colour')),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  for (final e in accents.entries)
+                    Builder(builder: (context) {
+                      final picked = ((s.settings['accent'] as String?) ?? 'default') == e.key;
+                      return Semantics(
+                        label: e.key,
+                        selected: picked,
+                        child: InkResponse(
+                          onTap: () {
+                            Haptics.tick();
+                            s.settings['accent'] = e.key;
+                            s.save();
+                            setState(() {});
+                          },
+                          child: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: e.value,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: picked ? scheme.onSurface : Colors.transparent, width: 3),
+                            ),
+                            child: picked ? const Icon(Icons.check, color: Colors.white, size: 20) : null,
+                          ),
+                        ),
+                      );
+                    }),
+                ],
+              ),
             ),
             SwitchListTile(
-              contentPadding: EdgeInsets.zero,
+              secondary: const Icon(Icons.vibration),
               title: const Text('Vibrate on actions'),
-              subtitle: const Text('A light tap when you send, finish a task, or delete something.'),
+              subtitle: const Text('A light tap when you send, finish or delete'),
               value: s.settings['haptics'] != false,
               onChanged: (v) {
                 Haptics.toggle(v);
                 s.settings['haptics'] = v;
                 s.save();
                 if (v) Haptics.success();
+                setState(() {});
               },
             ),
+          ]),
+          _group('Everyday', [
             ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Daily reminder limit'),
-              subtitle: const Text('Alarms you ask for are never limited.'),
+              leading: const Icon(Icons.notifications_active_outlined),
+              title: const Text('Reminders a day'),
+              subtitle: const Text('At most this many nudges. Alarms you ask for are never limited.'),
               trailing: DropdownButton<int>(
                 value: s.cap,
+                underline: const SizedBox.shrink(),
                 items: [for (var n = 3; n <= 12; n++) DropdownMenuItem(value: n, child: Text('$n'))],
                 onChanged: (v) {
                   if (v == null) return;
@@ -666,57 +632,69 @@ class _SettingsPageState extends State<SettingsPage> {
                 },
               ),
             ),
-            const Divider(height: 32),
-            Text('Backup and other devices', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.cloud_sync_outlined),
-                title: const Text('Encrypted sync'),
-                subtitle: Text(Sync.enabled(s) ? 'On' : 'Off — set up to never lose anything'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () async {
-                  await Navigator.of(context).push(MaterialPageRoute(builder: (_) => SyncPage(store: s)));
-                  if (mounted) setState(() {});
-                },
+            ListTile(
+              leading: const Icon(Icons.payments_outlined),
+              title: const Text('Currency sign'),
+              trailing: SizedBox(
+                width: 56,
+                child: TextFormField(
+                  initialValue: s.currency,
+                  textAlign: TextAlign.center,
+                  onChanged: (v) {
+                    s.settings['currency'] = v.trim();
+                    s.save();
+                  },
+                ),
               ),
             ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              children: [
-                OutlinedButton(
-                  onPressed: () async {
-                    await Clipboard.setData(ClipboardData(text: s.exportBackup()));
-                    _say('Backup copied. Paste it somewhere safe.');
-                  },
-                  child: const Text('Copy backup'),
-                ),
-                OutlinedButton(onPressed: _restore, child: const Text('Restore backup')),
-              ],
+          ]),
+          _group('Backup and other devices', [
+            ListTile(
+              leading: const Icon(Icons.cloud_sync_outlined),
+              title: const Text('Encrypted sync'),
+              subtitle: Text(Sync.enabled(s) ? 'On' : 'Off. Set it up to never lose anything.'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _open(SyncPage(store: s)),
             ),
-            const Divider(height: 32),
-            Text('Alarms', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              children: [
-                OutlinedButton(
-                  onPressed: () async {
-                    await Native.schedule(
-                      id: s.nextId(),
-                      millis: DateTime.now().millisecondsSinceEpoch + 60000,
-                      kind: 'alarm',
-                      label: 'Test alarm',
-                    );
-                    _say('A test alarm will ring in 1 minute.');
-                  },
-                  child: const Text('Test alarm in 1 minute'),
-                ),
-                OutlinedButton(onPressed: _showLog, child: const Text('Alarm log')),
-              ],
+            ListTile(
+              leading: const Icon(Icons.content_copy_outlined),
+              title: const Text('Copy backup'),
+              subtitle: const Text('Everything as text, to keep somewhere safe. AI keys are left out.'),
+              onTap: () async {
+                await Clipboard.setData(ClipboardData(text: s.exportBackup()));
+                _say('Backup copied. Paste it somewhere safe.');
+              },
             ),
-          ],
-        ),
-      );
+            ListTile(
+              leading: const Icon(Icons.restore),
+              title: const Text('Restore backup'),
+              subtitle: const Text('Replaces everything on this phone'),
+              onTap: _restore,
+            ),
+          ]),
+          _group('If something is not working', [
+            ListTile(
+              leading: const Icon(Icons.alarm_on_outlined),
+              title: const Text('Test alarm in 1 minute'),
+              onTap: () async {
+                await Native.schedule(
+                  id: s.nextId(),
+                  millis: DateTime.now().millisecondsSinceEpoch + 60000,
+                  kind: 'alarm',
+                  label: 'Test alarm',
+                );
+                _say('A test alarm will ring in 1 minute.');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.receipt_long_outlined),
+              title: const Text('Alarm and place log'),
+              subtitle: const Text('What the phone scheduled and when it fired'),
+              onTap: _showLog,
+            ),
+          ]),
+        ],
+      ),
+    );
+  }
 }
