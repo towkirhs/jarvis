@@ -49,7 +49,7 @@ object Commands {
     data class Cmd(val kind: String, val target: String, val text: String? = null, val quiet: Boolean = false)
 
     private const val PREFS = "jarcis_cmds"
-    private val main = Handler(Looper.getMainLooper())
+    private val main by lazy { Handler(Looper.getMainLooper()) }
     private var pendingCall: Runnable? = null
 
     /** Your nicknames ("oishi" -> a contact name or number) and phrases ("gym music" -> an action). */
@@ -538,7 +538,7 @@ class WakeService : Service() {
     private var detector: WakeWord? = null
     @Volatile private var listening = false
     private var thread: Thread? = null
-    private val main = Handler(Looper.getMainLooper())
+    private val main by lazy { Handler(Looper.getMainLooper()) }
 
     override fun onBind(intent: Intent?): IBinder? = null
 

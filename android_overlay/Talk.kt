@@ -39,7 +39,7 @@ object Speaker {
     private var ready = false
     private var waiting: (() -> Unit)? = null
     private var focus: AudioFocusRequest? = null
-    private val main = Handler(Looper.getMainLooper())
+    private val main by lazy { Handler(Looper.getMainLooper()) }
     private val afterDone = mutableMapOf<String, () -> Unit>()
 
     fun settings(context: Context): JSONObject =
@@ -237,7 +237,7 @@ object NewClocks {
 class ListenActivity : Activity() {
     private var recognizer: SpeechRecognizer? = null
     private lateinit var line: TextView
-    private val main = Handler(Looper.getMainLooper())
+    private val main by lazy { Handler(Looper.getMainLooper()) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
