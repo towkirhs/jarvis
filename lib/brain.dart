@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
 
 import 'ai.dart';
+import 'chatgpt_block.dart';
 import 'clash.dart';
 import 'decide.dart';
 import 'destination.dart';
@@ -35,6 +36,7 @@ class Brain {
     // Notes sent on purpose (the bubble, share, screenshots) are always processed; the filter is for typing here.
     final skip = image == null &&
         (source == 'in-app' || source == 'journal') &&
+        !ChatGptBlock.has(raw) &&
         s.settings['prefilter'] == true &&
         !looksLikeUpdate(raw) &&
         Web.asked(raw) == null;
@@ -129,6 +131,15 @@ class Brain {
         );
 
   static Future<bool> _understand(Store s, Rec c) async {
+    // A "JARVIS v1" block from ChatGPT: already understood, so it is applied as written.
+    if (c['image'] == null && ChatGptBlock.has(c['raw'] as String)) {
+      c['via'] = 'ChatGPT';
+      try {
+        return _apply(s, c, ChatGptBlock.parse(c['raw'] as String)!);
+      } on FormatException catch (e) {
+        return _apply(s, c, {'items': <dynamic>[], 'reply': 'I could not read that ChatGPT block: ${e.message}.'});
+      }
+    }
     // "done" / "cancel it" answering a reminder: act on that item straight away.
     final about = int.tryParse(((c['source'] as String?) ?? '').split(':').last);
     if (about != null) {
