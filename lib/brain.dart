@@ -841,6 +841,16 @@ class Brain {
     return '${a.pick} (${pct(a.confidence)})${others.isEmpty ? '' : '. $others'}';
   }
 
+  /// Everything Jarvis knows, to paste into ChatGPT before planning with it (see docs/chatgpt-project.md).
+  static String chatgptContext(Store s) {
+    final now = DateTime.now();
+    final facts = s.list('memories').map((m) => '- ${m['text']}').join('\n');
+    return 'JARVIS CONTEXT, ${_weekdays[now.weekday - 1]} ${dayKey(now)} ${two(now.hour)}:${two(now.minute)} (Asia/Dhaka)\n'
+        'What Jarvis remembers about me:\n${facts.isEmpty ? 'nothing yet' : facts}\n\n${world(s)}';
+  }
+
+  static const _weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
   /// A compact picture of the person's life for the AI: what is open, coming, owed, tracked and spent.
   static String world(Store s) {
     final now = DateTime.now();

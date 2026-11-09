@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
+import 'brain.dart';
 import 'haptics.dart';
 import 'memory.dart';
 import 'store.dart';
@@ -107,6 +109,17 @@ class _MemoryPageState extends State<MemoryPage> {
       appBar: AppBar(
         title: const Text('Memory'),
         actions: [
+          IconButton(
+            tooltip: 'Copy context for ChatGPT',
+            icon: const Icon(Icons.content_copy),
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: Brain.chatgptContext(s)));
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Copied. Paste it into your ChatGPT Project chat.')),
+              );
+            },
+          ),
           if (all.isNotEmpty)
             PopupMenuButton<String>(
               onSelected: (_) => _forgetAll(),
