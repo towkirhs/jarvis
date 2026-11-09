@@ -241,6 +241,7 @@ class ListenActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        openCards++
         setShowWhenLocked(true)
         Speaker.stop()
         WakeService.pause(this)
@@ -349,6 +350,7 @@ class ListenActivity : Activity() {
         main.removeCallbacksAndMessages(null)
         recognizer?.destroy()
         recognizer = null
+        openCards--
         WakeService.resume(this)
         super.onDestroy()
     }
@@ -357,6 +359,10 @@ class ListenActivity : Activity() {
         const val ACTION_TALK = "com.towkirhs.jarcis.TALK"
         const val ACTION_SNAP = "com.towkirhs.jarcis.SNAP"
         const val ACTION_DO = "com.towkirhs.jarcis.DO"
+
+        /** Listening cards open now (a follow-up card can open before the last one closes). Main thread only. */
+        private var openCards = 0
+        val showing get() = openCards > 0
 
         /** Opens the listening card (from the background too: "Display over other apps" allows that). */
         fun open(context: Context, followUp: Boolean = false) {

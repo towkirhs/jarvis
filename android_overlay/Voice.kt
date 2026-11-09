@@ -538,7 +538,16 @@ class WakeService : Service() {
     private var detector: WakeWord? = null
     @Volatile private var listening = false
     private var thread: Thread? = null
+    private var warned = false
     private val main by lazy { Handler(Looper.getMainLooper()) }
+
+    /** Stays on standby: whenever no listening card is open and the mic loop has stopped, start it again. */
+    private val watchdog = object : Runnable {
+        override fun run() {
+            if (!listening && !ListenActivity.showing) listen()
+            main.postDelayed(this, 3000)
+        }
+    }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -553,12 +562,13 @@ class WakeService : Service() {
                 stopListening()
                 return START_STICKY
             }
+            // Give the speech recognizer a moment to let go of the mic first.
             ACTION_RESUME -> {
-                detector?.reset()
-                listen()
+                main.postDelayed({ if (!ListenActivity.showing) listen() }, 500)
                 return START_STICKY
             }
         }
+        running = true
         startForegroundNotice()
         if (detector == null) startWake()
         return START_STICKY
@@ -600,12 +610,14 @@ class WakeService : Service() {
             return
         }
         listen()
+        main.postDelayed(watchdog, 3000)
     }
 
     /** Reads the mic in 80 ms chunks on its own thread until the wake word scores above the threshold. */
     private fun listen() {
-        if (listening) return
+        if (listening || detector == null) return
         listening = true
+        detector?.reset()
         val threshold = getSharedPreferences("jarcis_cmds", Context.MODE_PRIVATE).getFloat("wake_threshold", 0.5f)
         thread = Thread {
             val chunk = ShortArray(WakeWord.CHUNK)
@@ -634,9 +646,10 @@ class WakeService : Service() {
             } catch (e: Exception) {
                 failed = listening
                 listening = false
-                if (failed) main.post {
-                    Commands.toast(this, "Wake word stopped: ${e.message}")
-                    stopSelf()
+                // Usually the mic is busy for a moment; the watchdog tries again, so only say it once.
+                if (failed && !warned) main.post {
+                    warned = true
+                    Commands.toast(this, "Wake word paused: ${e.message}. Retrying.")
                 }
             } finally {
                 try { rec?.stop() } catch (_: Exception) {}
@@ -658,6 +671,8 @@ class WakeService : Service() {
     }
 
     override fun onDestroy() {
+        running = false
+        main.removeCallbacksAndMessages(null)
         stopListening()
         detector?.close()
         detector = null
