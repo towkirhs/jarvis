@@ -7,6 +7,17 @@ class QuickAnswers {
   );
   static final _spend = RegExp(r"\bhow much\b.*\b(spen[dt]|expenses?)\b");
   static final _balance = RegExp(r"\b(balance|how much (money )?(do i have|is left|have i got|left))\b");
+  static final _inAccount = RegExp(r"\b(balance|how much|left|money)\b|\bwhat('?s| is) in\b");
+  static final _next = RegExp(r"^(what('?s| is)|when('?s| is)) (my |the )?next( (event|task|thing|meeting|appointment|reminder))?$");
+  static final _overdue = RegExp(r"\boverdue\b");
+  static final _brief = RegExp(
+    r"^(good (morning|afternoon|evening)|(give me )?(my )?(morning |daily )?briefing|brief me)$",
+  );
+  static const _days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  static const _months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
 
   /// Returns the answer, or null if this is not one of these questions (then the AI or the parser takes it).
   static String? answer(
@@ -17,14 +28,24 @@ class QuickAnswers {
     required Map<String, num> balances,
     required String Function(num) money,
   }) {
-    final t = raw.trim().toLowerCase().replaceAll('’', "'").replaceAll(RegExp(r'[?.!]+$'), '');
+    final t = raw
+        .trim()
+        .toLowerCase()
+        .replaceAll('’', "'")
+        .replaceAll(RegExp(r'[?.!]+$'), '')
+        .replaceFirst(RegExp(r'^(hey |ok |okay )?jarvis[,:]?\s+'), '');
     if (t.split(RegExp(r'\s+')).length > 14) return null;
+    if (_brief.hasMatch(t)) return _briefing(t, now, items);
     final question = raw.trim().endsWith('?') ||
         RegExp(r"^(what|how|show|anything|when|whats|what's|my)\b").hasMatch(t);
     if (!question) return null;
 
     if (_spend.hasMatch(t)) return _spending(t, now, tx, money);
+    final account = _inAccount.hasMatch(t) ? _accountIn(t, balances) : null;
+    if (account != null) return 'You have ${money(balances[account]!)} in $account.';
     if (_balance.hasMatch(t)) return _balanceText(balances, money);
+    if (_next.hasMatch(t)) return _nextText(now, items);
+    if (_overdue.hasMatch(t)) return _overdueText(now, items);
     if (_agenda.hasMatch(t)) {
       final tomorrow = t.contains('tomorrow');
       final day = tomorrow ? DateTime(now.year, now.month, now.day + 1) : now;
@@ -40,6 +61,62 @@ class QuickAnswers {
     return '$h:${d.minute.toString().padLeft(2, '0')} ${d.hour < 12 ? 'am' : 'pm'}';
   }
 
+  /// Open things whose time has passed (an all-day thing is not late until its day is over), oldest first.
+  static List<Map<String, dynamic>> _pastDue(DateTime now, List<Map<String, dynamic>> items) => items.where((i) {
+        final w = i['when'] as int?;
+        if (i['status'] != 'open' || w == null) return false;
+        final d = DateTime.fromMillisecondsSinceEpoch(w);
+        return d.isBefore(now) && !(i['allDay'] == true && _sameDay(d, now));
+      }).toList()
+        ..sort((a, b) => (a['when'] as int).compareTo(b['when'] as int));
+
+  static String _overdueText(DateTime now, List<Map<String, dynamic>> items) {
+    final behind = _pastDue(now, items);
+    if (behind.isEmpty) return 'Nothing overdue.';
+    final more = behind.length > 5 ? ', and ${behind.length - 5} more' : '';
+    return '${behind.length} overdue: ${behind.take(5).map((i) => i['title']).join(', ')}$more.';
+  }
+
+  static String _nextText(DateTime now, List<Map<String, dynamic>> items) {
+    final ahead = items.where((i) {
+      final w = i['when'] as int?;
+      return i['status'] == 'open' && w != null && !DateTime.fromMillisecondsSinceEpoch(w).isBefore(now);
+    }).toList()
+      ..sort((a, b) => (a['when'] as int).compareTo(b['when'] as int));
+    if (ahead.isEmpty) return 'Nothing coming up.';
+    final i = ahead.first;
+    final d = DateTime.fromMillisecondsSinceEpoch(i['when'] as int);
+    final day = _sameDay(d, now)
+        ? 'today'
+        : _sameDay(d, DateTime(now.year, now.month, now.day + 1))
+            ? 'tomorrow'
+            : d.difference(now).inDays < 7
+                ? 'on ${_days[d.weekday - 1]}'
+                : 'on ${_days[d.weekday - 1]} ${d.day} ${_months[d.month - 1]}';
+    return i['allDay'] == true ? 'Next up: ${i['title']}, all day $day.' : 'Next up: ${i['title']} at ${_clock(d)} $day.';
+  }
+
+  /// "Good morning": the date and today's plan.
+  static String _briefing(String t, DateTime now, List<Map<String, dynamic>> items) {
+    final greeting = t.startsWith('good ')
+        ? 'Good ${t.split(' ')[1]}'
+        : now.hour < 12
+            ? 'Good morning'
+            : now.hour < 17
+                ? 'Good afternoon'
+                : 'Good evening';
+    return '$greeting. ${_days[now.weekday - 1]} ${now.day} ${_months[now.month - 1]}. '
+        '${_agendaText(now, now, 'today', items)}';
+  }
+
+  /// The account a question names ("how much cash do I have"), if any.
+  static String? _accountIn(String t, Map<String, num> balances) {
+    for (final name in balances.keys) {
+      if (RegExp('\\b${RegExp.escape(name.toLowerCase())}\\b').hasMatch(t)) return name;
+    }
+    return null;
+  }
+
   static String _agendaText(DateTime day, DateTime now, String label, List<Map<String, dynamic>> items) {
     final on = items.where((i) {
       final w = i['when'] as int?;
@@ -49,15 +126,7 @@ class QuickAnswers {
       return _sameDay(d, day) && (label != 'today' || i['allDay'] == true || !d.isBefore(now));
     }).toList()
       ..sort((a, b) => (a['when'] as int).compareTo(b['when'] as int));
-    final overdue = label == 'today'
-        ? items.where((i) {
-            final w = i['when'] as int?;
-            return i['status'] == 'open' &&
-                w != null &&
-                DateTime.fromMillisecondsSinceEpoch(w).isBefore(now) &&
-                !(i['allDay'] == true && _sameDay(DateTime.fromMillisecondsSinceEpoch(w), now));
-          }).length
-        : 0;
+    final overdue = label == 'today' ? _pastDue(now, items).length : 0;
     final tail = overdue == 0 ? '' : ' Also $overdue overdue.';
     if (on.isEmpty) return 'Nothing planned for $label.$tail';
     final parts = [

@@ -48,9 +48,40 @@ void main() {
     expect(ask("what's my balance"), 'You have ৳6190 in total: Cash ৳250, bKash ৳5940.');
   });
 
+  test('balance of one account', () {
+    expect(ask('how much cash do I have'), 'You have ৳250 in Cash.');
+    expect(ask("what's my bKash balance?"), 'You have ৳5940 in bKash.');
+  });
+
+  test('what is next', () {
+    expect(ask("what's my next event?"), 'Next up: Buy groceries at 7:00 pm today.');
+    expect(ask("what's next"), 'Next up: Buy groceries at 7:00 pm today.');
+    String? later(DateTime t, String q) => QuickAnswers.answer(q,
+        now: t, items: items, tx: tx, balances: {'Cash': 250}, money: (v) => '৳$v');
+    expect(later(DateTime(2026, 11, 6, 22), 'when is my next task'), 'Next up: Exam prep, all day tomorrow.');
+    expect(later(DateTime(2026, 11, 7, 10), "what's next"), 'Nothing coming up.');
+  });
+
+  test('overdue', () {
+    expect(ask('anything overdue?'), '2 overdue: Pay electricity bill, Tuition class.');
+    expect(
+      QuickAnswers.answer("what's overdue", now: DateTime(2026, 11, 5, 8), items: items, tx: tx, balances: {}, money: (v) => '$v'),
+      'Nothing overdue.',
+    );
+  });
+
+  test('good morning gives the briefing', () {
+    const plan = '2 for today: Buy groceries at 7:00 pm, Call Ammu at 9:00 pm. Also 2 overdue.';
+    expect(ask('Good morning'), 'Good morning. Friday 6 November. $plan');
+    expect(ask('Hey Jarvis, good morning'), 'Good morning. Friday 6 November. $plan');
+    expect(ask('brief me'), 'Good evening. Friday 6 November. $plan'); // it is 6 pm in the test
+  });
+
   test('other notes are left alone', () {
     expect(ask('Buy groceries today at 7pm'), isNull);
     expect(ask('spent 250 on lunch'), isNull);
     expect(ask('when is the exam?'), isNull);
+    expect(ask('good morning team meeting at 9'), isNull);
+    expect(ask('next week gym'), isNull);
   });
 }
