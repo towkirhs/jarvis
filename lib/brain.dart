@@ -135,7 +135,7 @@ class Brain {
     if (c['image'] == null && ChatGptBlock.has(c['raw'] as String)) {
       c['via'] = 'ChatGPT';
       try {
-        return _apply(s, c, ChatGptBlock.parse(c['raw'] as String)!);
+        return await _apply(s, c, ChatGptBlock.parse(c['raw'] as String)!);
       } on FormatException catch (e) {
         return _apply(s, c, {'items': <dynamic>[], 'reply': 'I could not read that ChatGPT block: ${e.message}.'});
       }
