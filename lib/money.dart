@@ -552,9 +552,14 @@ class _MoneyPageState extends State<MoneyPage> {
     return ListView(
       padding: const EdgeInsets.only(bottom: 80),
       children: [
-        ListTile(
-          title: const Text('Total balance', style: TextStyle(fontWeight: FontWeight.bold)),
-          trailing: Text(s.money(total), style: const TextStyle(fontSize: 17)),
+        // What you have in all, as the headline of the page.
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Total balance', style: Theme.of(context).textTheme.labelLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            const SizedBox(height: 4),
+            Text(s.money(total), style: Theme.of(context).textTheme.displaySmall?.copyWith(color: total < 0 ? _expenseColor : null)),
+          ]),
         ),
         const Divider(height: 1),
         for (final a in accts)

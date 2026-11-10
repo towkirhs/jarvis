@@ -82,8 +82,16 @@ ColorScheme _scheme(Color accent, {required bool dark, required bool own}) {
           outline: const Color(0xFF8A8FA0),
           outlineVariant: const Color(0xFFD3D7E0),
         );
-  if (!own) return base;
-  // Kingfisher teal exactly as drawn, with its orange as the second colour.
+  final scheme = own ? _own(base, dark) : base;
+  // Tinted fills (a marked day, a selected chip) are a soft wash of the accent with normal text on top.
+  return scheme.copyWith(
+    primaryContainer: Color.alphaBlend(scheme.primary.withValues(alpha: dark ? 0.24 : 0.14), scheme.surfaceContainerLow),
+    onPrimaryContainer: scheme.onSurface,
+  );
+}
+
+/// Kingfisher teal exactly as drawn, with its orange as the second colour.
+ColorScheme _own(ColorScheme base, bool dark) {
   return dark
       ? base.copyWith(
           primary: const Color(0xFF5CC8DB),

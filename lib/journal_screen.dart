@@ -242,6 +242,7 @@ class _JournalScreenState extends State<JournalScreen> {
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => DayPage(store: s, day: day))),
         leading: CircleAvatar(
           backgroundColor: mood == null ? Theme.of(context).colorScheme.surfaceContainerHighest : moodColors[mood],
+          foregroundColor: Theme.of(context).colorScheme.onSurface,
           child: Text(mood == null ? '${DateTime.parse(day).day}' : moodFaces[mood]),
         ),
         title: Text(_niceDay(day)),
