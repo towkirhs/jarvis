@@ -442,7 +442,7 @@ class _HomeScreenState extends State<HomeScreen> {
         padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
         child: Container(
           padding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
-          decoration: BoxDecoration(color: scheme.surfaceContainerHigh, borderRadius: BorderRadius.circular(28)),
+          decoration: BoxDecoration(color: scheme.surfaceContainerLow, borderRadius: BorderRadius.circular(28)),
           child: Row(
             children: [
               Expanded(
@@ -452,7 +452,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   maxLines: 5,
                   textCapitalization: TextCapitalization.sentences,
                   decoration: const InputDecoration(
-                    hintText: 'Tell Jarvis… or start with task:, calendar:, journal:',
+                    hintText: 'Tell Jarvis anything',
                     filled: false,
                     border: InputBorder.none,
                     enabledBorder: InputBorder.none,
@@ -489,7 +489,7 @@ class _HomeScreenState extends State<HomeScreen> {
           margin: const EdgeInsets.only(top: 4, bottom: 4),
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
           decoration: BoxDecoration(
-            color: scheme.primaryContainer,
+            color: scheme.primary,
             borderRadius: const BorderRadius.only(
               topLeft: Radius.circular(20),
               topRight: Radius.circular(20),
@@ -503,10 +503,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.file(File(image), height: 160)),
               ),
-            Text('${c['raw']}', style: tt.bodyLarge?.copyWith(color: scheme.onPrimaryContainer)),
+            Text('${c['raw']}', style: tt.bodyLarge?.copyWith(color: scheme.onPrimary)),
             const SizedBox(height: 4),
             Text('${clock(c['ts'] as int)}${c['edited'] == true ? ', edited' : ''}',
-                style: tt.labelSmall?.copyWith(color: scheme.onPrimaryContainer.withValues(alpha: 0.7))),
+                style: tt.labelSmall?.copyWith(color: scheme.onPrimary.withValues(alpha: 0.75))),
           ]),
         ),
       ),
@@ -538,7 +538,7 @@ class _HomeScreenState extends State<HomeScreen> {
             margin: const EdgeInsets.only(top: 4, bottom: 8),
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             decoration: BoxDecoration(
-              color: scheme.surfaceContainerHigh,
+              color: scheme.surfaceContainerLow,
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(4),
                 topRight: Radius.circular(20),

@@ -20,9 +20,14 @@ class Latte {
 
 Color _tint(Color c, double a) => Color.alphaBlend(c.withValues(alpha: a), Latte.base);
 
-/// Accent colours the whole app can be painted in. 'default' is indigo, or mauve in Latte.
+/// The app's own colours, after the kingfisher: a deep teal for what you act on, and its orange for the
+/// one thing that needs you now.
+const kingfisher = Color(0xFF0B7285);
+const _ember = Color(0xFFE8590C);
+
+/// Accent colours the whole app can be painted in. 'default' is kingfisher teal, or mauve in Latte.
 const accents = <String, Color>{
-  'default': Colors.indigo,
+  'default': kingfisher,
   'mauve': Color(0xFF8839EF),
   'blue': Color(0xFF1E66F5),
   'sapphire': Color(0xFF209FB5),
@@ -38,14 +43,64 @@ final _themes = <String, ThemeData>{};
 
 /// The theme for a look ('light', 'dark' or 'latte') in an accent, built once and reused.
 ThemeData themeFor(String look, String accent) => _themes.putIfAbsent('$look/$accent', () {
-      final color = accents[accent] ?? Colors.indigo;
+      final color = accents[accent] ?? kingfisher;
       if (look == 'latte') return _latte(accent == 'default' ? Latte.mauve : color);
-      return polish(ThemeData(
-        colorSchemeSeed: color,
-        brightness: look == 'dark' ? Brightness.dark : Brightness.light,
-        useMaterial3: true,
-      ));
+      return polish(ThemeData(colorScheme: _scheme(color, dark: look == 'dark', own: accent == 'default'), useMaterial3: true));
     });
+
+/// The accent decides only what you act on. Everything behind it is the same quiet neutral in every accent:
+/// a soft ground with plain cards lifted off it (white by day, graphite by night), so content reads in layers.
+ColorScheme _scheme(Color accent, {required bool dark, required bool own}) {
+  final seed = ColorScheme.fromSeed(
+    seedColor: accent,
+    brightness: dark ? Brightness.dark : Brightness.light,
+    dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
+  );
+  final base = dark
+      ? seed.copyWith(
+          surface: const Color(0xFF0D0F14),
+          onSurface: const Color(0xFFECEEF3),
+          onSurfaceVariant: const Color(0xFFA3A9B8),
+          surfaceContainerLowest: const Color(0xFF090B0F),
+          surfaceContainerLow: const Color(0xFF171A21),
+          surfaceContainer: const Color(0xFF1B1F27),
+          surfaceContainerHigh: const Color(0xFF222731),
+          surfaceContainerHighest: const Color(0xFF2A303C),
+          outline: const Color(0xFF757B8A),
+          outlineVariant: const Color(0xFF2E3440),
+        )
+      : seed.copyWith(
+          surface: const Color(0xFFF3F4F8),
+          onSurface: const Color(0xFF14161F),
+          onSurfaceVariant: const Color(0xFF5F6473),
+          surfaceContainerLowest: Colors.white,
+          surfaceContainerLow: Colors.white,
+          surfaceContainer: const Color(0xFFECEEF3),
+          surfaceContainerHigh: const Color(0xFFE5E8EE),
+          surfaceContainerHighest: const Color(0xFFDDE1E9),
+          outline: const Color(0xFF8A8FA0),
+          outlineVariant: const Color(0xFFD3D7E0),
+        );
+  if (!own) return base;
+  // Kingfisher teal exactly as drawn, with its orange as the second colour.
+  return dark
+      ? base.copyWith(
+          primary: const Color(0xFF5CC8DB),
+          onPrimary: const Color(0xFF00363F),
+          tertiary: const Color(0xFFFF9A62),
+          onTertiary: const Color(0xFF3A1400),
+          tertiaryContainer: const Color(0xFF5A2600),
+          onTertiaryContainer: const Color(0xFFFFDCC8),
+        )
+      : base.copyWith(
+          primary: kingfisher,
+          onPrimary: Colors.white,
+          tertiary: _ember,
+          onTertiary: Colors.white,
+          tertiaryContainer: const Color(0xFFFFE8DB),
+          onTertiaryContainer: const Color(0xFF5A2000),
+        );
+}
 
 ThemeData _latte(Color accent) => polish(ThemeData(
   useMaterial3: true,
@@ -85,8 +140,8 @@ ThemeData _latte(Color accent) => polish(ThemeData(
 ));
 
 
-/// One set of shapes, weights and spacing for every theme, so each screen reads the same way:
-/// bold titles, flat rounded cards, no shadows, and filled fields.
+/// One set of shapes, weights, spacing and motion for every theme, so each screen reads the same way:
+/// bold titles, flat rounded cards, no shadows, filled fields, pill chips, and pages that slide.
 ThemeData polish(ThemeData t) {
   final c = t.colorScheme;
   final tt = t.textTheme;
@@ -100,10 +155,23 @@ ThemeData polish(ThemeData t) {
   TextStyle? display(TextStyle? s, FontWeight weight, [double? spacing]) =>
       w(s, weight, spacing)?.copyWith(fontFamily: 'Bricolage');
   RoundedRectangleBorder round(double r) => RoundedRectangleBorder(borderRadius: BorderRadius.circular(r));
-  // Material 3 shape scale: small 8 (chips), medium 12 (fields, list items), large 16 (cards, FAB),
-  // extra large 28 (dialogs, sheets); buttons and the nav indicator stay fully round.
-  final field = OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none);
+  // Shape scale: 14 (fields, buttons, list items), 20 (cards, FAB, menus), 28 (dialogs, sheets);
+  // chips and the nav indicator are fully round.
+  final field = OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none);
+  final button = ButtonStyle(
+    shape: WidgetStatePropertyAll(round(14)),
+    minimumSize: const WidgetStatePropertyAll(Size(0, 44)),
+  );
   return t.copyWith(
+    // Pages slide in from the side and can be swiped back from the edge.
+    pageTransitionsTheme: const PageTransitionsTheme(
+      builders: {TargetPlatform.android: CupertinoPageTransitionsBuilder()},
+    ),
+    filledButtonTheme: FilledButtonThemeData(style: button),
+    outlinedButtonTheme: OutlinedButtonThemeData(style: button),
+    elevatedButtonTheme: ElevatedButtonThemeData(style: button),
+    tabBarTheme: const TabBarThemeData(dividerColor: Colors.transparent),
+    popupMenuTheme: PopupMenuThemeData(color: c.surfaceContainerLow, surfaceTintColor: Colors.transparent, shape: round(20)),
     textTheme: tt.copyWith(
       displaySmall: display(tt.displaySmall, FontWeight.w800, -1),
       headlineMedium: display(tt.headlineMedium, FontWeight.w800, -0.6),
@@ -122,7 +190,7 @@ ThemeData polish(ThemeData t) {
       elevation: 0,
       color: c.surfaceContainerLow,
       margin: const EdgeInsets.symmetric(vertical: 4),
-      shape: round(16),
+      shape: round(20),
       clipBehavior: Clip.antiAlias,
     ),
     appBarTheme: AppBarTheme(
@@ -131,7 +199,7 @@ ThemeData polish(ThemeData t) {
       scrolledUnderElevation: 0,
       centerTitle: false,
       // The theme's text styles get their sizes later, so the app bar title needs its size here.
-      titleTextStyle: display(tt.titleLarge, FontWeight.w700, -0.2)?.copyWith(color: c.onSurface, fontSize: 22, height: 1.27),
+      titleTextStyle: display(tt.titleLarge, FontWeight.w800, -0.5)?.copyWith(color: c.onSurface, fontSize: 26, height: 1.2),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
@@ -144,20 +212,40 @@ ThemeData polish(ThemeData t) {
       height: 68,
       elevation: 0,
       backgroundColor: c.surfaceContainerLow,
-      indicatorColor: c.secondaryContainer,
+      surfaceTintColor: Colors.transparent,
+      indicatorColor: c.primary.withValues(alpha: 0.14),
+      // The tab you are on is in the accent; the rest stay quiet.
+      iconTheme: WidgetStateProperty.resolveWith(
+        (s) => IconThemeData(color: s.contains(WidgetState.selected) ? c.primary : c.onSurfaceVariant),
+      ),
       labelTextStyle: WidgetStateProperty.resolveWith(
-        (s) => tt.labelSmall?.copyWith(fontWeight: s.contains(WidgetState.selected) ? FontWeight.w700 : FontWeight.w500),
+        (s) => s.contains(WidgetState.selected)
+            ? tt.labelSmall?.copyWith(fontWeight: FontWeight.w700, color: c.primary)
+            : tt.labelSmall?.copyWith(fontWeight: FontWeight.w500, color: c.onSurfaceVariant),
       ),
     ),
-    floatingActionButtonTheme: FloatingActionButtonThemeData(elevation: 1, highlightElevation: 2, shape: round(16)),
-    snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: round(8)),
+    // The one main action on a screen is the strongest thing on it.
+    floatingActionButtonTheme: FloatingActionButtonThemeData(
+      elevation: 2,
+      highlightElevation: 3,
+      backgroundColor: c.primary,
+      foregroundColor: c.onPrimary,
+      shape: round(20),
+    ),
+    snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, shape: round(14)),
     dividerTheme: DividerThemeData(color: c.outlineVariant.withValues(alpha: 0.5), thickness: 1, space: 1),
-    listTileTheme: ListTileThemeData(shape: round(12)),
-    chipTheme: t.chipTheme.copyWith(shape: round(8)),
-    dialogTheme: DialogThemeData(shape: round(28)),
-    bottomSheetTheme: const BottomSheetThemeData(
+    listTileTheme: ListTileThemeData(shape: round(14)),
+    chipTheme: t.chipTheme.copyWith(
+      shape: const StadiumBorder(),
+      side: BorderSide.none,
+      backgroundColor: c.surfaceContainerHigh,
+    ),
+    dialogTheme: DialogThemeData(shape: round(28), backgroundColor: c.surfaceContainerLow, surfaceTintColor: Colors.transparent),
+    bottomSheetTheme: BottomSheetThemeData(
       showDragHandle: true,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+      backgroundColor: c.surfaceContainerLow,
+      surfaceTintColor: Colors.transparent,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
     ),
   );
 }

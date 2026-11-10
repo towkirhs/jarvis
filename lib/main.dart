@@ -72,6 +72,8 @@ class JarcisApp extends StatelessWidget {
               'dark' => ThemeMode.dark,
               _ => ThemeMode.system,
             },
+            // Lists stretch and settle at their ends instead of stopping dead.
+            scrollBehavior: const MaterialScrollBehavior().copyWith(physics: const BouncingScrollPhysics(), overscroll: false),
             home: Shell(store: store),
           );
         },

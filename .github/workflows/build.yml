@@ -124,7 +124,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cp jarcis.apk jarvis-dev.apk
-          gh release create "overhaul-${{ github.run_number }}" jarvis-dev.apk --prerelease --target overhaul --title "Jarvis Dev (overhaul) ${{ github.run_number }}" --notes "Test build of the overhaul branch. Installs next to the real Jarvis as a separate app called Jarvis Dev, with its own empty data."
+          gh release create "overhaul-${{ github.run_number }}" jarvis-dev.apk jarcis-web.zip --prerelease --target overhaul --title "Jarvis Dev (overhaul) ${{ github.run_number }}" --notes "Test build of the overhaul branch. Installs next to the real Jarvis as a separate app called Jarvis Dev, with its own empty data."
 
       - name: Publish release
         if: github.ref == 'refs/heads/main'
