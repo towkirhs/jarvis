@@ -34,7 +34,8 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
 
 ## Overhaul branch
 - `overhaul` is a phased revamp aimed at Google Play. Order: voice and understanding → bubble and quick capture →
-  look and feel → security and store readiness. It merges to main only after I have tried it on my phone.
+  look and feel → security and store readiness. Phases 1–3 were merged to main on 2026-11-10 (my call, before
+  phone testing); phase 4 (security and Play Store) is on hold until I say so.
 - Every push to `overhaul` publishes a pre-release `overhaul-N` with `jarvis-dev.apk`: a separate app
   ("Jarvis Dev", `com.towkirhs.jarcis.dev`) that installs next to the real one with its own empty data.
 
