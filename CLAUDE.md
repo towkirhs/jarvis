@@ -38,6 +38,16 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
 - Every push to `overhaul` publishes a pre-release `overhaul-N` with `jarvis-dev.apk`: a separate app
   ("Jarvis Dev", `com.towkirhs.jarcis.dev`) that installs next to the real one with its own empty data.
 
+## Design (on `overhaul`)
+- All looks come from `lib/theme.dart`: `_scheme` (colours) and `polish` (shapes, type, motion). Screens take
+  colours from the theme's `ColorScheme`; do not hard-code new ones.
+- Kingfisher teal `#0B7285` is the default accent, with its orange as `tertiary` for the one urgent thing.
+  Behind any accent the surfaces are the same neutrals: ground = `surface`, cards = `surfaceContainerLow`
+  (white by day, graphite by night), fields = `surfaceContainerHighest`. `primaryContainer` is a soft accent
+  wash with normal `onSurface` text.
+- Shapes: 14 fields/buttons, 20 cards/FAB/menus, 28 dialogs/sheets, pill chips. Titles in Bricolage.
+- Pages slide (Cupertino transition) and lists bounce. The FAB is the one solid-accent action per screen.
+
 ## Local development (Windows)
 - Recreate the Android scaffold the same way CI does (the "Generate scaffold" and "Apply Android overlay" steps
   in the workflow). They are bash commands: run them in Git Bash. Re-copy the overlay after editing Kotlin files.
@@ -47,8 +57,8 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
   (in the generated `android/` only, never in CI). Read phone logs with `adb logcat`.
 
 ## Open items
-1. UI: make Accounts' "Total balance" row prominent; the Home chips row is cut off on the right;
-   animations ignore the reduced-motion setting.
+1. UI: animations ignore the reduced-motion setting. Accounts shows both an "Add account" button and an
+   "Account" FAB.
 2. Not yet confirmed on my phone: the build-128 Essential Key fix, the "Hey Jarvis" standby fix (build 138),
    voice briefing questions (build 140), ChatGPT blocks (build 143).
 3. On `overhaul`, untested on a phone: `untilDone` items (ring daily until marked done), speech language
