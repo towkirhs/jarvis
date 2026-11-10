@@ -76,6 +76,21 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- "Type to Jarvis": a small typing card over the current app (Handy's bubble, or a button app). -->
+        <activity
+            android:name=".TypeActivity"
+            android:label="Type to Jarvis"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:windowSoftInputMode="stateAlwaysVisible|adjustResize"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="com.towkirhs.jarcis.TYPE"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+            </intent-filter>
+        </activity>
         <activity
             android:name=".ShareActivity"
             android:exported="true"

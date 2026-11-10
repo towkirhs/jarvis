@@ -29,11 +29,15 @@ object Chat {
     private const val KEY_TEXT = "reply_text"
     private const val FRESH_MS = 30 * 60 * 1000L // a chat older than this starts over
 
+    /** The typing card, while it is on screen: it shows Jarvis's answer itself, so no notification is needed. */
+    var card: ((String) -> Unit)? = null
+
     /** Jarvis says something: add it to the chat and show it. */
     fun jarvisSays(context: Context, text: String) {
         if (text.isBlank()) return
         add(context, "jarvis", text)
-        show(context, thinking = false)
+        val shown = card
+        if (shown != null) shown(text) else show(context, thinking = false)
     }
 
     /** The person answered from a notification: show it at once (so the reply spinner stops), then queue it. */

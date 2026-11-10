@@ -234,6 +234,7 @@ class _VoicePageState extends State<VoicePage> with WidgetsBindingObserver {
           style: tt.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
         ),
         copy('Listen', 'com.towkirhs.jarcis.TALK'),
+        copy('Type to Jarvis (a small card, the app stays closed)', 'com.towkirhs.jarcis.TYPE'),
         copy('Photo to Jarvis (receipt, bill, note)', 'com.towkirhs.jarcis.SNAP'),
         copy('Run one of your own commands (extra "text" = the phrase)', 'com.towkirhs.jarcis.DO'),
         copy('App package', 'com.towkirhs.jarcis'),

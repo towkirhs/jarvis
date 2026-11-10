@@ -11,11 +11,12 @@ class MainActivity : FlutterActivity() {
     private var channel: MethodChannel? = null
     private var pendingShared: String? = null
     private var pendingLaunch: String? = null
+    private var started = false
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         pendingShared = sharedTextFrom(intent)
-        pendingLaunch = intent?.getStringExtra("jarvis_capture")
+        pendingLaunch = intent?.getStringExtra("jarvis_capture").takeIf { it != "text" }
         val ch = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "jarcis/native")
         channel = ch
         live = ch
@@ -75,8 +76,35 @@ class MainActivity : FlutterActivity() {
         super.cleanUpFlutterEngine(flutterEngine)
     }
 
+    /** The bubble's "text" opens the small typing card over what you are doing, not the whole app. */
+    private fun typingCard(intent: Intent?): Boolean {
+        if (intent?.getStringExtra("jarvis_capture") != "text") return false
+        startActivity(Intent(this, TypeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        return true
+    }
+
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+        super.onCreate(savedInstanceState)
+        if (savedInstanceState == null && typingCard(intent)) finish()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        started = true
+    }
+
+    override fun onStop() {
+        started = false
+        super.onStop()
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        if (typingCard(intent)) {
+            // Jarvis was in the background: put it back there, so only the card shows.
+            if (!started) moveTaskToBack(true)
+            return
+        }
         sharedTextFrom(intent)?.let { channel?.invokeMethod("sharedText", it) }
         intent.getStringExtra("jarvis_capture")?.let { channel?.invokeMethod("launchAction", it) }
     }

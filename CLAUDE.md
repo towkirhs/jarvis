@@ -53,6 +53,8 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    voice briefing questions (build 140), ChatGPT blocks (build 143).
 3. On `overhaul`, untested on a phone: `untilDone` items (ring daily until marked done), speech language
    setting (default en-IN), listening card retry, notes with before/until/if/every going to the AI.
+   Also the typing card (`TypeActivity` in `QuickNote.kt`): Handy's bubble "text" and the action
+   `com.towkirhs.jarcis.TYPE` open it over the current app, and Jarvis answers inside it.
 5. Groq web answers show no source links (response shape unconfirmed).
 6. Calendar, deferred: custom repeats, find free time, global search, weekly review, what-if planning.
 7. Known limits: repeating events show only the next time; imported times with a named time zone are read as
