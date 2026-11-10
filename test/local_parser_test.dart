@@ -117,6 +117,12 @@ void main() {
       'buy 3 eggs',
       'got a call at 5',
       'business meeting went well',
+      // Deadlines, conditions and repeats need real understanding, not rules.
+      'Remind me to tell oishi to come before Friday set alarm at 8pm until task done',
+      'remind me every day at 8pm to take medicine',
+      'call the bank at 3pm unless they call first',
+      'remind me at 9pm if I have not studied',
+      'keep reminding me at 8pm to pay rent',
     ]) {
       test(note, () => expect(LocalParser.parse(note, now: now), isNull));
     }

@@ -111,6 +111,11 @@ object NativeChannel {
                 if (on) WakeService.start(context) else WakeService.stop(context)
                 result.success(null)
             }
+            "speechLang" -> {
+                context.getSharedPreferences("jarcis_cmds", Context.MODE_PRIVATE).edit()
+                    .putString("speech_lang", call.argument<String>("lang") ?: "").apply()
+                result.success(null)
+            }
             "voiceAccess" -> {
                 fun has(p: String) = context.checkSelfPermission(p) == android.content.pm.PackageManager.PERMISSION_GRANTED
                 result.success(mapOf(

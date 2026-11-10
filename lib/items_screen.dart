@@ -79,6 +79,7 @@ class ItemTile extends StatelessWidget {
     final details = [
       if (w != null) it['allDay'] == true ? niceDay(w) : niceWhen(w),
       if (it['repeat'] != null) repeatNames[it['repeat']]!,
+      if (it['untilDone'] == true) 'daily until done',
       if (est != null) fmtMinutes(est),
       if (it['dur'] != null) fmtMinutes(it['dur'] as int),
       if (postponed > 0) 'postponed ${postponed}x',

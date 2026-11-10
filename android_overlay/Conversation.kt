@@ -159,9 +159,7 @@ class VoiceActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (savedInstanceState != null) return
-        val listen = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-            .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            .putExtra(RecognizerIntent.EXTRA_PROMPT, "Tell Jarvis")
+        val listen = ListenActivity.speechIntent(this).putExtra(RecognizerIntent.EXTRA_PROMPT, "Tell Jarvis")
         try {
             @Suppress("DEPRECATION")
             startActivityForResult(listen, 1)

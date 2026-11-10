@@ -32,6 +32,12 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
 - CI often fails with 504s downloading Gradle or Kotlin files. That isn't a code error: re-run the failed job.
 - Releases are signed with a fixed key from a repo secret, so they update over each other.
 
+## Overhaul branch
+- `overhaul` is a phased revamp aimed at Google Play. Order: voice and understanding → bubble and quick capture →
+  look and feel → security and store readiness. It merges to main only after I have tried it on my phone.
+- Every push to `overhaul` publishes a pre-release `overhaul-N` with `jarvis-dev.apk`: a separate app
+  ("Jarvis Dev", `com.towkirhs.jarcis.dev`) that installs next to the real one with its own empty data.
+
 ## Local development (Windows)
 - Recreate the Android scaffold the same way CI does (the "Generate scaffold" and "Apply Android overlay" steps
   in the workflow). They are bash commands: run them in Git Bash. Re-copy the overlay after editing Kotlin files.
@@ -45,8 +51,8 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    animations ignore the reduced-motion setting.
 2. Not yet confirmed on my phone: the build-128 Essential Key fix, the "Hey Jarvis" standby fix (build 138),
    voice briefing questions (build 140), ChatGPT blocks (build 143).
-3. Wanted: "remind me daily until done" (a deadline task whose alarm repeats until the task is marked done).
-4. Parser: the on-phone rules take notes with "before/until/by" that should go to the AI.
+3. On `overhaul`, untested on a phone: `untilDone` items (ring daily until marked done), speech language
+   setting (default en-IN), listening card retry, notes with before/until/if/every going to the AI.
 5. Groq web answers show no source links (response shape unconfirmed).
 6. Calendar, deferred: custom repeats, find free time, global search, weekly review, what-if planning.
 7. Known limits: repeating events show only the next time; imported times with a named time zone are read as

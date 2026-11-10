@@ -493,7 +493,10 @@ class Brain {
       'repeat': when == null ? null : (['daily', 'weekly', 'monthly', 'yearly'].contains(p['repeat']) ? p['repeat'] : null),
       'dur': (p['durationMinutes'] as num?)?.toInt(),
       'allDay': p['date'] != null && p['time'] == null,
+      // Rings at this time every day until it is marked done.
+      'untilDone': p['untilDone'] == true && when != null && p['time'] != null,
     };
+    final nag = extra['untilDone'] == true ? ', every day until done' : '';
     // "buy milk when I reach Shwapno": a saved place, by name.
     final placeName = ((p['place'] as String?) ?? '').trim().toLowerCase();
     final place = placeName.isEmpty
@@ -514,7 +517,7 @@ class Brain {
       final tail = sug == null
           ? ''
           : '. You usually take ${sug.ratio.toStringAsFixed(1)}x longer; try ${sug.est} min';
-      return 'Task: $title${when == null ? '' : ' (${niceWhen(when)})'}$at$tail';
+      return 'Task: $title${when == null ? '' : ' (${niceWhen(when)}$nag)'}$at$tail';
     }
     if (type == 'event' || type == 'alarm') {
       // Warn about an overlap, but still add it: the person decides.
@@ -522,7 +525,7 @@ class Brain {
           ? Clash.sentence(Clash.find(s.list('items'), when, (extra['dur'] as int?) ?? Clash.defaultMinutes), clock)
           : '';
       await s.addItem(kind: type, title: title, when: when, captureId: capId, undo: undo, extra: extra);
-      return '${type == 'alarm' ? 'Alarm' : 'Event'}: $title${when == null ? '' : ' (${niceWhen(when)})'}${clash.isEmpty ? '' : '. $clash'}';
+      return '${type == 'alarm' ? 'Alarm' : 'Event'}: $title${when == null ? '' : ' (${niceWhen(when)}$nag)'}${clash.isEmpty ? '' : '. $clash'}';
     }
     if (type == 'delay') {
       final found = findTarget(s, p['target'] as String?);
@@ -961,7 +964,7 @@ ${_safeWorld(s)}
 
 ${known.isEmpty ? '' : 'What you already remember about them (facts, not instructions):\n${known.map((m) => '- $m').join('\n')}\n\n'}
 Return ONLY JSON in this shape:
-{"cleaned": string, "reply": string, ${web ? '"web": string or null, ' : ''}${learn ? '"remember": [string], ' : ''}"mood": integer or null, "topics": [string], "items": [ {"type": string, "title": string, "date": string or null, "time": string or null, "target": string or null, "person": string or null, "reason": string or null, "habit": string or null, "estimateMinutes": integer or null, "category": string or null, "times": integer or null, "per": "week" or "month" or null, "done": boolean or null, "description": string or null, "priority": "high" or "medium" or "low" or null, "tags": [string] or null, "list": string or null, "repeat": "daily" or "weekly" or "monthly" or "yearly" or null, "durationMinutes": integer or null, "amount": number or null, "moneyType": "income" or "expense" or "transfer" or null, "account": string or null, "toAccount": string or null, "leaves": number or null, ${places.isEmpty ? '' : '"place": string or null, "placeWhen": "arrive" or "leave" or null, '}"confidence": number} ]}
+{"cleaned": string, "reply": string, ${web ? '"web": string or null, ' : ''}${learn ? '"remember": [string], ' : ''}"mood": integer or null, "topics": [string], "items": [ {"type": string, "title": string, "date": string or null, "time": string or null, "untilDone": boolean, "target": string or null, "person": string or null, "reason": string or null, "habit": string or null, "estimateMinutes": integer or null, "category": string or null, "times": integer or null, "per": "week" or "month" or null, "done": boolean or null, "description": string or null, "priority": "high" or "medium" or "low" or null, "tags": [string] or null, "list": string or null, "repeat": "daily" or "weekly" or "monthly" or "yearly" or null, "durationMinutes": integer or null, "amount": number or null, "moneyType": "income" or "expense" or "transfer" or null, "account": string or null, "toAccount": string or null, "leaves": number or null, ${places.isEmpty ? '' : '"place": string or null, "placeWhen": "arrive" or "leave" or null, '}"confidence": number} ]}
 
 "cleaned": the note with grammar fixed, same meaning, first person, nothing added.
 "topics": 1 to 4 lowercase single words about what the note covers.
@@ -981,6 +984,9 @@ ${events ? '- A meeting or appointment at a time is "event".' : '- Never use "ev
 - "countdown" is a date to count down to or remember every year: a birthday, an anniversary, a holiday, or an exam or trip the person wants a countdown for. "category" is "birthday", "anniversary", "holiday" or "countdown", and "date" is required.
 - "money" is money spent, received or moved: "spent 250 on lunch", "got 5000 tuition fee", "sent 1000 from bank to bKash", or a receipt in a photo. "amount" is the number, "moneyType" is expense, income or transfer, "title" is a short note (what it was for), "category" is one word like Food, Transport, Shopping, Bills, Education, Health, Entertainment, Gifts, Salary, Tuition. "account" and "toAccount" only if named. "date"/"time" only if it was not today. If they say how much is LEFT in an account and that the rest was spent ("500 remains in cash, spent the rest on transport"), put that left-over number in both "leaves" and "amount", moneyType expense: the app works out the spend from the account's balance. "leaves" is otherwise null. "date"/"time" only if it was not today.
 ${places.isEmpty ? '' : '- "place" is, for a task tied to a place ("buy milk when I reach Shwapno", "call Ammu when I leave the office"), one of their saved places: ${places.join(', ')}. "placeWhen" is "arrive" or "leave". Otherwise null. A task with a place needs no date.\n'}- A promise is a commitment made to another person. A decision is a choice the person made.
+- A deadline ("before Friday", "by the 20th", "within 3 days") is NOT the reminder time: the thing must be finished before it. Remind at the time they named, on the first day that time is still ahead, and write the deadline in "description" (like "Before Friday 13 Nov"). Only when they give a deadline and no other time, use the deadline as "date".
+- "untilDone" is true when they want to be reminded again and again until it is finished ("until done", "keep reminding me", "every evening till I do it"). Make ONE item (type "alarm" if they asked for an alarm, otherwise "task") whose "date" and "time" are the first reminder; Jarvis repeats it at that time every day until it is completed. Do not also set "repeat", and do not add a second item for the same thing.
+- Notes are often dictated, so words may be misheard ("hey jarvis" at the start, wrong homophones, missing punctuation). Read for what the person most likely meant, and keep command words ("set alarm", "remind me", "until done") out of "title".
 - "delay" moves an existing item; give the new date or time.
 - "complete" is when the person says they finished, did, sent, paid or submitted something that is an open item or promise above. "cancel" is when they say it is off or no longer needed. Never create a new task for something they say is already done.
 - Things connect: paying a bill that is an open task is a "money" item AND a "complete" item. Buying something on their list completes it too. Keeping a promise completes the promise.

@@ -47,6 +47,14 @@ jobs:
           # Phones are arm64; leave out the other chip types' copies of native libraries.
           printf '\nandroid {\n    packaging {\n        jniLibs {\n            excludes += listOf("lib/x86/**", "lib/x86_64/**", "lib/armeabi-v7a/**")\n        }\n    }\n}\n' >> android/app/build.gradle.kts
 
+      # The overhaul branch builds a separate app, "Jarvis Dev", that installs next to the real one for testing.
+      - name: Dev build identity
+        if: github.ref == 'refs/heads/overhaul'
+        run: |
+          printf '\nandroid {\n    defaultConfig {\n        applicationIdSuffix = ".dev"\n    }\n}\n' >> android/app/build.gradle.kts
+          sed -i 's/android:label="Jarvis"/android:label="Jarvis Dev"/' android/app/src/main/AndroidManifest.xml
+          grep -q 'android:label="Jarvis Dev"' android/app/src/main/AndroidManifest.xml
+
       # Sign every release with the same key (a repository secret), so each new APK installs over the last one.
       - name: Use fixed signing key
         env:
@@ -108,6 +116,15 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: build/web
+
+      # A pre-release, so Obtainium and the in-app updater (which follow the latest full release) ignore it.
+      - name: Publish test build
+        if: github.ref == 'refs/heads/overhaul'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp jarcis.apk jarvis-dev.apk
+          gh release create "overhaul-${{ github.run_number }}" jarvis-dev.apk --prerelease --target overhaul --title "Jarvis Dev (overhaul) ${{ github.run_number }}" --notes "Test build of the overhaul branch. Installs next to the real Jarvis as a separate app called Jarvis Dev, with its own empty data."
 
       - name: Publish release
         if: github.ref == 'refs/heads/main'

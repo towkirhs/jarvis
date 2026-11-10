@@ -157,6 +157,11 @@ class LocalParser {
     if (words == 0 || words > 22 || text.contains('\n')) return null;
     if (RegExp(r'[.!?]\s+\S').hasMatch(text)) return null;
     if (RegExp(r'\b(and then|also|then|after that|tar por|tarpor)\b').hasMatch(t)) return null;
+    // Deadlines ("before Friday"), conditions and repeats need understanding, not rules.
+    if (RegExp(r'\b(before|until|till|unless|if|whenever|every|each|daily|weekly|monthly|keep reminding|instead)\b').hasMatch(t) &&
+        !RegExp(r'^(?:please\s+)?(move|push|postpone|shift|delay|reschedule)\b').hasMatch(t)) {
+      return null;
+    }
     // A question is for Jarvis to answer, not to turn into a task ("today any match?").
     if (isQuestion(text)) return null;
 

@@ -172,8 +172,11 @@ class Store extends ChangeNotifier {
     if (col == 'countdowns') return _syncCountdown(r);
     final nid = r['nid'] as int?;
     if (nid == null) return;
-    final at = col == 'items' ? r['when'] as int? : r['remindAt'] as int?;
+    var at = col == 'items' ? r['when'] as int? : r['remindAt'] as int?;
     if (col == 'items') await _syncLead(r, nid, at);
+    // "Until done": it comes back at the same time every day until the item is finished.
+    final untilDone = col == 'items' && r['untilDone'] == true && at != null;
+    if (untilDone) at = nextDaily(at, DateTime.now());
     if (at == null || r['status'] != 'open' || at <= DateTime.now().millisecondsSinceEpoch) {
       await Native.cancel(nid);
       return;
@@ -186,7 +189,16 @@ class Store extends ChangeNotifier {
     final label = col == 'items'
         ? (isAlarm ? r['title'] as String : 'Due: ${r['title']}')
         : 'Promise to ${r['person']}: ${r['what']}';
-    await Native.schedule(id: nid, millis: at, kind: isAlarm ? 'alarm' : 'notice', label: label);
+    await Native.schedule(id: nid, millis: at, kind: isAlarm ? 'alarm' : 'notice', label: label, repeatDaily: untilDone);
+  }
+
+  /// [when] itself if it is still ahead, otherwise the next time the clock shows the same hour and minute.
+  static int nextDaily(int when, DateTime now) {
+    final w = fromMs(when);
+    if (w.isAfter(now)) return when;
+    var d = DateTime(now.year, now.month, now.day, w.hour, w.minute);
+    if (!d.isAfter(now)) d = DateTime(now.year, now.month, now.day + 1, w.hour, w.minute);
+    return d.millisecondsSinceEpoch;
   }
 
   /// The reminder a while before an item ("In 15 min: Physics class"), if it has one and it is still ahead.

@@ -236,6 +236,7 @@ object NewClocks {
  */
 class ListenActivity : Activity() {
     private var recognizer: SpeechRecognizer? = null
+    private var retried = false
     private lateinit var line: TextView
     private val main by lazy { Handler(Looper.getMainLooper()) }
 
@@ -331,7 +332,14 @@ class ListenActivity : Activity() {
                 partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
                     ?.takeIf { it.isNotBlank() }?.let { line.text = it }
             }
-            override fun onError(error: Int) = finish()
+            override fun onError(error: Int) {
+                // The mic may still be with the wake word, or nothing was heard yet: try once more before giving up.
+                if (retried || isFinishing) return finish()
+                retried = true
+                line.text = "Listening…"
+                r.destroy()
+                main.postDelayed({ if (!isFinishing) listen() }, 400)
+            }
             override fun onReadyForSpeech(params: Bundle?) {}
             override fun onBeginningOfSpeech() {}
             override fun onRmsChanged(rmsdB: Float) {}
@@ -339,11 +347,7 @@ class ListenActivity : Activity() {
             override fun onEndOfSpeech() {}
             override fun onEvent(eventType: Int, params: Bundle?) {}
         })
-        r.startListening(
-            Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-                .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-        )
+        r.startListening(speechIntent(this).putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true))
     }
 
     override fun onDestroy() {
@@ -359,6 +363,20 @@ class ListenActivity : Activity() {
         const val ACTION_TALK = "com.towkirhs.jarcis.TALK"
         const val ACTION_SNAP = "com.towkirhs.jarcis.SNAP"
         const val ACTION_DO = "com.towkirhs.jarcis.DO"
+
+        /**
+         * How Jarvis asks the phone to listen: in the language chosen in Settings, Voice ("" = the phone's own),
+         * and waiting through a short pause so a sentence is not cut in half.
+         */
+        fun speechIntent(context: Context): Intent {
+            val i = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+                .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                .putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1800L)
+                .putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1800L)
+            val lang = context.getSharedPreferences("jarcis_cmds", Context.MODE_PRIVATE).getString("speech_lang", "en-IN")
+            if (!lang.isNullOrEmpty()) i.putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang)
+            return i
+        }
 
         /** Listening cards open now (a follow-up card can open before the last one closes). Main thread only. */
         private var openCards = 0

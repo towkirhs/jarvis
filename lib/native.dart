@@ -196,6 +196,11 @@ class Native {
     ];
   }
 
+  /// The language voice typing listens in ("en-IN", "bn-BD"…), or "" for the phone's own.
+  static Future<void> speechLang(String lang) async {
+    if (!kIsWeb) await _ch.invokeMethod('speechLang', {'lang': lang});
+  }
+
   /// Starts or stops listening for "Hey Jarvis". [threshold] (0 to 1): lower hears it more easily.
   static Future<void> wake(bool on, {double? threshold}) async {
     if (!kIsWeb) await _ch.invokeMethod('wake', {'on': on, 'threshold': threshold});

@@ -36,6 +36,7 @@ Every item has `type` and `title`. Use only the fields that apply; leave the res
 | `description` | Extra details that do not fit the title |
 | `priority` | `high`, `medium` or `low` (only if it matters) |
 | `repeat` | `daily`, `weekly`, `monthly`, `yearly` (needs a date) |
+| `untilDone` | `true` = remind at this `time` every day until I mark it done (needs `date` and `time`; don't also set `repeat`) |
 | `durationMinutes` | How long an event lasts |
 | `estimateMinutes` | How long a task takes |
 | `tags`, `list` | Only if I name them |
@@ -58,7 +59,8 @@ Every item has `type` and `title`. Use only the fields that apply; leave the res
 - Paying a bill that is an open task is a `money` item AND a `complete` item.
 - Never invent a date or time I did not give or agree to. If something is unclear, ask me before writing the block.
 - If the same thing happens on several dates, write one item per date.
-- Jarvis cannot yet keep an alarm ringing every day until a task is done. For that, make the task (with the deadline as its date) and a separate alarm with `repeat: "daily"`, and tell me in `reply` to cancel the alarm when done.
+- A deadline ("before Friday") is not the reminder time. Remind at the time I named, starting the first day that time is still ahead, and put the deadline in `description`.
+- "Until done" / "keep reminding me": ONE item with `untilDone: true` (type `alarm` if I asked for an alarm, otherwise `task`). Jarvis repeats it daily and stops when I mark it done.
 
 ## Example
 
@@ -66,10 +68,9 @@ Me: remind me to tell Oishi to come before Friday, ring 8pm every evening till I
 
 ```
 JARVIS v1
-{"reply": "Task until Friday, with an 8 pm alarm each evening. Cancel the alarm when it's done.",
+{"reply": "8 pm alarm every evening until you've told Oishi.",
  "remember": ["Oishi is their sister"],
  "items": [
-  {"type": "task", "title": "Tell Oishi to come", "date": "2026-11-13", "priority": "high"},
-  {"type": "alarm", "title": "Tell Oishi to come", "date": "2026-11-10", "time": "20:00", "repeat": "daily"}
+  {"type": "alarm", "title": "Tell Oishi to come", "description": "Before Friday 13 Nov", "date": "2026-11-10", "time": "20:00", "untilDone": true, "priority": "high"}
  ]}
 ```

@@ -312,6 +312,7 @@ class _VoicePageState extends State<VoicePage> with WidgetsBindingObserver {
               ButtonSegment(value: 0.7, label: Text('Strict')),
               ButtonSegment(value: 0.5, label: Text('Normal')),
               ButtonSegment(value: 0.3, label: Text('Easy')),
+              ButtonSegment(value: 0.15, label: Text('Easiest')),
             ],
             selected: {_threshold},
             onSelectionChanged: (v) async {
@@ -327,6 +328,26 @@ class _VoicePageState extends State<VoicePage> with WidgetsBindingObserver {
           ),
           const SizedBox(height: 4),
           Text('Easy if it often misses you, Strict if it wakes up by itself. Wake word model: openWakeWord.',
+              style: tt.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+          const SizedBox(height: 16),
+          Text('Language you speak to Jarvis in', style: tt.labelLarge),
+          const SizedBox(height: 8),
+          SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(value: 'en-IN', label: Text('English')),
+              ButtonSegment(value: 'bn-BD', label: Text('বাংলা')),
+              ButtonSegment(value: '', label: Text("Phone's")),
+            ],
+            selected: {s.local('speech_lang') ?? 'en-IN'},
+            onSelectionChanged: (v) async {
+              Haptics.segment();
+              await s.setLocal('speech_lang', v.first);
+              await Native.speechLang(v.first);
+              setState(() {});
+            },
+          ),
+          const SizedBox(height: 4),
+          Text('English is tuned for South Asian accents and handles some Banglish. Phone\'s uses your phone language.',
               style: tt.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
           _button(tt, scheme),
           const SizedBox(height: 8),
