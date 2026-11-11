@@ -10,6 +10,7 @@ const countdownKinds = {
   'birthday': (Icons.cake_outlined, Colors.red),
   'anniversary': (Icons.favorite_border, Colors.pink),
   'holiday': (Icons.celebration_outlined, Colors.teal),
+  'countup': (Icons.trending_up, Colors.orange),
 };
 
 /// Days from today to the countdown's (next) date; negative when it has passed.
@@ -22,6 +23,7 @@ int daysLeft(Store s, Rec c) {
 String daysText(int d) => d == 0 ? 'Today' : (d > 0 ? '$d days left' : '${-d} days ago');
 
 Future<void> _edit(BuildContext context, Store s, {String kind = 'countdown', Rec? c}) async {
+  if (c != null) kind = c['kind'] as String? ?? 'countdown';
   final title = TextEditingController(text: c?['title'] as String? ?? '');
   var date = c == null ? DateTime.now() : DateTime.parse(c['date'] as String);
   final before = <int>{...((c?['before'] as List?)?.map((e) => (e as num).toInt()) ?? [0])};
@@ -52,6 +54,7 @@ Future<void> _edit(BuildContext context, Store s, {String kind = 'countdown', Re
                   if (d != null) setS(() => date = d);
                 },
               ),
+              if (kind != 'countup') ...[
               const SizedBox(height: 16),
               const Text('Remind me'),
               const SizedBox(height: 8),
@@ -87,6 +90,7 @@ Future<void> _edit(BuildContext context, Store s, {String kind = 'countdown', Re
                     setS(() => ring = on);
                   },
                 ),
+              ],
               ],
             ],
           ),
@@ -182,7 +186,17 @@ class CountdownPage extends StatelessWidget {
                         ),
                         title: Text(c['title'] as String, style: const TextStyle(fontWeight: FontWeight.w600)),
                         subtitle: Text('${c['date']}${c['yearly'] == true ? '  ·  every year' : ''}'),
-                        trailing: d == 0
+                        trailing: c['kind'] == 'countup'
+                            ? Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text('${d.abs()}',
+                                      style: TextStyle(fontSize: 22, color: Theme.of(context).colorScheme.primary)),
+                                  Text(d <= 0 ? 'days so far' : 'days to start', style: const TextStyle(fontSize: 11)),
+                                ],
+                              )
+                            : d == 0
                             ? Text('Today', style: TextStyle(fontSize: 20, color: Theme.of(context).colorScheme.primary))
                             : Column(
                                 mainAxisAlignment: MainAxisAlignment.center,

@@ -150,7 +150,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }).toList()
       ..sort((a, b) => (a['when'] as int).compareTo(b['when'] as int));
     final habits = s.habitsDueToday();
-    final countdowns = s.list('countdowns').where((c) => daysLeft(s, c) >= 0).toList()
+    final countdowns = s.list('countdowns').where((c) => c['kind'] != 'countup' && daysLeft(s, c) >= 0).toList()
       ..sort((a, b) => daysLeft(s, a).compareTo(daysLeft(s, b)));
     final now0 = Decide.whatNow(s.list('items'), now);
     final nowPick = now0.pick == 'nothing' ? null : s.byId('items', int.parse(now0.pick));

@@ -253,6 +253,7 @@ class Store extends ChangeNotifier {
   Future<void> _syncCountdown(Rec c) async {
     final nid = c['nid'] as int?;
     if (nid == null) return;
+    if (c['kind'] == 'countup') return _cancelCountdown(nid);
     final before = (c['before'] as List?)?.map((e) => (e as num).toInt()).toList() ?? [0];
     final time = c['time'] as String? ?? CountdownAlert.defaultTime;
     final day = countdownNext(c);
