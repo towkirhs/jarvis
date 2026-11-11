@@ -70,6 +70,8 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    system Save dialog; there is no native share yet, so sharing is "Copy as text"), payment methods, and
    tenant meetings (calendar events with `meeting: true`).
    Countdown reminders (`CountdownAlert` in `lib/clash.dart`: days before, time, alarm or notification) are also untested on a phone.
+   Loans and debts (`lib/loans_page.dart`, collections `loanPeople` and `loans`) are untested on a phone too; no photo attachment,
+   and Jarvis chat/AI does not know about them yet.
 5. Groq web answers show no source links (response shape unconfirmed).
 6. Calendar, deferred: custom repeats, find free time, global search, weekly review, what-if planning.
 7. Known limits: repeating events show only the next time; imported times with a named time zone are read as
