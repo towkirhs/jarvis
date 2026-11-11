@@ -66,6 +66,9 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    setting (default en-IN), listening card retry, notes with before/until/if/every going to the AI.
    Also the typing card (`TypeActivity` in `QuickNote.kt`): Handy's bubble "text" and the action
    `com.towkirhs.jarcis.TYPE` open it over the current app, and Jarvis answers inside it.
+4. Rent (`lib/rent_more.dart`), untested on a phone: All bills by month, receipts (save as image uses the
+   system Save dialog; there is no native share yet, so sharing is "Copy as text"), payment methods, and
+   tenant meetings (calendar events with `meeting: true`).
 5. Groq web answers show no source links (response shape unconfirmed).
 6. Calendar, deferred: custom repeats, find free time, global search, weekly review, what-if planning.
 7. Known limits: repeating events show only the next time; imported times with a named time zone are read as

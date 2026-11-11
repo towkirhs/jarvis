@@ -516,13 +516,19 @@ class _MeetingsPageState extends State<MeetingsPage> {
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 4, 14),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Icon(Icons.groups_outlined, color: over ? scheme.onSurfaceVariant : scheme.primary),
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Icon(Icons.groups_outlined, color: over ? scheme.onSurfaceVariant : scheme.primary),
+            ),
             const SizedBox(width: 8),
-            Flexible(child: Text('${m['title']}', overflow: TextOverflow.ellipsis, style: tt.titleMedium)),
-            const SizedBox(width: 8),
-            statusPill(context, over ? 'Completed' : 'Upcoming', over ? scheme.onSurfaceVariant : scheme.primary),
-            const Spacer(),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('${m['title']}', maxLines: 2, overflow: TextOverflow.ellipsis, style: tt.titleMedium),
+                const SizedBox(height: 6),
+                statusPill(context, over ? 'Completed' : 'Upcoming', over ? scheme.onSurfaceVariant : scheme.primary),
+              ]),
+            ),
             PopupMenuButton<String>(
               tooltip: 'Meeting options',
               onSelected: (v) async {
