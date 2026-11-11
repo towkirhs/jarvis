@@ -3,7 +3,9 @@
 /// it pays, and whatever is left carries into the next month. Pure Dart, tested on its own.
 ///
 /// A room: {id, number, tenant, rent, advance, start: 'YYYY-MM', opening: earlier due when you started}.
-/// A payment ('rentPays'): {id, room, amount, paidAt: ms}.
+/// A payment ('rentPays'): {id, room, amount, paidAt: ms, method: 'Cash' / 'bKash' / … or absent}.
+/// A meeting with tenants is a calendar event ('items') with meeting: true, rooms: [room ids] (empty = all),
+/// where: text, desc: notes.
 /// A bill ('roomBills'): {id, room, month: 'YYYY-MM' it was used in, kind, amount}.
 /// A house expense ('houseCosts'): {id, ts, amount, what, room: id or null}.
 class Rent {
@@ -13,6 +15,15 @@ class Rent {
   ];
 
   static const billKinds = {'electricity': 'Electricity', 'waste': 'Waste', 'wifi': 'Wi-Fi', 'other': 'Other bill'};
+
+  static const payMethods = ['Cash', 'bKash', 'Nagad', 'Bank', 'Card'];
+
+  /// A month's bill: 'paid' (nothing left), 'partial' (something paid, some left) or 'due' (nothing paid).
+  static String status(MonthLine x) => x.left <= 0 ? 'paid' : (x.paid > 0 ? 'partial' : 'due');
+
+  /// A meeting is over once it is marked done or its time has passed.
+  static bool meetingDone(Map<String, dynamic> m, DateTime now) =>
+      m['status'] == 'done' || (m['when'] as int) < now.millisecondsSinceEpoch;
 
   static String key(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}';
 

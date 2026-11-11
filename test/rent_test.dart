@@ -47,6 +47,19 @@ void main() {
     expect(Rent.month(room, '2026-09', early, const []).left, 5000);
   });
 
+  test("a month's bill is paid, partly paid or due", () {
+    expect(Rent.status(Rent.month(room, '2026-09', pays, bills)), 'paid');
+    expect(Rent.status(Rent.month(room, '2026-10', pays, bills)), 'partial');
+    final unpaid = <String, dynamic>{...room, 'id': 3};
+    expect(Rent.status(Rent.month(unpaid, '2026-09', pays, bills)), 'due');
+  });
+
+  test('meetings: done when marked done or when their time has passed', () {
+    expect(Rent.meetingDone({'status': 'open', 'when': on(11, 8)}, now), isFalse);
+    expect(Rent.meetingDone({'status': 'open', 'when': on(11, 6)}, now), isTrue);
+    expect(Rent.meetingDone({'status': 'done', 'when': on(11, 9)}, now), isTrue);
+  });
+
   test('months and names', () {
     expect(Rent.months('2025-12', DateTime(2026, 1, 5)), ['2025-12', '2026-01']);
     expect(Rent.name('2026-11'), 'November 2026');

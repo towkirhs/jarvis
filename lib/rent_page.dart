@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'haptics.dart';
 import 'rent.dart';
+import 'rent_more.dart';
 import 'store.dart';
 
 String _date(int ms) {
@@ -41,6 +42,8 @@ class RentPage extends StatelessWidget {
         final dues = {for (final r in rooms) r['id']: Rent.due(r, pays, bills, now)};
         final owed = dues.values.where((d) => d > 0).fold<num>(0, (a, b) => a + b);
         final month = _thisMonth(s, now);
+        final upcomingMeetings =
+            s.list('items').where((i) => i['meeting'] == true && i['when'] is int && i['status'] == 'open' && !Rent.meetingDone(i, now)).length;
         return Scaffold(
           appBar: AppBar(
             title: const Text('Rooms and rent'),
@@ -78,6 +81,24 @@ class RentPage extends StatelessWidget {
                       style: tt.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
                     ),
                     const SizedBox(height: 12),
+                    Row(children: [
+                      Expanded(
+                        child: FilledButton.tonalIcon(
+                          onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AllBillsPage(store: s))),
+                          icon: const Icon(Icons.receipt_outlined),
+                          label: const Text('All bills'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton.tonalIcon(
+                          onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => MeetingsPage(store: s))),
+                          icon: const Icon(Icons.groups_outlined),
+                          label: Text(upcomingMeetings == 0 ? 'Meetings' : 'Meetings ($upcomingMeetings)'),
+                        ),
+                      ),
+                    ]),
+                    const SizedBox(height: 8),
                     Card(
                       child: InkWell(
                         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => HouseCostsPage(store: s))),
@@ -262,7 +283,13 @@ class RoomPage extends StatelessWidget {
     final tt = Theme.of(context).textTheme;
     final billMonth = Rent.name(Rent.shift(x.month, -1), short: true);
     return Card(
-      child: Padding(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => ReceiptPage(store: s, roomId: r['id'] as int, month: x.month)),
+        ),
+        child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -279,7 +306,8 @@ class RoomPage extends StatelessWidget {
             const Divider(height: 12),
             _line(context, 'To pay', s.money(x.toPay), bold: true),
             for (final p in x.payments)
-              _line(context, 'Paid ${_date(p['paidAt'] as int)}', '- ${s.money(p['amount'] as num)}',
+              _line(context, 'Paid ${_date(p['paidAt'] as int)}${p['method'] == null ? '' : ', ${p['method']}'}',
+                  '- ${s.money(p['amount'] as num)}',
                   color: scheme.primary,
                   onLongPress: () => _delete(context, s, 'rentPays', p, 'Deleted a payment for room ${r['number']}')),
             _line(
@@ -289,7 +317,12 @@ class RoomPage extends StatelessWidget {
               bold: true,
               color: x.left > 0 ? scheme.error : scheme.primary,
             ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Text('Receipt', style: tt.labelMedium?.copyWith(color: scheme.primary)),
+            ),
           ],
+        ),
         ),
       ),
     );
@@ -317,6 +350,7 @@ class RoomPage extends StatelessWidget {
     var paidAt = DateTime(now.year, now.month, now.day);
     final amount = TextEditingController(text: '${due > 0 ? due : r['rent']}');
     String? error;
+    String? method;
     await showDialog<void>(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -348,6 +382,14 @@ class RoomPage extends StatelessWidget {
                   if (d != null) setD(() => paidAt = d);
                 },
               ),
+              Wrap(spacing: 8, runSpacing: 4, children: [
+                for (final m in Rent.payMethods)
+                  ChoiceChip(
+                    label: Text(m),
+                    selected: method == m,
+                    onSelected: (on) => setD(() => method = on ? m : null),
+                  ),
+              ]),
             ],
           ),
           actions: [
@@ -361,6 +403,7 @@ class RoomPage extends StatelessWidget {
                   'room': r['id'],
                   'amount': v,
                   'paidAt': paidAt.millisecondsSinceEpoch,
+                  if (method != null) 'method': method,
                 };
                 s.list('rentPays').add(rec);
                 s.logAction('Room ${r['number']}: paid ${s.money(v)}', [
