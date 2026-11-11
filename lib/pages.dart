@@ -11,6 +11,7 @@ import 'haptics.dart';
 import 'memory_page.dart';
 import 'brain.dart';
 import 'countdown_screen.dart';
+import 'loans_page.dart';
 import 'clock_screen.dart';
 import 'habit_core.dart';
 import 'habits_screen.dart';
@@ -77,6 +78,7 @@ class MoreScreen extends StatelessWidget {
                 tile(Icons.psychology_outlined, 'Memory', '${store.list('memories').length} remembered', MemoryPage(store: store)),
               ]),
               group('Home', [
+                tile(Icons.swap_horiz, 'Loans and debts', '${store.list('loanPeople').length} people', LoansPage(store: store)),
                 tile(Icons.meeting_room_outlined, 'Rooms and rent', '${store.list('rooms').length} rooms', RentPage(store: store)),
               ]),
               group('Connections', [

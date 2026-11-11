@@ -53,7 +53,7 @@ class Store extends ChangeNotifier {
 
   static const _collections = [
     'captures', 'items', 'habits', 'promises', 'decisions', 'inbox', 'actions', 'countdowns', 'focus', 'tx', 'entries',
-    'rooms', 'rentPays', 'roomBills', 'houseCosts', 'clocks', 'places', 'memories',
+    'rooms', 'rentPays', 'roomBills', 'houseCosts', 'clocks', 'places', 'memories', 'loanPeople', 'loans',
   ];
 
   Future<void> load() async {
