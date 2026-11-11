@@ -37,6 +37,36 @@ class Clash {
 }
 
 /// Reminders a while before an item, on top of the one at its time.
+/// When a countdown reminds: some days before its date (0 = on the day), at a time of day.
+class CountdownAlert {
+  static const days = [0, 1, 3, 7, 30];
+  static const defaultTime = '09:00';
+
+  /// Notification ids for the "days before" reminders start here. The on-the-day one keeps the countdown's own id.
+  static const idBase = 1400000000;
+  static int id(int nid, int day) => day == 0 ? nid : idBase + nid * 64 + days.indexOf(day);
+
+  static String name(int d) => switch (d) {
+        0 => 'On the day',
+        1 => '1 day before',
+        7 => '1 week before',
+        30 => '1 month before',
+        _ => '$d days before',
+      };
+
+  static String label(String title, int d) => switch (d) {
+        0 => 'Today: $title',
+        1 => 'Tomorrow: $title',
+        _ => 'In $d days: $title',
+      };
+
+  /// [hm] ("HH:MM") on the day [d] days before [day].
+  static DateTime at(DateTime day, String hm, int d) {
+    final p = hm.split(':');
+    return DateTime(day.year, day.month, day.day - d, int.parse(p[0]), int.parse(p[1]));
+  }
+}
+
 class Lead {
   /// Minutes before, as offered: 0 is "at the time" (no extra reminder).
   static const options = [0, 5, 10, 15, 30, 60, 120, 1440];

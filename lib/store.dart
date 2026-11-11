@@ -248,17 +248,35 @@ class Store extends ChangeNotifier {
     );
   }
 
-  /// A countdown reminds at 9:00 on its (next) day.
+  /// A countdown reminds on the days it was set to (default: the day itself) at its time (default 9:00),
+  /// as a quiet notification or, with `ring`, as an alarm.
   Future<void> _syncCountdown(Rec c) async {
     final nid = c['nid'] as int?;
     if (nid == null) return;
+    final before = (c['before'] as List?)?.map((e) => (e as num).toInt()).toList() ?? [0];
+    final time = c['time'] as String? ?? CountdownAlert.defaultTime;
     final day = countdownNext(c);
-    final at = DateTime(day.year, day.month, day.day, 9);
-    if (!at.isAfter(DateTime.now())) {
-      await Native.cancel(nid);
-      return;
+    for (final d in CountdownAlert.days) {
+      final id = CountdownAlert.id(nid, d);
+      final at = CountdownAlert.at(day, time, d);
+      if (!before.contains(d) || !at.isAfter(DateTime.now())) {
+        await Native.cancel(id);
+        continue;
+      }
+      await Native.schedule(
+        id: id,
+        millis: at.millisecondsSinceEpoch,
+        kind: c['ring'] == true ? 'alarm' : 'notice',
+        label: CountdownAlert.label(c['title'] as String, d),
+      );
     }
-    await Native.schedule(id: nid, millis: at.millisecondsSinceEpoch, kind: 'notice', label: 'Today: ${c['title']}');
+  }
+
+  /// Cancels every reminder a countdown may have planned.
+  Future<void> _cancelCountdown(int nid) async {
+    for (final d in CountdownAlert.days) {
+      await Native.cancel(CountdownAlert.id(nid, d));
+    }
   }
 
   /// The countdown's date, or for a yearly one (birthday, anniversary) its next occurrence from today.
@@ -271,7 +289,8 @@ class Store extends ChangeNotifier {
     return thisYear.isBefore(today) ? DateTime(now.year + 1, d.month, d.day) : thisYear;
   }
 
-  Future<Rec> addCountdown(String title, String date, String kind, {List<Rec>? undo}) async {
+  Future<Rec> addCountdown(String title, String date, String kind,
+      {List<Rec>? undo, List<int>? before, String? time, bool ring = false}) async {
     final c = <String, dynamic>{
       'id': nextId(),
       'title': title,
@@ -279,6 +298,9 @@ class Store extends ChangeNotifier {
       'kind': kind,
       'yearly': kind == 'birthday' || kind == 'anniversary',
       'nid': nextId(),
+      if (before != null) 'before': before,
+      if (time != null) 'time': time,
+      if (ring) 'ring': true,
     };
     list('countdowns').add(c);
     undo?.add({'op': 'rm', 'col': 'countdowns', 'id': c['id'], 'nid': c['nid']});
@@ -344,6 +366,7 @@ class Store extends ChangeNotifier {
         final nid = op['nid'] as int?;
         if (nid != null) await Native.cancel(nid);
         if (nid != null && op['col'] == 'items') await Native.cancel(Lead.id(nid));
+        if (nid != null && op['col'] == 'countdowns') await _cancelCountdown(nid);
       } else {
         final old = copyRec(op['rec'] as Rec);
         final i = col.indexWhere((r) => r['id'] == old['id']);
@@ -378,6 +401,7 @@ class Store extends ChangeNotifier {
     final rid = (col == 'habits' ? r['rid'] : r['nid']) as int?;
     if (rid != null) Native.cancel(rid);
     if (rid != null && col == 'items') Native.cancel(Lead.id(rid));
+    if (rid != null && col == 'countdowns') _cancelCountdown(rid);
     logAction(desc, [
       {'op': 'put', 'col': col, 'rec': old},
     ]);

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'clash.dart';
+import 'habit_widgets.dart' show time12;
 import 'haptics.dart';
 import 'store.dart';
 
@@ -22,30 +24,72 @@ String daysText(int d) => d == 0 ? 'Today' : (d > 0 ? '$d days left' : '${-d} da
 Future<void> _edit(BuildContext context, Store s, {String kind = 'countdown', Rec? c}) async {
   final title = TextEditingController(text: c?['title'] as String? ?? '');
   var date = c == null ? DateTime.now() : DateTime.parse(c['date'] as String);
+  final before = <int>{...((c?['before'] as List?)?.map((e) => (e as num).toInt()) ?? [0])};
+  var time = c?['time'] as String? ?? CountdownAlert.defaultTime;
+  var ring = c?['ring'] == true;
   await showDialog<void>(
     context: context,
     builder: (ctx) => StatefulBuilder(
       builder: (ctx, setS) => AlertDialog(
         title: Text(c == null ? 'New $kind' : 'Edit'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: title, autofocus: true, decoration: const InputDecoration(labelText: 'Name')),
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              icon: const Icon(Icons.calendar_today),
-              label: Text(dayKey(date)),
-              onPressed: () async {
-                final d = await showDatePicker(
-                  context: ctx,
-                  initialDate: date,
-                  firstDate: DateTime(1900),
-                  lastDate: DateTime(2100),
-                );
-                if (d != null) setS(() => date = d);
-              },
-            ),
-          ],
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(controller: title, autofocus: true, decoration: const InputDecoration(labelText: 'Name')),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.calendar_today),
+                label: Text(dayKey(date)),
+                onPressed: () async {
+                  final d = await showDatePicker(
+                    context: ctx,
+                    initialDate: date,
+                    firstDate: DateTime(1900),
+                    lastDate: DateTime(2100),
+                  );
+                  if (d != null) setS(() => date = d);
+                },
+              ),
+              const SizedBox(height: 16),
+              const Text('Remind me'),
+              const SizedBox(height: 8),
+              Wrap(spacing: 8, runSpacing: 8, children: [
+                for (final d in CountdownAlert.days)
+                  FilterChip(
+                    label: Text(CountdownAlert.name(d)),
+                    selected: before.contains(d),
+                    onSelected: (on) => setS(() => on ? before.add(d) : before.remove(d)),
+                  ),
+              ]),
+              if (before.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.schedule),
+                  label: Text('At ${time12(time)}'),
+                  onPressed: () async {
+                    final p = time.split(':');
+                    final t = await showTimePicker(
+                      context: ctx,
+                      initialTime: TimeOfDay(hour: int.parse(p[0]), minute: int.parse(p[1])),
+                    );
+                    if (t != null) setS(() => time = '${two(t.hour)}:${two(t.minute)}');
+                  },
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Ring as an alarm'),
+                  subtitle: const Text('Otherwise a quiet notification'),
+                  value: ring,
+                  onChanged: (on) {
+                    Haptics.toggle(on);
+                    setS(() => ring = on);
+                  },
+                ),
+              ],
+            ],
+          ),
         ),
         actions: [
           if (c != null)
@@ -64,13 +108,17 @@ Future<void> _edit(BuildContext context, Store s, {String kind = 'countdown', Re
               if (name.isEmpty) return;
               if (c == null) {
                 final undo = <Rec>[];
-                await s.addCountdown(name, dayKey(date), kind, undo: undo);
+                await s.addCountdown(name, dayKey(date), kind,
+                    undo: undo, before: before.toList()..sort(), time: time, ring: ring);
                 s.logAction('Added countdown $name', undo);
                 s.save();
               } else {
                 await s.updateRec('countdowns', c, 'Edited countdown $name', (r) {
                   r['title'] = name;
                   r['date'] = dayKey(date);
+                  r['before'] = before.toList()..sort();
+                  r['time'] = time;
+                  r['ring'] = ring;
                 });
               }
               if (ctx.mounted) Navigator.pop(ctx);
