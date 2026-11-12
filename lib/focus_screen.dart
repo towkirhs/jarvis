@@ -16,8 +16,12 @@ String _clock(int seconds) => '${two(seconds ~/ 60)}:${two(seconds % 60)}';
 
 /// Pomodoro and stopwatch. The running session lives in the store, so it survives the app closing.
 class FocusScreen extends StatefulWidget {
-  const FocusScreen({super.key, required this.store});
+  const FocusScreen({super.key, required this.store, this.taskId, this.deep = false});
   final Store store;
+
+  /// Preset the task and deep-work mode (from the productivity engine).
+  final int? taskId;
+  final bool deep;
 
   @override
   State<FocusScreen> createState() => _FocusScreenState();
@@ -25,13 +29,14 @@ class FocusScreen extends StatefulWidget {
 
 class _FocusScreenState extends State<FocusScreen> {
   Timer? _tick;
-  String _mode = 'pomo';
-  int? _taskId;
+  late String _mode = widget.deep ? 'deep' : 'pomo';
+  late int? _taskId = widget.taskId;
 
   Store get s => widget.store;
 
   int get _pomoMin => (s.settings['pomoMin'] as int?) ?? 25;
   int get _breakMin => (s.settings['breakMin'] as int?) ?? 5;
+  int get _deepMin => (s.settings['deepMin'] as int?) ?? 90;
 
   /// "Keep screen on": while a timer runs and this page is open, the screen does not dim or lock.
   bool get _keepOn => s.local('focus_awake') == '1';
@@ -80,11 +85,13 @@ class _FocusScreenState extends State<FocusScreen> {
   Future<void> _start() async {
     Haptics.tap();
     final task = s.byId('items', _taskId);
+    final deep = _mode == 'deep';
     await s.startFocus(
-      mode: _mode,
-      minutes: _pomoMin,
+      mode: deep ? 'pomo' : _mode,
+      minutes: deep ? _deepMin : _pomoMin,
       taskId: _taskId,
-      label: (task?['title'] as String?) ?? 'Focus',
+      label: (task?['title'] as String?) ?? (deep ? 'Deep work' : 'Focus'),
+      deep: deep,
     );
   }
 
@@ -138,7 +145,11 @@ class _FocusScreenState extends State<FocusScreen> {
     String big;
     double progress;
     if (f == null) {
-      big = _mode == 'pomo' ? _clock(_pomoMin * 60) : '00:00';
+      big = switch (_mode) {
+        'pomo' => _clock(_pomoMin * 60),
+        'deep' => _clock(_deepMin * 60),
+        _ => '00:00',
+      };
       progress = 0;
     } else {
       final elapsed = ((now - (f['start'] as int)) / 1000).floor();
@@ -161,9 +172,10 @@ class _FocusScreenState extends State<FocusScreen> {
             SegmentedButton<String>(
               segments: const [
                 ButtonSegment(value: 'pomo', label: Text('Pomo')),
+                ButtonSegment(value: 'deep', label: Text('Deep')),
                 ButtonSegment(value: 'watch', label: Text('Stopwatch')),
               ],
-              selected: {f == null ? _mode : f['mode'] as String},
+              selected: {f == null ? _mode : (f['deep'] == true ? 'deep' : f['mode'] as String)},
               onSelectionChanged: f == null ? (v) => setState(() => _mode = v.first) : null,
             ),
             const Spacer(),
@@ -190,6 +202,27 @@ class _FocusScreenState extends State<FocusScreen> {
           )
         else
           Center(child: Text(f['label'] as String, style: Theme.of(context).textTheme.titleMedium)),
+        if (f == null && _mode == 'deep') ...[
+          const SizedBox(height: 12),
+          Wrap(spacing: 8, alignment: WrapAlignment.center, children: [
+            for (final m in [60, 90, 120])
+              ChoiceChip(
+                label: Text(m == 60 ? '1 hour' : (m == 90 ? '90 min' : '2 hours')),
+                selected: _deepMin == m,
+                onSelected: (_) {
+                  s.settings['deepMin'] = m;
+                  s.save();
+                  setState(() {});
+                },
+              ),
+          ]),
+          const SizedBox(height: 8),
+          Text(
+            'One task, phone on silent, no switching until the timer ends.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
         const SizedBox(height: 24),
         Center(
           child: SizedBox(

@@ -4,6 +4,7 @@ import 'clash.dart';
 import 'clock.dart';
 import 'haptics.dart';
 import 'place_picker.dart';
+import 'productivity.dart';
 import 'store.dart';
 
 const priorityNames = ['None', 'Low', 'Medium', 'High'];
@@ -12,7 +13,7 @@ const repeatNames = {null: 'No repeat', 'daily': 'Daily', 'weekly': 'Weekly', 'm
 
 /// Names of all lists in use, Inbox first.
 List<String> allLists(Store s) {
-  final names = {'Inbox', for (final i in s.list('items')) (i['list'] as String?) ?? 'Inbox'};
+  final names = {'Inbox', ...Gtd.lists, for (final i in s.list('items')) (i['list'] as String?) ?? 'Inbox'};
   return names.toList();
 }
 
@@ -25,6 +26,7 @@ Future<void> showTaskSheet(BuildContext context, Store s, {Rec? item, DateTime? 
   final listCtrl = TextEditingController(text: (item?['list'] as String?) ?? 'Inbox');
   var kind = (item?['kind'] as String?) ?? newKind ?? 'task';
   var priority = (item?['priority'] as int?) ?? 0;
+  var vital = item?['vital'] == true;
   var repeat = item?['repeat'] as String?;
   // A new event starts with your usual reminder (Settings); you can change it here.
   var lead = item != null ? ((item['lead'] as num?)?.toInt() ?? 0) : ((newKind ?? 'task') == 'event' ? Lead.defaultFor(s.settings) : 0);
@@ -103,6 +105,7 @@ Future<void> showTaskSheet(BuildContext context, Store s, {Rec? item, DateTime? 
           final fields = <String, dynamic>{
             'desc': desc.text.trim().isEmpty ? null : desc.text.trim(),
             'priority': priority,
+            'vital': kind == 'task' && vital,
             'tags': tags.text.split(',').map((t) => t.trim()).where((t) => t.isNotEmpty).toList(),
             'list': listCtrl.text.trim().isEmpty ? 'Inbox' : listCtrl.text.trim(),
             'repeat': when == null ? null : repeat,
@@ -279,6 +282,15 @@ Future<void> showTaskSheet(BuildContext context, Store s, {Rec? item, DateTime? 
                         label: Text(priorityNames[priority]),
                       ),
                     ),
+                    if (kind == 'task')
+                      FilterChip(
+                        avatar: Icon(vital ? Icons.star : Icons.star_border, size: 18),
+                        showCheckmark: false,
+                        label: const Text('Vital'),
+                        tooltip: 'One of the few tasks that bring most of the results (Pareto)',
+                        selected: vital,
+                        onSelected: (v) => setS(() => vital = v),
+                      ),
                   ],
                 ),
                 if (kind == 'event' && date != null && time != null)

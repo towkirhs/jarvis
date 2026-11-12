@@ -26,7 +26,7 @@ class DayPlan {
 class DayPlanner {
   /// [items] are open items. [ratios] maps a category to how much longer the person usually takes
   /// than they estimate (from finished tasks). Tasks are placed most urgent first: overdue, then by
-  /// priority, then by deadline; tasks dated after today are left alone.
+  /// priority, then vital (Pareto) first, then by deadline; tasks dated after today are left alone.
   static DayPlan plan({
     required DateTime now,
     required List<Map<String, dynamic>> items,
@@ -66,6 +66,8 @@ class DayPlanner {
         if (r != 0) return r;
         final p = ((b['priority'] as int?) ?? 0).compareTo((a['priority'] as int?) ?? 0);
         if (p != 0) return p;
+        final v = (b['vital'] == true ? 1 : 0).compareTo(a['vital'] == true ? 1 : 0);
+        if (v != 0) return v;
         final wa = when(a);
         final wb = when(b);
         if (wa != null && wb != null) return wa.compareTo(wb);

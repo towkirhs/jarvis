@@ -3,7 +3,7 @@ class SyncMerge {
   /// Collections of records with an 'id'.
   static const collections = [
     'captures', 'items', 'habits', 'promises', 'decisions', 'inbox', 'actions', 'countdowns', 'focus', 'tx',
-    'entries', 'accounts', 'rooms', 'rentPays', 'roomBills', 'houseCosts', 'clocks', 'places', 'memories', 'loanPeople', 'loans',
+    'entries', 'accounts', 'rooms', 'rentPays', 'roomBills', 'houseCosts', 'clocks', 'places', 'memories', 'loanPeople', 'loans', 'cards',
   ];
 
   /// Ids from each device live in their own range, so two devices never make the same id.

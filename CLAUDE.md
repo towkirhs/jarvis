@@ -72,6 +72,10 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    Countdown reminders (`CountdownAlert` in `lib/clash.dart`: days before, time, alarm or notification) are also untested on a phone.
    Loans and debts (`lib/loans_page.dart`, collections `loanPeople` and `loans`) are untested on a phone too; no photo attachment,
    and Jarvis chat/AI does not know about them yet.
+   Productivity engine (`lib/engine_page.dart`, rules in `lib/productivity.dart`): Eisenhower matrix (priority), Pareto (`vital`),
+   time blocking (Plan my day), deep work (Focus "Deep" mode, sessions with `deep: true`), active recall (`cards`, Leitner boxes),
+   GTD lists Inbox/Next/Waiting/Someday + weekly review (`settings.gtdReview`). Countdown groups (`group`), calendar 1-day and
+   30-day views. All untested on a phone.
 5. Groq web answers show no source links (response shape unconfirmed).
 6. Calendar, deferred: custom repeats, find free time, global search, weekly review, what-if planning.
 7. Known limits: repeating events show only the next time; imported times with a named time zone are read as

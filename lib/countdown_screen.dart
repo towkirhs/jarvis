@@ -29,6 +29,8 @@ Future<void> _edit(BuildContext context, Store s, {String kind = 'countdown', Re
   final before = <int>{...((c?['before'] as List?)?.map((e) => (e as num).toInt()) ?? [0])};
   var time = c?['time'] as String? ?? CountdownAlert.defaultTime;
   var ring = c?['ring'] == true;
+  final group = TextEditingController(text: c?['group'] as String? ?? '');
+  final groups = countdownGroups(s);
   await showDialog<void>(
     context: context,
     builder: (ctx) => StatefulBuilder(
@@ -54,6 +56,21 @@ Future<void> _edit(BuildContext context, Store s, {String kind = 'countdown', Re
                   if (d != null) setS(() => date = d);
                 },
               ),
+              TextField(
+                controller: group,
+                decoration: const InputDecoration(labelText: 'Group (optional)', hintText: 'Exams, Family birthdays…'),
+              ),
+              if (groups.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Wrap(spacing: 8, runSpacing: 8, children: [
+                  for (final g in groups)
+                    ChoiceChip(
+                      label: Text(g),
+                      selected: group.text.trim() == g,
+                      onSelected: (on) => setS(() => group.text = on ? g : ''),
+                    ),
+                ]),
+              ],
               if (kind != 'countup') ...[
               const SizedBox(height: 16),
               const Text('Remind me'),
@@ -112,8 +129,9 @@ Future<void> _edit(BuildContext context, Store s, {String kind = 'countdown', Re
               if (name.isEmpty) return;
               if (c == null) {
                 final undo = <Rec>[];
-                await s.addCountdown(name, dayKey(date), kind,
+                final rec = await s.addCountdown(name, dayKey(date), kind,
                     undo: undo, before: before.toList()..sort(), time: time, ring: ring);
+                if (group.text.trim().isNotEmpty) rec['group'] = group.text.trim();
                 s.logAction('Added countdown $name', undo);
                 s.save();
               } else {
@@ -123,6 +141,11 @@ Future<void> _edit(BuildContext context, Store s, {String kind = 'countdown', Re
                   r['before'] = before.toList()..sort();
                   r['time'] = time;
                   r['ring'] = ring;
+                  if (group.text.trim().isEmpty) {
+                    r.remove('group');
+                  } else {
+                    r['group'] = group.text.trim();
+                  }
                 });
               }
               if (ctx.mounted) Navigator.pop(ctx);
@@ -170,49 +193,64 @@ class CountdownPage extends StatelessWidget {
                 ),
               );
             }
+            final grouped = <String, List<Rec>>{};
+            for (final c in all) {
+              final g = c['group'] as String?;
+              if (g != null) (grouped[g] ??= []).add(c);
+            }
+            final loose = all.where((c) => c['group'] == null);
             return ListView(
               padding: const EdgeInsets.all(12),
               children: [
-                for (final c in all)
-                  Builder(builder: (context) {
-                    final kind = countdownKinds[c['kind']] ?? countdownKinds['countdown']!;
-                    final d = daysLeft(store, c);
-                    return Card(
-                      child: ListTile(
-                        onTap: () => _edit(context, store, c: c),
-                        leading: CircleAvatar(
-                          backgroundColor: kind.$2.withValues(alpha: 0.2),
-                          child: Icon(kind.$1, color: kind.$2),
-                        ),
-                        title: Text(c['title'] as String, style: const TextStyle(fontWeight: FontWeight.w600)),
-                        subtitle: Text('${c['date']}${c['yearly'] == true ? '  ·  every year' : ''}'),
-                        trailing: c['kind'] == 'countup'
-                            ? Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Text('${d.abs()}',
-                                      style: TextStyle(fontSize: 22, color: Theme.of(context).colorScheme.primary)),
-                                  Text(d <= 0 ? 'days so far' : 'days to start', style: const TextStyle(fontSize: 11)),
-                                ],
-                              )
-                            : d == 0
-                            ? Text('Today', style: TextStyle(fontSize: 20, color: Theme.of(context).colorScheme.primary))
-                            : Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Text('${d.abs()}',
-                                      style: TextStyle(fontSize: 22, color: Theme.of(context).colorScheme.primary)),
-                                  Text(d > 0 ? 'days left' : 'days ago', style: const TextStyle(fontSize: 11)),
-                                ],
-                              ),
-                      ),
-                    );
-                  }),
+                for (final g in countdownGroups(store))
+                  Card(
+                    clipBehavior: Clip.antiAlias,
+                    child: ExpansionTile(
+                      initiallyExpanded: true,
+                      shape: const Border(),
+                      leading: const Icon(Icons.folder_outlined),
+                      title: Text(g, style: const TextStyle(fontWeight: FontWeight.w600)),
+                      subtitle: Text('${grouped[g]!.length} saved  ·  nearest: ${grouped[g]!.first['title']}'),
+                      children: [for (final c in grouped[g]!) _tile(context, store, c, flat: true)],
+                    ),
+                  ),
+                for (final c in loose) _tile(context, store, c),
               ],
             );
           },
         ),
       );
+}
+
+/// Group names in use, A to Z.
+List<String> countdownGroups(Store s) =>
+    {for (final c in s.list('countdowns')) if (c['group'] is String) c['group'] as String}.toList()..sort();
+
+Widget _tile(BuildContext context, Store store, Rec c, {bool flat = false}) {
+  final kind = countdownKinds[c['kind']] ?? countdownKinds['countdown']!;
+  final d = daysLeft(store, c);
+  final primary = Theme.of(context).colorScheme.primary;
+  Widget figure(String big, String small) => Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(big, style: TextStyle(fontSize: 22, color: primary)),
+          Text(small, style: const TextStyle(fontSize: 11)),
+        ],
+      );
+  final tile = ListTile(
+    onTap: () => _edit(context, store, c: c),
+    leading: CircleAvatar(
+      backgroundColor: kind.$2.withValues(alpha: 0.2),
+      child: Icon(kind.$1, color: kind.$2),
+    ),
+    title: Text(c['title'] as String, style: const TextStyle(fontWeight: FontWeight.w600)),
+    subtitle: Text('${c['date']}${c['yearly'] == true ? '  ·  every year' : ''}'),
+    trailing: c['kind'] == 'countup'
+        ? figure('${d.abs()}', d <= 0 ? 'days so far' : 'days to start')
+        : d == 0
+            ? Text('Today', style: TextStyle(fontSize: 20, color: primary))
+            : figure('${d.abs()}', d > 0 ? 'days left' : 'days ago'),
+  );
+  return flat ? tile : Card(child: tile);
 }

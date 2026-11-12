@@ -53,7 +53,7 @@ class Store extends ChangeNotifier {
 
   static const _collections = [
     'captures', 'items', 'habits', 'promises', 'decisions', 'inbox', 'actions', 'countdowns', 'focus', 'tx', 'entries',
-    'rooms', 'rentPays', 'roomBills', 'houseCosts', 'clocks', 'places', 'memories', 'loanPeople', 'loans',
+    'rooms', 'rentPays', 'roomBills', 'houseCosts', 'clocks', 'places', 'memories', 'loanPeople', 'loans', 'cards',
   ];
 
   Future<void> load() async {
@@ -661,7 +661,8 @@ class Store extends ChangeNotifier {
   Rec? get focusActive => _s['focusActive'] as Rec?;
 
   /// mode 'pomo' counts down [minutes]; 'watch' counts up. A break is a pomo that is not recorded.
-  Future<void> startFocus({required String mode, int minutes = 25, int? taskId, String label = 'Focus', bool isBreak = false}) async {
+  /// [deep] marks a deep-work block (a long countdown with no breaks), counted on its own.
+  Future<void> startFocus({required String mode, int minutes = 25, int? taskId, String label = 'Focus', bool isBreak = false, bool deep = false}) async {
     final start = DateTime.now().millisecondsSinceEpoch;
     final f = <String, dynamic>{
       'mode': mode,
@@ -670,6 +671,7 @@ class Store extends ChangeNotifier {
       'taskId': taskId,
       'label': label,
       'break': isBreak,
+      if (deep) 'deep': true,
       'nid': nextId(),
     };
     _s['focusActive'] = f;
@@ -705,6 +707,7 @@ class Store extends ChangeNotifier {
         'pomo': f['mode'] == 'pomo' && end >= planned,
         'taskId': f['taskId'],
         'label': f['label'],
+        if (f['deep'] == true) 'deep': true,
       });
     }
     save();

@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import 'clock.dart';
+import 'engine_page.dart';
 import 'haptics.dart';
 import 'habits_screen.dart';
 import 'month_view.dart';
@@ -77,6 +78,7 @@ class ItemTile extends StatelessWidget {
         ? (open ? Icons.check_box_outline_blank : Icons.check_box)
         : (it['kind'] == 'alarm' ? Icons.alarm : Icons.event);
     final details = [
+      if (it['vital'] == true) '★ vital',
       if (w != null) it['allDay'] == true ? niceDay(w) : niceWhen(w),
       if (it['repeat'] != null) repeatNames[it['repeat']]!,
       if (it['untilDone'] == true) 'daily until done',
@@ -276,14 +278,18 @@ class _ListViewState extends State<_ListView> {
           return ListView(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 80),
             children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: FilledButton.tonalIcon(
+              Wrap(spacing: 8, children: [
+                FilledButton.tonalIcon(
                   icon: const Icon(Icons.auto_awesome_motion),
                   label: const Text('Plan my day'),
                   onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PlanDayPage(store: s))),
                 ),
-              ),
+                FilledButton.tonalIcon(
+                  icon: const Icon(Icons.bolt_outlined),
+                  label: const Text('Engine'),
+                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => EnginePage(store: s))),
+                ),
+              ]),
               const SizedBox(height: 8),
               SizedBox(
                 height: 40,
@@ -341,12 +347,14 @@ class _CalendarView extends StatefulWidget {
 
 class _CalendarViewState extends State<_CalendarView> {
   DateTime _day = DateTime.now();
-  String _view = '3day'; // month, week, 3day, 2day, timeline or list
+  String _view = '3day'; // month, 30day, week, 3day, 2day, 1day, timeline or list
 
   /// How many days the arrows move by.
   int get _step => switch (_view) {
         '3day' => 3,
         '2day' => 2,
+        '1day' => 1,
+        '30day' => 30,
         _ => 7,
       };
 
@@ -381,6 +389,8 @@ class _CalendarViewState extends State<_CalendarView> {
                       tooltip: 'View',
                       icon: Icon(switch (_view) {
                         'month' => Icons.calendar_view_month,
+                        '30day' => Icons.date_range,
+                        '1day' => Icons.calendar_view_day,
                         '3day' => Icons.view_column_outlined,
                         '2day' => Icons.view_week_outlined,
                         'timeline' => Icons.view_timeline_outlined,
@@ -391,6 +401,8 @@ class _CalendarViewState extends State<_CalendarView> {
                       onSelected: (v) => setState(() => _view = v),
                       itemBuilder: (_) => const [
                         PopupMenuItem(value: 'month', child: Text('Month')),
+                        PopupMenuItem(value: '30day', child: Text('Next 30 days')),
+                        PopupMenuItem(value: '1day', child: Text('1 day')),
                         PopupMenuItem(value: '2day', child: Text('2 days')),
                         PopupMenuItem(value: '3day', child: Text('3 days')),
                         PopupMenuItem(value: 'week', child: Text('Week')),
@@ -404,6 +416,7 @@ class _CalendarViewState extends State<_CalendarView> {
               Expanded(
                 child: switch (_view) {
                   'list' => _dayList(context, s),
+                  '30day' => _agenda(context, s),
                   'month' => MonthView(
                       store: s,
                       month: _day,
@@ -435,6 +448,49 @@ class _CalendarViewState extends State<_CalendarView> {
           );
         },
       );
+
+  /// Thirty days from [_day], one heading per day that has something on it.
+  Widget _agenda(BuildContext context, Store s) {
+    final from = DateTime(_day.year, _day.month, _day.day);
+    final tt = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    final todayKey = dayKey(DateTime.now());
+    final rows = <Widget>[];
+    for (var i = 0; i < 30; i++) {
+      final d = DateTime(from.year, from.month, from.day + i);
+      final key = dayKey(d);
+      final items = s.list('items').where((it) {
+        final w = it['when'] as int?;
+        return w != null && it['status'] != 'cancelled' && dayKey(fromMs(w)) == key;
+      }).toList()
+        ..sort(_byWhen);
+      final countdowns = s.list('countdowns').where((c) => c['kind'] != 'countup' && dayKey(s.countdownNext(c)) == key).toList();
+      if (items.isEmpty && countdowns.isEmpty) continue;
+      rows.add(InkWell(
+        onTap: () => setState(() {
+          _day = d;
+          _view = 'list';
+        }),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(4, 16, 4, 4),
+          child: Text(
+            '${key == todayKey ? 'Today, ' : ''}${_weekdays[d.weekday - 1]} ${d.day} ${_months[d.month - 1]}',
+            style: tt.titleSmall?.copyWith(color: key == todayKey ? scheme.primary : null),
+          ),
+        ),
+      ));
+      for (final c in countdowns) {
+        rows.add(ListTile(dense: true, leading: const Icon(Icons.hourglass_bottom), title: Text(c['title'] as String)));
+      }
+      for (final it in items) {
+        rows.add(ItemTile(store: s, it: it, dense: true));
+      }
+    }
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 80),
+      children: rows.isEmpty ? [const Padding(padding: EdgeInsets.all(16), child: Text('Nothing in these 30 days.'))] : rows,
+    );
+  }
 
   Widget _dayList(BuildContext context, Store s) {
     final monday = s.mondayOf(_day);
@@ -992,8 +1048,21 @@ class _TimelineGridState extends State<TimelineGrid> {
   }
 }
 
+/// The Matrix on its own page, opened from the productivity engine.
+class MatrixPage extends StatelessWidget {
+  const MatrixPage({super.key, required this.store});
+  final Store store;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: const Text('What matters')),
+        body: _MatrixView(store: store),
+      );
+}
+
 /// Eisenhower Matrix. Priority decides the quadrant: High = urgent and important,
 /// Medium = important, Low = urgent, None = neither. Moving a task changes its priority.
+/// Vital (Pareto) tasks come first in each box; Waiting and Someday tasks are left out (GTD).
 class _MatrixView extends StatelessWidget {
   const _MatrixView({required this.store});
   final Store store;
@@ -1002,15 +1071,17 @@ class _MatrixView extends StatelessWidget {
   static const _quadrants = [
     (3, 'Do first', 'Urgent, important', Colors.red),
     (2, 'Schedule', 'Important, not urgent', Colors.orange),
-    (1, 'Quick', 'Urgent, less important', Colors.blue),
-    (0, 'Later', 'Neither', Colors.teal),
+    (1, 'Delegate', 'Urgent, less important', Colors.blue),
+    (0, 'Eliminate', 'Neither', Colors.teal),
   ];
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
         listenable: store,
         builder: (context, _) {
-          final open = store.list('items').where((i) => i['status'] == 'open').toList()..sort(_byWhen);
+          final open = store.list('items').where((i) => i['status'] == 'open' && i['list'] != 'Waiting' && i['list'] != 'Someday').toList()
+            ..sort(_byWhen)
+            ..sort((a, b) => (b['vital'] == true ? 1 : 0).compareTo(a['vital'] == true ? 1 : 0));
           Widget quadrant((int, String, String, MaterialColor) q) {
             final (p, name, meaning, color) = q;
             final items = open.where((i) => ((i['priority'] as int?) ?? 0) == p).toList();
@@ -1049,7 +1120,7 @@ class _MatrixView extends StatelessWidget {
                                             child: Column(
                                               crossAxisAlignment: CrossAxisAlignment.start,
                                               children: [
-                                                Text(it['title'] as String),
+                                                Text('${it['vital'] == true ? '★ ' : ''}${it['title']}'),
                                                 if (it['when'] != null)
                                                   Text(niceWhen(it['when'] as int),
                                                       style: TextStyle(fontSize: 11, color: color)),
@@ -1073,7 +1144,7 @@ class _MatrixView extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(8, 8, 8, 80),
             child: Column(
               children: [
-                const Text('Long-press a task to move it to another box.'),
+                const Text('Long-press a task to move it, park it, or mark it vital.'),
                 Expanded(
                   child: Row(children: [Expanded(child: quadrant(_quadrants[0])), Expanded(child: quadrant(_quadrants[1]))]),
                 ),
@@ -1087,7 +1158,7 @@ class _MatrixView extends StatelessWidget {
       );
 
   Future<void> _move(BuildContext context, Rec it) async {
-    final p = await showDialog<int>(
+    final p = await showDialog<Object>(
       context: context,
       builder: (ctx) => SimpleDialog(
         title: Text('Move "${it['title']}"'),
@@ -1097,10 +1168,23 @@ class _MatrixView extends StatelessWidget {
               onPressed: () => Navigator.pop(ctx, p),
               child: Text('$name · $meaning', style: TextStyle(color: color)),
             ),
+          const Divider(),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx, 'vital'),
+            child: Text(it['vital'] == true ? 'Not vital' : '★ Mark vital (Pareto)'),
+          ),
+          SimpleDialogOption(onPressed: () => Navigator.pop(ctx, 'Waiting'), child: const Text('Waiting for someone (GTD)')),
+          SimpleDialogOption(onPressed: () => Navigator.pop(ctx, 'Someday'), child: const Text('Someday, maybe (GTD)')),
         ],
       ),
     );
     if (p == null) return;
-    await store.updateRec('items', it, 'Moved ${it['title']} to ${priorityNames[p]} priority', (r) => r['priority'] = p);
+    if (p is int) {
+      await store.updateRec('items', it, 'Moved ${it['title']} to ${priorityNames[p]} priority', (r) => r['priority'] = p);
+    } else if (p == 'vital') {
+      await store.updateRec('items', it, '${it['title']}: ${it['vital'] == true ? 'not vital' : 'vital'}', (r) => r['vital'] = r['vital'] != true);
+    } else {
+      await store.updateRec('items', it, 'Moved ${it['title']} to $p', (r) => r['list'] = p);
+    }
   }
 }
