@@ -90,7 +90,7 @@ class Stamps {
   /// Stamps [state] against [before] at [now] and returns the new snapshot.
   static Map<String, Map<Object, int>> stamp(Map<String, dynamic> state, Map<String, Map<Object, int>> before, int now) {
     final after = <String, Map<Object, int>>{};
-    for (final e in state.entries) {
+    for (final e in state.entries.toList()) { // the loop may add '_gone'
       if (e.key.startsWith('_') || e.value is! List) continue;
       final was = before[e.key] ?? const {};
       final seen = <Object, int>{};
