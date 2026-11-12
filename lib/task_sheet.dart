@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
+import 'cal_grid.dart' show onEventColor;
 import 'clash.dart';
 import 'clock.dart';
 import 'haptics.dart';
 import 'place_picker.dart';
 import 'productivity.dart';
 import 'store.dart';
+import 'theme.dart' show accents;
 
 const priorityNames = ['None', 'Low', 'Medium', 'High'];
 const priorityColors = [Colors.grey, Colors.blue, Colors.orange, Colors.red];
@@ -19,9 +21,13 @@ List<String> allLists(Store s) {
 
 /// Adds a task (or edits [item]) by hand. [day], [at] and [newKind] preset a new one.
 /// Start and end times are optional: a date alone is an all-day item; the end sets the duration.
-Future<void> showTaskSheet(BuildContext context, Store s, {Rec? item, DateTime? day, TimeOfDay? at, String? newKind, int? presetMinutes}) {
-  final title = TextEditingController(text: item?['title'] as String? ?? '');
+Future<void> showTaskSheet(BuildContext context, Store s, {Rec? item, DateTime? day, TimeOfDay? at, String? newKind, int? presetMinutes, String? presetTitle}) {
+  final title = TextEditingController(text: item?['title'] as String? ?? presetTitle ?? '');
   final desc = TextEditingController(text: item?['desc'] as String? ?? '');
+  final location = TextEditingController(text: item?['location'] as String? ?? '');
+  String? colorKey = item?['color'] as String?;
+  // Days an all-day item covers, the first one included.
+  var span = ((item?['span'] as num?)?.toInt() ?? 1).clamp(1, 366).toInt();
   final tags = TextEditingController(text: ((item?['tags'] as List?) ?? []).join(', '));
   final listCtrl = TextEditingController(text: (item?['list'] as String?) ?? 'Inbox');
   var kind = (item?['kind'] as String?) ?? newKind ?? 'task';
@@ -57,6 +63,17 @@ Future<void> showTaskSheet(BuildContext context, Store s, {Rec? item, DateTime? 
             lastDate: DateTime(now.year + 5),
           );
           if (d != null) setS(() => date = d);
+        }
+
+        Future<void> pickLast() async {
+          final first = DateTime(date!.year, date!.month, date!.day);
+          final d = await showDatePicker(
+            context: ctx,
+            initialDate: DateTime(first.year, first.month, first.day + span - 1),
+            firstDate: first,
+            lastDate: DateTime(first.year + 5),
+          );
+          if (d != null) setS(() => span = DateTime(d.year, d.month, d.day).difference(first).inDays + 1);
         }
 
         Future<void> pickTime() async {
@@ -112,6 +129,9 @@ Future<void> showTaskSheet(BuildContext context, Store s, {Rec? item, DateTime? 
             'lead': kind == 'alarm' || when == null || time == null ? 0 : lead,
             'dur': kind == 'task' ? null : mins,
             'allDay': date != null && time == null,
+            'location': location.text.trim().isEmpty ? null : location.text.trim(),
+            'color': colorKey,
+            'span': date != null && time == null && kind != 'task' && span > 1 ? span : null,
             'place': placeId,
             'placeWhen': placeId == null ? null : placeWhen,
           };
@@ -183,6 +203,16 @@ Future<void> showTaskSheet(BuildContext context, Store s, {Rec? item, DateTime? 
                   minLines: 1,
                   decoration: const InputDecoration(hintText: 'Description', border: InputBorder.none),
                 ),
+                TextField(
+                  controller: location,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: const InputDecoration(
+                    hintText: 'Location',
+                    prefixIcon: Icon(Icons.place_outlined, size: 20),
+                    prefixIconConstraints: BoxConstraints(minWidth: 32),
+                    border: InputBorder.none,
+                  ),
+                ),
                 SegmentedButton<String>(
                   segments: const [
                     ButtonSegment(value: 'task', label: Text('Task')),
@@ -228,6 +258,13 @@ Future<void> showTaskSheet(BuildContext context, Store s, {Rec? item, DateTime? 
                           date = null;
                           time = null;
                         }),
+                      ),
+                    if (date != null && time == null && kind == 'event')
+                      InputChip(
+                        avatar: const Icon(Icons.event_available_outlined, size: 18),
+                        label: Text(span > 1 ? 'Until ${dayKey(DateTime(date!.year, date!.month, date!.day + span - 1))}' : 'End date'),
+                        onPressed: pickLast,
+                        onDeleted: span > 1 ? () => setS(() => span = 1) : null,
                       ),
                     if (date != null && time != null && kind != 'alarm')
                       PopupMenuButton<int>(
@@ -293,6 +330,27 @@ Future<void> showTaskSheet(BuildContext context, Store s, {Rec? item, DateTime? 
                       ),
                   ],
                 ),
+                if (kind != 'alarm')
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final key in <String?>[null, ...accents.keys.where((k) => k != 'default')])
+                          InkResponse(
+                            onTap: () => setS(() => colorKey = key),
+                            child: CircleAvatar(
+                              radius: 13,
+                              backgroundColor: key == null ? Theme.of(ctx).colorScheme.surfaceContainerHighest : accents[key],
+                              child: colorKey == key
+                                  ? Icon(Icons.check, size: 16, color: key == null ? Theme.of(ctx).colorScheme.onSurface : onEventColor(accents[key]!))
+                                  : (key == null ? Icon(Icons.format_color_reset, size: 14, color: Theme.of(ctx).colorScheme.onSurfaceVariant) : null),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
                 if (kind == 'event' && date != null && time != null)
                   Builder(builder: (_) {
                     final start = DateTime(date!.year, date!.month, date!.day, time!.hour, time!.minute).millisecondsSinceEpoch;

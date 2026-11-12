@@ -2,6 +2,10 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import 'cal_event.dart';
+import 'cal_grid.dart';
+import 'cal_index.dart';
+import 'cal_quick.dart';
 import 'clock.dart';
 import 'engine_page.dart';
 import 'haptics.dart';
@@ -33,10 +37,24 @@ class ItemsScreen extends StatelessWidget {
   Widget build(BuildContext context) => DefaultTabController(
         length: 3,
         child: Scaffold(
-          floatingActionButton: FloatingActionButton(
-            onPressed: () => showTaskSheet(context, store),
-            child: const Icon(Icons.add),
-          ),
+          // On the calendar the button opens the small add sheet, on the other tabs the full form.
+          floatingActionButton: Builder(builder: (ctx) {
+            final tabs = DefaultTabController.of(ctx);
+            return AnimatedBuilder(
+              animation: tabs,
+              builder: (ctx, _) => FloatingActionButton(
+                onPressed: () {
+                  if (tabs.index != 1) {
+                    showTaskSheet(ctx, store);
+                    return;
+                  }
+                  final t = DateTime.now().add(const Duration(hours: 1));
+                  showQuickAdd(ctx, store, day: t, at: TimeOfDay(hour: t.hour, minute: 0));
+                },
+                child: const Icon(Icons.add),
+              ),
+            );
+          }),
           body: Column(
             children: [
               const TabBar(tabs: [Tab(text: 'List'), Tab(text: 'Calendar'), Tab(text: 'Matrix')]),
@@ -346,22 +364,50 @@ class _CalendarView extends StatefulWidget {
 }
 
 class _CalendarViewState extends State<_CalendarView> {
+  /// The first day on show. It drives the title; swiping the grid keeps it up to date.
   DateTime _day = DateTime.now();
   String _view = '3day'; // month, 30day, week, 3day, 2day, 1day, timeline or list
+  final _grid = GlobalKey<TimeGridState>();
 
-  /// How many days the arrows move by.
+  /// Where the grid opens. It only changes when the view or the day is chosen, never by swiping.
+  late DateTime _anchor = _startFor(_day);
+  int _seq = 0;
+
+  bool get _isGrid => const {'3day', '2day', '1day', 'week'}.contains(_view);
+
+  /// How many days one step moves.
   int get _step => switch (_view) {
         '3day' => 3,
         '2day' => 2,
-        '1day' => 1,
+        '1day' || 'list' => 1,
         '30day' => 30,
         _ => 7,
       };
 
-  /// The arrows: a month at a time in the month view, otherwise a few days.
-  void _go(int dir) => setState(() => _day = _view == 'month'
-      ? DateTime(_day.year, _day.month + dir, 1)
-      : DateTime(_day.year, _day.month, _day.day + dir * _step));
+  DateTime _startFor(DateTime d) => _view == 'week' ? widget.store.mondayOf(d) : DateTime(d.year, d.month, d.day);
+
+  /// Opens the grid on [d].
+  void _jump(DateTime d) => setState(() {
+        _day = d;
+        _anchor = _startFor(d);
+        _seq++;
+      });
+
+  /// The arrows: a page of the grid, a month in the month view, otherwise a few days.
+  void _go(int dir) {
+    if (_isGrid) {
+      _grid.currentState?.pageBy(dir);
+      return;
+    }
+    setState(() => _day = _view == 'month'
+        ? DateTime(_day.year, _day.month + dir, 1)
+        : DateTime(_day.year, _day.month, _day.day + dir * _step));
+  }
+
+  void _openDay(DateTime d) => setState(() {
+        _day = d;
+        _view = 'list';
+      });
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -380,7 +426,7 @@ class _CalendarViewState extends State<_CalendarView> {
                       icon: const Icon(Icons.chevron_left),
                       onPressed: () => _go(-1),
                     ),
-                    TextButton(onPressed: () => setState(() => _day = DateTime.now()), child: const Text('Today')),
+                    TextButton(onPressed: () => _jump(DateTime.now()), child: const Text('Today')),
                     IconButton(tooltip: 'Next',
                       icon: const Icon(Icons.chevron_right),
                       onPressed: () => _go(1),
@@ -398,7 +444,11 @@ class _CalendarViewState extends State<_CalendarView> {
                         _ => Icons.calendar_view_week,
                       }),
                       initialValue: _view,
-                      onSelected: (v) => setState(() => _view = v),
+                      onSelected: (v) => setState(() {
+                        _view = v;
+                        _anchor = _startFor(_day);
+                        _seq++;
+                      }),
                       itemBuilder: (_) => const [
                         PopupMenuItem(value: 'month', child: Text('Month')),
                         PopupMenuItem(value: '30day', child: Text('Next 30 days')),
@@ -417,30 +467,18 @@ class _CalendarViewState extends State<_CalendarView> {
                 child: switch (_view) {
                   'list' => _dayList(context, s),
                   '30day' => _agenda(context, s),
-                  'month' => MonthView(
-                      store: s,
-                      month: _day,
-                      onDayTap: (d) => setState(() {
-                        _day = d;
-                        _view = 'list';
-                      }),
-                    ),
-                  'timeline' => TimelineGrid(
-                      store: s,
-                      start: s.mondayOf(_day),
-                      onDayTap: (d) => setState(() {
-                        _day = d;
-                        _view = 'list';
-                      }),
-                    ),
-                  _ => WeekGrid(
-                      store: s,
-                      start: _view == 'week' ? s.mondayOf(_day) : DateTime(_day.year, _day.month, _day.day),
-                      count: _step,
-                      onDayTap: (d) => setState(() {
-                        _day = d;
-                        _view = 'list';
-                      }),
+                  'month' => MonthView(store: s, month: _day, onDayTap: _openDay),
+                  'timeline' => TimelineGrid(store: s, start: s.mondayOf(_day), onDayTap: _openDay),
+                  _ => KeyedSubtree(
+                      key: ValueKey('$_view/$_seq'),
+                      child: TimeGrid(
+                        key: _grid,
+                        store: s,
+                        anchor: _anchor,
+                        count: _step,
+                        onVisible: (d) => setState(() => _day = d),
+                        onDayTap: _openDay,
+                      ),
                     ),
                 },
               ),
@@ -449,9 +487,24 @@ class _CalendarViewState extends State<_CalendarView> {
         },
       );
 
+  /// A row for something on a day. A repeat's later dates and the later days of a long item open their view.
+  Widget _entryTile(BuildContext context, Store s, CalEntry e) {
+    if (!e.repeated && e.firstDay) return ItemTile(store: s, it: e.item, dense: true);
+    final scheme = Theme.of(context).colorScheme;
+    return ListTile(
+      dense: true,
+      leading: Icon(e.repeated ? Icons.repeat : Icons.event, color: eventColor(e.item, scheme)),
+      title: Text(e.item['title'] as String),
+      subtitle: Text(eventWhen(e)),
+      onTap: () => showEventView(context, s, e),
+    );
+  }
+
   /// Thirty days from [_day], one heading per day that has something on it.
   Widget _agenda(BuildContext context, Store s) {
     final from = DateTime(_day.year, _day.month, _day.day);
+    final index = CalIndex.build(s.list('items'), from, DateTime(from.year, from.month, from.day + 29));
+    final countdowns = CalIndex.countdowns(s);
     final tt = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
     final todayKey = dayKey(DateTime.now());
@@ -459,18 +512,11 @@ class _CalendarViewState extends State<_CalendarView> {
     for (var i = 0; i < 30; i++) {
       final d = DateTime(from.year, from.month, from.day + i);
       final key = dayKey(d);
-      final items = s.list('items').where((it) {
-        final w = it['when'] as int?;
-        return w != null && it['status'] != 'cancelled' && dayKey(fromMs(w)) == key;
-      }).toList()
-        ..sort(_byWhen);
-      final countdowns = s.list('countdowns').where((c) => c['kind'] != 'countup' && dayKey(s.countdownNext(c)) == key).toList();
-      if (items.isEmpty && countdowns.isEmpty) continue;
+      final entries = index[key] ?? const <CalEntry>[];
+      final cds = countdowns[key] ?? const <Rec>[];
+      if (entries.isEmpty && cds.isEmpty) continue;
       rows.add(InkWell(
-        onTap: () => setState(() {
-          _day = d;
-          _view = 'list';
-        }),
+        onTap: () => _openDay(d),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(4, 16, 4, 4),
           child: Text(
@@ -479,11 +525,11 @@ class _CalendarViewState extends State<_CalendarView> {
           ),
         ),
       ));
-      for (final c in countdowns) {
+      for (final c in cds) {
         rows.add(ListTile(dense: true, leading: const Icon(Icons.hourglass_bottom), title: Text(c['title'] as String)));
       }
-      for (final it in items) {
-        rows.add(ItemTile(store: s, it: it, dense: true));
+      for (final e in entries) {
+        rows.add(_entryTile(context, s, e));
       }
     }
     return ListView(
@@ -497,12 +543,8 @@ class _CalendarViewState extends State<_CalendarView> {
     final week = [for (var i = 0; i < 7; i++) DateTime(monday.year, monday.month, monday.day + i)];
     final key = dayKey(_day);
     final todayKey = dayKey(DateTime.now());
-    final items = s.list('items').where((i) {
-      final w = i['when'] as int?;
-      return w != null && i['status'] != 'cancelled' && dayKey(fromMs(w)) == key;
-    }).toList()
-      ..sort(_byWhen);
-    final countdowns = s.list('countdowns').where((c) => dayKey(s.countdownNext(c)) == key).toList();
+    final entries = CalIndex.build(s.list('items'), _day, _day)[key] ?? const <CalEntry>[];
+    final countdowns = CalIndex.countdowns(s)[key] ?? const <Rec>[];
     final scheme = Theme.of(context).colorScheme;
     return ListView(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 80),
@@ -545,8 +587,8 @@ class _CalendarViewState extends State<_CalendarView> {
               ],
             ),
           ),
-        if (items.isEmpty && countdowns.isEmpty) const Padding(padding: EdgeInsets.all(16), child: Text('Nothing on this day.')),
-        for (final it in items) ItemTile(store: s, it: it, dense: true),
+        if (entries.isEmpty && countdowns.isEmpty) const Padding(padding: EdgeInsets.all(16), child: Text('Nothing on this day.')),
+        for (final e in entries) _entryTile(context, s, e),
         Align(
           alignment: Alignment.centerLeft,
           child: TextButton.icon(
@@ -556,294 +598,6 @@ class _CalendarViewState extends State<_CalendarView> {
           ),
         ),
       ],
-    );
-  }
-}
-
-/// Google Calendar style week: one column per day, one row per hour, items drawn as blocks.
-/// Tap an empty slot to add an event there; tap a block to edit it.
-class WeekGrid extends StatefulWidget {
-  const WeekGrid({super.key, required this.store, required this.start, this.count = 7, required this.onDayTap});
-  final Store store;
-  final DateTime start;
-  final int count;
-  final void Function(DateTime day) onDayTap;
-
-  @override
-  State<WeekGrid> createState() => _WeekGridState();
-}
-
-class _WeekGridState extends State<WeekGrid> {
-  static const _hourH = 60.0;
-  static const _gutter = 48.0;
-  late final ScrollController _scroll =
-      ScrollController(initialScrollOffset: _hourH * ((DateTime.now().hour - 2).clamp(0, 16)));
-
-  @override
-  void dispose() {
-    _scroll.dispose();
-    super.dispose();
-  }
-
-  Color _color(Rec it, ColorScheme scheme) => _colorOf(it, scheme);
-
-  static Color _colorOf(Rec it, ColorScheme scheme) {
-    final p = (it['priority'] as int?) ?? 0;
-    if (p > 0) return priorityColors[p];
-    return switch (it['kind']) {
-      'alarm' => Colors.deepOrange,
-      'task' => scheme.tertiary,
-      _ => scheme.primary,
-    };
-  }
-
-  /// Places overlapping blocks side by side: returns (lane, lanes) for each item.
-  Map<int, (int, int)> _lanes(List<Rec> items) {
-    final out = <int, (int, int)>{};
-    var group = <Rec>[];
-    var groupEnd = 0;
-    final laneEnds = <int>[];
-    void close() {
-      final n = laneEnds.length;
-      for (final it in group) {
-        out[it['id'] as int] = (out[it['id'] as int]!.$1, n);
-      }
-      group = [];
-      laneEnds.clear();
-    }
-
-    for (final it in items) {
-      final st = it['when'] as int;
-      final en = st + _minutes(it) * 60000;
-      if (group.isNotEmpty && st >= groupEnd) close();
-      var lane = laneEnds.indexWhere((e) => e <= st);
-      if (lane < 0) {
-        lane = laneEnds.length;
-        laneEnds.add(en);
-      } else {
-        laneEnds[lane] = en;
-      }
-      out[it['id'] as int] = (lane, 1);
-      group.add(it);
-      if (en > groupEnd || group.length == 1) groupEnd = en > groupEnd ? en : groupEnd;
-    }
-    if (group.isNotEmpty) close();
-    return out;
-  }
-
-  int _minutes(Rec it) => ((it['dur'] ?? it['est'] ?? 60) as int).clamp(15, 24 * 60);
-
-  @override
-  Widget build(BuildContext context) {
-    final s = widget.store;
-    final scheme = Theme.of(context).colorScheme;
-    final days = [for (var i = 0; i < widget.count; i++) DateTime(widget.start.year, widget.start.month, widget.start.day + i)];
-    final now = DateTime.now();
-    final todayKey = dayKey(now);
-    final grid = scheme.outlineVariant.withValues(alpha: 0.4);
-
-    return LayoutBuilder(builder: (context, box) {
-      final colW = (box.maxWidth - _gutter) / widget.count;
-      return Column(
-        children: [
-          // Day names and dates.
-          Row(
-            children: [
-              const SizedBox(width: _gutter),
-              for (final d in days)
-                SizedBox(
-                  width: colW,
-                  child: InkWell(
-                    onTap: () => widget.onDayTap(d),
-                    child: Column(
-                      children: [
-                        Text(_weekdays[d.weekday - 1],
-                            style: TextStyle(fontSize: 12, color: dayKey(d) == todayKey ? scheme.primary : null)),
-                        CircleAvatar(
-                          radius: 16,
-                          backgroundColor: dayKey(d) == todayKey ? scheme.primary : Colors.transparent,
-                          child: Text('${d.day}',
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: dayKey(d) == todayKey ? scheme.onPrimary : scheme.onSurface,
-                              )),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          // All-day row: countdowns that fall on each day.
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(width: _gutter),
-              for (final d in days)
-                SizedBox(
-                  width: colW,
-                  child: Column(
-                    children: [
-                      for (final it in s.list('items').where((i) =>
-                          i['allDay'] == true &&
-                          i['status'] != 'cancelled' &&
-                          i['when'] != null &&
-                          dayKey(fromMs(i['when'] as int)) == dayKey(d)))
-                        GestureDetector(
-                          onTap: () => showTaskSheet(context, s, item: it),
-                          child: Container(
-                            margin: const EdgeInsets.all(1),
-                            padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
-                            width: double.infinity,
-                            decoration: BoxDecoration(
-                              color: _color(it, scheme).withValues(alpha: it['status'] == 'done' ? 0.35 : 0.9),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(it['title'] as String,
-                                maxLines: 1, overflow: TextOverflow.clip, style: const TextStyle(fontSize: 11, color: Colors.white)),
-                          ),
-                        ),
-                      for (final c in s.list('countdowns').where((c) => dayKey(s.countdownNext(c)) == dayKey(d)))
-                        Container(
-                          margin: const EdgeInsets.all(1),
-                          padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
-                          width: double.infinity,
-                          decoration: BoxDecoration(color: Colors.teal, borderRadius: BorderRadius.circular(4)),
-                          child: Text(c['title'] as String,
-                              maxLines: 1, overflow: TextOverflow.clip, style: const TextStyle(fontSize: 11, color: Colors.white)),
-                        ),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Expanded(
-            child: SingleChildScrollView(
-              controller: _scroll,
-              padding: const EdgeInsets.only(bottom: 80),
-              child: SizedBox(
-                height: _hourH * 24,
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      width: _gutter,
-                      child: Stack(
-                        children: [
-                          for (var h = 1; h < 24; h++)
-                            Positioned(
-                              top: h * _hourH - 7,
-                              right: 6,
-                              child: Text(
-                                h == 12 ? '12 pm' : (h < 12 ? '$h am' : '${h - 12} pm'),
-                                style: Theme.of(context).textTheme.labelSmall,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    for (final d in days) _dayColumn(context, s, d, colW, grid, scheme, now),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      );
-    });
-  }
-
-  Widget _dayColumn(BuildContext context, Store s, DateTime d, double colW, Color grid, ColorScheme scheme, DateTime now) {
-    final key = dayKey(d);
-    final items = s.list('items').where((i) {
-      final w = i['when'] as int?;
-      return w != null && i['status'] != 'cancelled' && i['allDay'] != true && dayKey(fromMs(w)) == key;
-    }).toList()
-      ..sort(_byWhen);
-    final lanes = _lanes(items);
-    final isToday = key == dayKey(now);
-
-    return SizedBox(
-      width: colW,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTapUp: (e) {
-          // Snap to the half hour that was tapped.
-          final halfHours = (e.localPosition.dy / (_hourH / 2)).floor().clamp(0, 47);
-          showTaskSheet(
-            context,
-            s,
-            day: d,
-            at: TimeOfDay(hour: halfHours ~/ 2, minute: (halfHours % 2) * 30),
-            newKind: 'event',
-            presetMinutes: 60,
-          );
-        },
-        child: Stack(
-          children: [
-            for (var h = 0; h < 24; h++)
-              Positioned(
-                top: h * _hourH,
-                left: 0,
-                right: 0,
-                child: Container(
-                  height: _hourH,
-                  decoration: BoxDecoration(
-                    border: Border(top: BorderSide(color: grid), left: BorderSide(color: grid)),
-                  ),
-                ),
-              ),
-            for (final it in items)
-              Builder(builder: (context) {
-                final st = fromMs(it['when'] as int);
-                final top = (st.hour * 60 + st.minute) / 60 * _hourH;
-                final height = min(max(_minutes(it) / 60 * _hourH, 18.0), _hourH * 24 - top + 18);
-                final (lane, n) = lanes[it['id'] as int]!;
-                final w = colW / n;
-                final c = _color(it, scheme);
-                final done = it['status'] == 'done';
-                return Positioned(
-                  top: top,
-                  left: lane * w + 1,
-                  width: w - 2,
-                  height: height - 1,
-                  child: GestureDetector(
-                    onTap: () => showTaskSheet(context, s, item: it),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: c.withValues(alpha: done ? 0.35 : 0.9),
-                        borderRadius: BorderRadius.circular(5),
-                      ),
-                      child: Text(
-                        '${it['kind'] == 'alarm' ? '⏰ ' : ''}${it['title']}',
-                        overflow: TextOverflow.clip,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.white,
-                          decoration: done ? TextDecoration.lineThrough : null,
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              }),
-            if (isToday)
-              Positioned(
-                top: (now.hour * 60 + now.minute) / 60 * _hourH - 1,
-                left: 0,
-                right: 0,
-                child: Row(
-                  children: [
-                    Container(width: 8, height: 8, decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle)),
-                    Expanded(child: Container(height: 2, color: Colors.red)),
-                  ],
-                ),
-              ),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -875,11 +629,12 @@ class _TimelineGridState extends State<TimelineGrid> {
   int _minutes(Rec it) => ((it['dur'] ?? it['est'] ?? 60) as int).clamp(15, 24 * 60);
 
   /// Stacks overlapping bars in rows: returns the row of each item and how many rows the day needs.
-  (Map<int, int>, int) _rows(List<Rec> items) {
+  (Map<int, int>, int) _rows(List<CalEntry> items) {
     final out = <int, int>{};
     final ends = <int>[];
-    for (final it in items) {
-      final st = it['when'] as int;
+    for (final e in items) {
+      final it = e.item;
+      final st = e.start.millisecondsSinceEpoch;
       var row = ends.indexWhere((e) => e <= st);
       if (row < 0) {
         row = ends.length;
@@ -899,13 +654,9 @@ class _TimelineGridState extends State<TimelineGrid> {
     final grid = scheme.outlineVariant.withValues(alpha: 0.4);
     final now = DateTime.now();
     final days = [for (var i = 0; i < 7; i++) DateTime(widget.start.year, widget.start.month, widget.start.day + i)];
+    final index = CalIndex.build(s.list('items'), days.first, days.last);
     final perDay = [
-      for (final d in days)
-        (s.list('items').where((i) {
-          final w = i['when'] as int?;
-          return w != null && i['status'] != 'cancelled' && i['allDay'] != true && dayKey(fromMs(w)) == dayKey(d);
-        }).toList()
-          ..sort(_byWhen)),
+      for (final d in days) [for (final e in index[dayKey(d)] ?? const <CalEntry>[]) if (e.item['allDay'] != true) e],
     ];
     final layouts = [for (final items in perDay) _rows(items)];
     final heights = [for (final (_, n) in layouts) max(56.0, n * (_barH + 4) + 8)];
@@ -932,11 +683,7 @@ class _TimelineGridState extends State<TimelineGrid> {
         behavior: HitTestBehavior.opaque,
         onTapUp: (e) {
           final halfHours = (e.localPosition.dx / (_hourW / 2)).floor().clamp(0, 47);
-          showTaskSheet(context, s,
-              day: d,
-              at: TimeOfDay(hour: halfHours ~/ 2, minute: (halfHours % 2) * 30),
-              newKind: 'event',
-              presetMinutes: 60);
+          showQuickAdd(context, s, day: d, at: TimeOfDay(hour: halfHours ~/ 2, minute: (halfHours % 2) * 30), minutes: 60);
         },
         child: SizedBox(
           width: _hourW * 24,
@@ -952,9 +699,10 @@ class _TimelineGridState extends State<TimelineGrid> {
                   decoration: BoxDecoration(border: Border(left: BorderSide(color: grid), top: BorderSide(color: grid))),
                 ),
               ),
-            for (final it in perDay[k])
+            for (final e in perDay[k])
               Builder(builder: (context) {
-                final st = fromMs(it['when'] as int);
+                final it = e.item;
+                final st = e.start;
                 final left = (st.hour * 60 + st.minute) / 60 * _hourW;
                 final done = it['status'] == 'done';
                 return Positioned(
@@ -963,12 +711,12 @@ class _TimelineGridState extends State<TimelineGrid> {
                   width: max(_minutes(it) / 60 * _hourW - 2, 28.0),
                   height: _barH,
                   child: GestureDetector(
-                    onTap: () => showTaskSheet(context, s, item: it),
+                    onTap: () => showEventView(context, s, e),
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8),
                       alignment: Alignment.centerLeft,
                       decoration: BoxDecoration(
-                        color: _WeekGridState._colorOf(it, scheme).withValues(alpha: done ? 0.35 : 0.9),
+                        color: eventColor(it, scheme).withValues(alpha: done ? 0.35 : 0.9),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(

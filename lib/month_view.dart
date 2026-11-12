@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'cal_index.dart';
 import 'store.dart';
 
 /// The whole month at a glance: a grid of days, Monday first, with a dot for each thing planned.
@@ -31,13 +32,10 @@ class MonthView extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
     final today = dayKey(DateTime.now());
-    final byDay = <String, List<Rec>>{};
-    for (final i in store.list('items')) {
-      final w = i['when'] as int?;
-      if (w == null || i['status'] == 'cancelled') continue;
-      (byDay[dayKey(fromMs(w))] ??= []).add(i);
-    }
-    final marked = <String>{for (final c in store.list('countdowns')) dayKey(store.countdownNext(c))};
+    final shown = weeks(month);
+    final index = CalIndex.build(store.list('items'), shown.first.first, shown.last.last);
+    final byDay = <String, List<Rec>>{for (final e in index.entries) e.key: [for (final c in e.value) c.item]};
+    final marked = CalIndex.countdowns(store).keys.toSet();
 
     Color colorOf(Rec i) => switch (i['kind']) {
           'event' => scheme.primary,
