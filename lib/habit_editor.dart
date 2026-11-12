@@ -46,6 +46,7 @@ class _HabitEditorState extends State<HabitEditor> {
   );
   late int? _after = old?['after'] as int?;
   late String? _remind = old?['remind'] as String?;
+  late bool _toCal = old?['toCal'] == true;
   late final _link = TextEditingController(text: ((old?['link'] as List?) ?? const []).join(', '));
   late int _color = (old?['color'] as int?) ?? s.list('habits').length;
   late String? _icon = old?['icon'] as String?;
@@ -123,6 +124,7 @@ class _HabitEditorState extends State<HabitEditor> {
       r['after'] = _after;
       final link = [for (final w in _link.text.split(',')) if (w.trim().isNotEmpty) w.trim().toLowerCase()];
       r['link'] = link.isEmpty ? null : link;
+      r['toCal'] = _toCal ? true : null;
       r['remind'] = _remind;
       if (_remind != null) r['rid'] ??= s.nextId();
       r['color'] = _color;
@@ -374,7 +376,7 @@ class _HabitEditorState extends State<HabitEditor> {
               onChanged: (v) => setState(() => _after = v),
             ),
           ],
-          label('Count from calendar'),
+          label('Calendar'),
           TextField(
             controller: _link,
             onChanged: (_) => setState(() {}),
@@ -398,6 +400,16 @@ class _HabitEditorState extends State<HabitEditor> {
                 child: Text('Use "${_name.text.trim().toLowerCase()}"'),
               ),
             ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Add to my calendar when I tick it'),
+            subtitle: Text(_type == 'duration' ? 'A block as long as the minutes you log' : 'A 30 minute block ending when you tick it'),
+            value: _toCal,
+            onChanged: (on) {
+              Haptics.toggle(on);
+              setState(() => _toCal = on);
+            },
+          ),
           label('Reminder'),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,

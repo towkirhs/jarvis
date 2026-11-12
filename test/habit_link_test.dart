@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:jarcis/habit_link.dart';
 
 void main() {
+  blockTests();
   final now = DateTime(2026, 11, 12, 15);
   int at(int d, int h, [int m = 0]) => DateTime(2026, 11, d, h, m).millisecondsSinceEpoch;
   Map<String, dynamic> event(String title, int when, int dur) => {'kind': 'event', 'title': title, 'when': when, 'dur': dur, 'status': 'open'};
@@ -65,5 +66,45 @@ void main() {
     expect(changed, true);
     expect(logs, {'2026-11-10': 'yes', '2026-11-09': {'v': 1, 'cal': true}, '2026-11-11': {'v': 1, 'cal': true}});
     expect(HabitLink.apply(logs, {'2026-11-09': {'v': 1, 'cal': true}, '2026-11-11': {'v': 1, 'cal': true}}, now), false);
+  });
+}
+
+void blockTests() {
+  final now = DateTime(2026, 11, 12, 15, 0);
+  group('a ticked habit becomes a calendar block', () {
+    test('ticked today: a 30 minute block ending now', () {
+      final b = HabitLink.block({'type': 'yesno'}, '2026-11-12', {'v': 1}, now)!;
+      expect((b.start, b.minutes), (DateTime(2026, 11, 12, 14, 30), 30));
+    });
+
+    test('a duration habit uses the logged minutes', () {
+      final b = HabitLink.block({'type': 'duration', 'target': 60}, '2026-11-12', {'v': 90}, now)!;
+      expect((b.start, b.minutes), (DateTime(2026, 11, 12, 13, 30), 90));
+    });
+
+    test('a "by a time" habit ends at the time you logged', () {
+      final b = HabitLink.block({'type': 'time', 'by': '07:00'}, '2026-11-12', {'at': '06:40'}, now)!;
+      expect(b.start, DateTime(2026, 11, 12, 6, 10));
+    });
+
+    test('a past day is placed in the evening', () {
+      final b = HabitLink.block({'type': 'yesno'}, '2026-11-10', {'v': 1}, now)!;
+      expect(b.start, DateTime(2026, 11, 10, 20));
+    });
+
+    test('nothing for a miss, a rest day, a calendar log, or a limit habit', () {
+      expect(HabitLink.block({'type': 'yesno'}, '2026-11-12', {'miss': true}, now), isNull);
+      expect(HabitLink.block({'type': 'yesno'}, '2026-11-12', 'skip', now), isNull);
+      expect(HabitLink.block({'type': 'yesno'}, '2026-11-12', {'v': 1, 'cal': true}, now), isNull);
+      expect(HabitLink.block({'type': 'limit', 'target': 120}, '2026-11-12', {'v': 30}, now), isNull);
+    });
+
+    test('blocks made from a habit never count back into that habit', () {
+      final h = {'id': 7, 'type': 'yesno', 'link': ['gym']};
+      final items = [
+        {'kind': 'event', 'title': 'Gym', 'when': DateTime(2026, 11, 11, 7).millisecondsSinceEpoch, 'dur': 60, 'status': 'open', 'habitId': 7},
+      ];
+      expect(HabitLink.compute(h, items, now), isEmpty);
+    });
   });
 }

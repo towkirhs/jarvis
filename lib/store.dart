@@ -650,6 +650,8 @@ class Store extends ChangeNotifier {
       logs[day] = value;
     }
     final d = DateTime.parse(day);
+    final calendar = <Rec>[];
+    if (h['toCal'] == true) _habitBlock(h, day, calendar);
     final verb = value == null
         ? 'Cleared'
         : (value == 'skip' || (value is Map && value['skip'] == true))
@@ -657,12 +659,43 @@ class Store extends ChangeNotifier {
             : (value == 'no' ? 'Missed' : (HabitCore.done(h, d) ? 'Done' : 'Logged'));
     logAction('$verb ${h['name']} on $day', [
       {'op': 'put', 'col': 'habits', 'rec': old},
+      ...calendar,
     ]);
     save();
     final after = streakPeriods(h);
     if (HabitCore.done(h, d) && after > before) {
       await boost('${h['name']}: $after ${HabitCore.unit(h)} streak');
     }
+  }
+
+  /// Keeps the calendar block for a habit's day in step with its log: made, moved, or removed.
+  /// The block is a plain event marked with `habitId` and `habitDay`, without a reminder.
+  void _habitBlock(Rec h, String day, List<Rec> undo) {
+    final existing = list('items').where((i) => i['habitId'] == h['id'] && i['habitDay'] == day).toList();
+    final b = HabitLink.block(h, day, (h['logs'] as Rec)[day], DateTime.now());
+    if (b == null) {
+      for (final e in existing) {
+        undo.add({'op': 'put', 'col': 'items', 'rec': copyRec(e)});
+        list('items').removeWhere((i) => i['id'] == e['id']);
+      }
+      return;
+    }
+    if (existing.isNotEmpty) {
+      final e = existing.first;
+      undo.add({'op': 'put', 'col': 'items', 'rec': copyRec(e)});
+      e['when'] = b.start.millisecondsSinceEpoch;
+      e['dur'] = b.minutes;
+      e['title'] = h['name'];
+      return;
+    }
+    final id = nextId();
+    list('items').add(<String, dynamic>{
+      'id': id, 'kind': 'event', 'title': h['name'], 'when': b.start.millisecondsSinceEpoch, 'dur': b.minutes,
+      'status': 'open', 'nid': null, 'est': null, 'cat': null, 'startedAt': null, 'doneAt': null, 'actual': null,
+      'postponed': 0, 'captureId': null, 'desc': null, 'priority': 0, 'tags': <String>[], 'list': 'Habits',
+      'repeat': null, 'lead': 0, 'habitId': h['id'], 'habitDay': day,
+    });
+    undo.add({'op': 'rm', 'col': 'items', 'id': id});
   }
 
   /// Adds to (or, for ratings and percentages, sets) today's amount for a measured habit.

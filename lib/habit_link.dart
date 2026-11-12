@@ -1,3 +1,5 @@
+import 'habit_core.dart';
+
 /// Lets the calendar fill in habits. A habit with `link: ['tuition']` counts every finished event, and every
 /// done task, whose title has one of those words. What it logs depends on the habit:
 /// minutes for duration and limit habits, how many for count habits, the end time for "by a time" habits
@@ -27,6 +29,7 @@ class HabitLink {
     final count = <String, int>{};
     final ends = <String, DateTime>{};
     for (final i in items) {
+      if (i['habitId'] != null && i['habitId'] == habit['id']) continue; // a block this habit made itself
       if (!matches('${i['title'] ?? ''}', words)) continue;
       DateTime? end;
       int mins;
@@ -83,4 +86,29 @@ class HabitLink {
   }
 
   static bool _same(Map a, Map b) => a.length == b.length && a.keys.every((k) => a[k] == b[k]);
+
+  /// The calendar block for a day you ticked yourself, or null when the day is not done, was filled in by
+  /// the calendar, or the habit is a limit (staying under something is not a block of time).
+  /// Today's block ends now; a past day's starts at 8 pm; a "by a time" habit ends at the logged time.
+  static ({DateTime start, int minutes})? block(Map<String, dynamic> habit, String day, Object? log, DateTime now) {
+    if (log is Map && log['cal'] == true) return null;
+    final type = (habit['type'] as String?) ?? 'yesno';
+    if (type == 'limit') return null;
+    final d = DateTime.parse(day);
+    final e = log is Map ? log : const {};
+    final partDuration = type == 'duration' && e['v'] is num && (e['v'] as num) > 0 && e['skip'] != true;
+    if (!partDuration && !HabitCore.done({...habit, 'logs': {day: log}}, d)) return null;
+    final minutes = type == 'duration' && e['v'] is num ? (e['v'] as num).round().clamp(5, 24 * 60) : 30;
+    final at = e['at'] as String?;
+    final DateTime end;
+    if (type == 'time' && at != null) {
+      final p = at.split(':');
+      end = DateTime(d.year, d.month, d.day, int.parse(p[0]), int.parse(p[1]));
+    } else if (_day(now) == day) {
+      end = DateTime(now.year, now.month, now.day, now.hour, now.minute);
+    } else {
+      return (start: DateTime(d.year, d.month, d.day, 20), minutes: minutes);
+    }
+    return (start: end.subtract(Duration(minutes: minutes)), minutes: minutes);
+  }
 }
