@@ -164,6 +164,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
 
   /// Runs every minute while the app is open: retries waiting notes and writes the evening summary.
   Future<void> _tick() async {
+    s.linkHabitsNow();
     await _applyDone();
     await Clock.drainFired(s);
     await Clock.drainVoiceAlarms(s);

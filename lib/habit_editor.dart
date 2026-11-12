@@ -46,6 +46,7 @@ class _HabitEditorState extends State<HabitEditor> {
   );
   late int? _after = old?['after'] as int?;
   late String? _remind = old?['remind'] as String?;
+  late final _link = TextEditingController(text: ((old?['link'] as List?) ?? const []).join(', '));
   late int _color = (old?['color'] as int?) ?? s.list('habits').length;
   late String? _icon = old?['icon'] as String?;
   String? _error;
@@ -120,6 +121,8 @@ class _HabitEditorState extends State<HabitEditor> {
           : null;
       r['routine'] = routine.isEmpty ? null : routine;
       r['after'] = _after;
+      final link = [for (final w in _link.text.split(',')) if (w.trim().isNotEmpty) w.trim().toLowerCase()];
+      r['link'] = link.isEmpty ? null : link;
       r['remind'] = _remind;
       if (_remind != null) r['rid'] ??= s.nextId();
       r['color'] = _color;
@@ -371,6 +374,30 @@ class _HabitEditorState extends State<HabitEditor> {
               onChanged: (v) => setState(() => _after = v),
             ),
           ],
+          label('Count from calendar'),
+          TextField(
+            controller: _link,
+            onChanged: (_) => setState(() {}),
+            decoration: const InputDecoration(labelText: 'Words in event or task titles', hintText: 'tuition, class'),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            switch (_type) {
+              'duration' || 'limit' => 'A finished event with one of these words adds its minutes. Sleep 2 am to 6 am adds 4 hours.',
+              'count' || 'frequency' => 'Each finished event or done task with one of these words counts once.',
+              'time' => 'The time the event ends counts, so the end of "Sleep" is when you got up.',
+              _ => 'A finished event or done task with one of these words marks the day done.',
+            },
+            style: tt.bodySmall,
+          ),
+          if (_link.text.trim().isEmpty && _name.text.trim().isNotEmpty)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: () => setState(() => _link.text = _name.text.trim().toLowerCase()),
+                child: Text('Use "${_name.text.trim().toLowerCase()}"'),
+              ),
+            ),
           label('Reminder'),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,

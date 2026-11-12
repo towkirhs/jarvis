@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'categories.dart';
 import 'clash.dart';
 import 'habit_core.dart';
+import 'habit_link.dart';
 import 'native.dart';
 
 typedef Rec = Map<String, dynamic>;
@@ -102,10 +103,29 @@ class Store extends ChangeNotifier {
   int changes = 0;
 
   void save() {
+    _linkHabits();
     _prefs.setString('state', jsonEncode(_s));
     changes++;
     _prefs.setBool('local_dirty', true);
     notifyListeners();
+  }
+
+  /// Lets finished calendar events and done tasks fill in linked habits (see [HabitLink]).
+  /// Returns whether any habit changed. Called on every save and when the app opens or comes back.
+  bool _linkHabits() {
+    final now = DateTime.now();
+    final items = list('items').cast<Map<String, dynamic>>();
+    var changed = false;
+    for (final h in list('habits')) {
+      if (((h['link'] as List?) ?? const []).isEmpty) continue;
+      if (HabitLink.apply(h['logs'] as Rec, HabitLink.compute(h, items, now), now)) changed = true;
+    }
+    return changed;
+  }
+
+  /// For time passing with nothing saved: an event that has just ended.
+  void linkHabitsNow() {
+    if (_linkHabits()) save();
   }
 
   /// True when something changed here since the last sync upload (survives restarts).
@@ -650,7 +670,8 @@ class Store extends ChangeNotifier {
     final e = Map<String, dynamic>.from(HabitCore.entry(h, day) ?? {})
       ..remove('skip')
       ..remove('miss')
-      ..remove('done');
+      ..remove('done')
+      ..remove('cal'); // once you change it yourself, the calendar leaves this day alone
     final v = set ? amount : ((e['v'] as num?) ?? 0) + amount;
     e['v'] = v < 0 ? 0 : v;
     await logHabit(h, day, e);
