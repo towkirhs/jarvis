@@ -83,6 +83,11 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    logs written with `cal: true`, run on every save and on resume; manual logs win. The other way, `toCal: true` adds an event (`habitId`, `habitDay`, list 'Habits') when you tick the habit,
    moved or removed with the log (`Store._habitBlock`). Plan my day: quick tasks (`DayPlanner.isQuick`, item `quick`) get no block;
    habits with `planMin` (or duration target) get one, applied as a task with `planHabit` that logs the habit when done. Untested on a phone.
+   Web and sync (build after 176): records carry `_t` (set in `Store.save` via `Stamps`), deletions go to `_gone`;
+   `SyncMerge.merge` keeps the newer record and applies deletions; any list of id'd maps is a collection. Sync pulls every
+   minute, pushes 5 s after a change, and on resume. Setup code (`Sync.makeCode`, `JARVIS-SYNC1.`) joins a device.
+   Web: PWA files in `web_overlay/` (copied by CI), browser notifications (`lib/web_notify*.dart`, `WebReminders`),
+   NavigationRail at ≥ 840 px. Untested on a real phone/PC pair.
 5. Groq web answers show no source links (response shape unconfirmed).
 6. Calendar, deferred: custom repeats, find free time, global search, weekly review, what-if planning.
 7. Known limits: repeating events show only the next time; imported times with a named time zone are read as

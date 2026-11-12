@@ -49,6 +49,16 @@ jobs:
           # Phones are arm64; leave out the other chip types' copies of native libraries.
           printf '\nandroid {\n    packaging {\n        jniLibs {\n            excludes += listOf("lib/x86/**", "lib/x86_64/**", "lib/armeabi-v7a/**")\n        }\n    }\n}\n' >> android/app/build.gradle.kts
 
+      # The web app installs from Chrome like a desktop app ("Install Jarvis"): name, icons and colours.
+      - name: Apply web overlay
+        run: |
+          cp -r web_overlay/* web/
+          sed -i 's#<title>[^<]*</title>#<title>Jarvis</title>#' web/index.html
+          sed -i 's#content="A new Flutter project."#content="Jarvis, your personal assistant"#' web/index.html
+          sed -i 's#<meta name="apple-mobile-web-app-title" content="[^"]*">#<meta name="apple-mobile-web-app-title" content="Jarvis">#' web/index.html
+          sed -i 's#</head>#  <meta name="theme-color" content="\#0B7285">\n</head>#' web/index.html
+          grep -q '<title>Jarvis</title>' web/index.html
+
       # The overhaul branch builds a separate app, "Jarvis Dev", that installs next to the real one for testing.
       - name: Dev build identity
         if: github.ref == 'refs/heads/overhaul'

@@ -131,6 +131,50 @@ class Sync {
     return 'Sync is on. Use the same token and passphrase on your other devices.';
   }
 
+  static const _codePrefix = 'JARVIS-SYNC1.';
+
+  static String makeCode({required String token, required String gist, required String key, required String salt}) =>
+      _codePrefix + base64Url.encode(utf8.encode(jsonEncode({'t': token, 'g': gist, 'k': key, 's': salt})));
+
+  static ({String token, String gist, String key, String salt})? readCode(String code) {
+    final c = code.trim();
+    if (!c.startsWith(_codePrefix)) return null;
+    try {
+      final m = jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(c.substring(_codePrefix.length))))) as Map;
+      return (token: m['t'] as String, gist: m['g'] as String, key: m['k'] as String, salt: m['s'] as String);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// A code that sets up another device with no typing: it holds the token and the key, so it opens your
+  /// data like the passphrase does. Null until the first sync has made the gist.
+  static String? setupCode(Store s) {
+    final gist = s.local('sync_gist');
+    if (!enabled(s) || gist == null) return null;
+    return makeCode(token: s.local('sync_token')!, gist: gist, key: s.local('sync_key')!, salt: s.local('sync_salt')!);
+  }
+
+  /// Joins sync with a code from another device, and merges this device's data into it.
+  static Future<String> joinWithCode(Store s, String code) async {
+    final c = readCode(code);
+    if (c == null) throw Exception('That is not a Jarvis setup code. Copy it again from Sync on your other device.');
+    final env = await _download(c.token, c.gist);
+    final key = base64Decode(c.key);
+    Map<String, dynamic> remote;
+    try {
+      remote = await decrypt(env, key);
+    } catch (_) {
+      throw Exception('That code no longer opens your synced data. Make a new one on your other device.');
+    }
+    final slot = 1 + Random.secure().nextInt(99);
+    await _saveSetup(s, c.token, c.gist, key, base64Decode(c.salt), slot);
+    final hasData = ['items', 'captures', 'tx', 'entries', 'habits'].any((x) => s.list(x).isNotEmpty);
+    await s.replaceState(SyncMerge.merge(s.state, remote, localChanged: hasData, slot: slot));
+    await _push(s);
+    return 'Joined your synced Jarvis.';
+  }
+
   static Future<void> _saveSetup(Store s, String token, String? gist, List<int> key, List<int> salt, int slot) async {
     await s.setLocal('sync_token', token);
     await s.setLocal('sync_gist', gist);
@@ -158,10 +202,10 @@ class Sync {
   }
 
   /// Pulls changes from other devices and pushes this device's. Cheap to call often: it does nothing
-  /// unless something changed here or it has been 10 minutes since the last check.
+  /// unless something changed here or a minute has passed since the last check.
   static Future<String?> run(Store s, {bool force = false}) async {
     if (!enabled(s) || _busy) return null;
-    final stale = _lastPull == null || DateTime.now().difference(_lastPull!) > const Duration(minutes: 10);
+    final stale = _lastPull == null || DateTime.now().difference(_lastPull!) >= const Duration(seconds: 55);
     if (!force && !s.dirty && !stale) return null;
     _busy = true;
     try {

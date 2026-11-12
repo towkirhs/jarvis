@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import 'ai.dart';
@@ -19,6 +20,7 @@ import 'store.dart';
 import 'sync.dart';
 import 'theme.dart';
 import 'updater.dart';
+import 'web_reminders.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -107,11 +109,22 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     Native.onLaunchAction = _openCapture;
     _boot();
     _timer = Timer.periodic(const Duration(minutes: 1), (_) => _tick());
+    s.addListener(_soonSync);
+  }
+
+  /// Sends a change to your other devices a few seconds after you make it (several changes go together).
+  Timer? _syncSoon;
+  void _soonSync() {
+    if (!s.dirty || !Sync.enabled(s)) return;
+    _syncSoon?.cancel();
+    _syncSoon = Timer(const Duration(seconds: 5), () => Sync.run(s).catchError((_) => null));
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    _syncSoon?.cancel();
+    s.removeListener(_soonSync);
     _pages.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -119,7 +132,10 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _tick();
+    if (state == AppLifecycleState.resumed) {
+      // Coming back (or switching to this browser tab): fetch what the other device did.
+      Sync.run(s, force: true).catchError((_) => null).whenComplete(_tick);
+    }
   }
 
   Future<void> _boot() async {
@@ -165,6 +181,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
   /// Runs every minute while the app is open: retries waiting notes and writes the evening summary.
   Future<void> _tick() async {
     s.linkHabitsNow();
+    if (kIsWeb) WebReminders.check(s);
     await _applyDone();
     await Clock.drainFired(s);
     await Clock.drainVoiceAlarms(s);
@@ -206,11 +223,58 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     }
   }
 
+  static const _destinations = [
+    (Icons.home_outlined, Icons.home, 'Home'),
+    (Icons.checklist, Icons.checklist, 'Plan'),
+    (Icons.account_balance_wallet_outlined, Icons.account_balance_wallet, 'Money'),
+    (Icons.menu_book_outlined, Icons.menu_book, 'Journal'),
+    (Icons.local_fire_department_outlined, Icons.local_fire_department, 'Habits'),
+    (Icons.more_horiz, Icons.more_horiz, 'More'),
+  ];
+
   @override
-  Widget build(BuildContext context) => Scaffold(
-        body: SafeArea(
-          // Swipe left or right anywhere to move between the main tabs.
-          child: PageView(
+  Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    if (width < 840) return _phone(context);
+    // A computer screen: tabs down the side, and the page kept to a readable width.
+    return Scaffold(
+      body: SafeArea(
+        child: Row(children: [
+          NavigationRail(
+            selectedIndex: _tab,
+            onDestinationSelected: _goTo,
+            extended: width >= 1200,
+            labelType: width >= 1200 ? NavigationRailLabelType.none : NavigationRailLabelType.all,
+            destinations: [
+              for (final (icon, selected, label) in _destinations)
+                NavigationRailDestination(icon: Icon(icon), selectedIcon: Icon(selected), label: Text(label)),
+            ],
+          ),
+          const VerticalDivider(width: 1),
+          Expanded(
+            child: Center(
+              child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 960), child: _pagesView()),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _phone(BuildContext context) => Scaffold(
+        body: SafeArea(child: _pagesView()),
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: _tab,
+          onDestinationSelected: _goTo,
+          destinations: [
+            for (final (icon, selected, label) in _destinations)
+              NavigationDestination(icon: Icon(icon), selectedIcon: Icon(selected), label: label),
+          ],
+        ),
+      );
+
+  // Swipe left or right anywhere to move between the main tabs.
+  Widget _pagesView() => PageView(
             controller: _pages,
             onPageChanged: (i) {
               if (i != _tab) Haptics.tick();
@@ -227,21 +291,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
               ])
                 _KeepAlive(child: page),
             ],
-          ),
-        ),
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: _tab,
-          onDestinationSelected: _goTo,
-          destinations: const [
-            NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
-            NavigationDestination(icon: Icon(Icons.checklist), label: 'Plan'),
-            NavigationDestination(icon: Icon(Icons.account_balance_wallet_outlined), selectedIcon: Icon(Icons.account_balance_wallet), label: 'Money'),
-            NavigationDestination(icon: Icon(Icons.menu_book_outlined), selectedIcon: Icon(Icons.menu_book), label: 'Journal'),
-            NavigationDestination(icon: Icon(Icons.local_fire_department_outlined), selectedIcon: Icon(Icons.local_fire_department), label: 'Habits'),
-            NavigationDestination(icon: Icon(Icons.more_horiz), label: 'More'),
-          ],
-        ),
-      );
+          );
 }
 
 /// Keeps a tab's scroll position and state while you are on another tab.

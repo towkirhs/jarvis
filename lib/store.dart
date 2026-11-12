@@ -8,6 +8,7 @@ import 'clash.dart';
 import 'habit_core.dart';
 import 'habit_link.dart';
 import 'native.dart';
+import 'sync_merge.dart';
 
 typedef Rec = Map<String, dynamic>;
 
@@ -63,6 +64,7 @@ class Store extends ChangeNotifier {
     final raw = _prefs.getString('state');
     _s = raw == null ? <String, dynamic>{} : jsonDecode(raw) as Rec;
     _fillDefaults();
+    _snap = Stamps.snapshot(_s);
     apiKey = _prefs.getString('gemini_key') ?? '';
   }
 
@@ -102,8 +104,12 @@ class Store extends ChangeNotifier {
   /// Goes up by one on every save, so sync can tell whether anything changed.
   int changes = 0;
 
+  /// What each record looked like at the last save, to stamp changes for sync (see [Stamps]).
+  Map<String, Map<Object, int>> _snap = {};
+
   void save() {
     _linkHabits();
+    _snap = Stamps.stamp(_s, _snap, DateTime.now().millisecondsSinceEpoch);
     _prefs.setString('state', jsonEncode(_s));
     changes++;
     _prefs.setBool('local_dirty', true);
@@ -142,6 +148,7 @@ class Store extends ChangeNotifier {
   Future<void> replaceState(Rec s) async {
     _s = s;
     _fillDefaults();
+    _snap = Stamps.snapshot(_s); // merged records keep their own times
     save();
     await resyncAll();
   }
