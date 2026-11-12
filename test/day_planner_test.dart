@@ -61,14 +61,14 @@ void editTests() {
     final items = [
       task(2, 'Read notes', est: 30),
       task(3, 'Lab report', est: 60, priority: 3),
-      task(4, 'Call Apu', est: 30),
+      task(4, 'Revise slides', est: 30),
     ];
     List<String> view(DayPlan p) => p.blocks.map((b) => '${hm(b.start)} ${b.title} ${b.minutes}').toList();
 
     test('a task can be pinned to a time and the others flow around it', () {
       final plan = DayPlanner.plan(now: now, items: items, edits: {3: PlanEdit(start: DateTime(2026, 11, 5, 9, 30))});
       // Read notes (30 min) does not fit in the 25 minutes before 9:30, so it goes after the pinned task.
-      expect(view(plan), ['9:30 Lab report 60', '10:30 Read notes 30', '11:10 Call Apu 30']);
+      expect(view(plan), ['9:30 Lab report 60', '10:30 Read notes 30', '11:10 Revise slides 30']);
     });
 
     test('a task can get its own length', () {
@@ -78,8 +78,8 @@ void editTests() {
 
     test('a task can be left out, and shows up as skipped', () {
       final plan = DayPlanner.plan(now: now, items: items, edits: {4: PlanEdit(skip: true)});
-      expect(plan.blocks.any((b) => b.title == 'Call Apu'), false);
-      expect(plan.skipped.map((b) => b.title), ['Call Apu']);
+      expect(plan.blocks.any((b) => b.title == 'Revise slides'), false);
+      expect(plan.skipped.map((b) => b.title), ['Revise slides']);
     });
 
     test('a task pinned before the current time keeps that time', () {
