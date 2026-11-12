@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
 
 import 'ai.dart';
+import 'categories.dart';
 import 'chatgpt_block.dart';
 import 'clash.dart';
 import 'decide.dart';
@@ -954,6 +955,7 @@ class Brain {
       {bool photo = false, String? replyTo, bool web = false, String? dest, bool events = true}) {
     final now = DateTime.now();
     final places = [for (final p in s.list('places')) p['name'] as String];
+    final moneyCats = [for (final u in Cats.used(s.list('tx').cast<Map<String, dynamic>>(), 'expense').take(12)) u.name].join(', ');
     final learn = s.settings['memory'] != false;
     final known = learn ? Memory.pick(s.list('memories'), note) : const <String>[];
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -982,7 +984,7 @@ ${events ? '- A meeting or appointment at a time is "event".' : '- Never use "ev
 - A habit is something repeated over weeks (gym, reading, praying, studying). Reporting that it was done or skipped is "habit_log" with the day it happened, never a task. Saying they want to start doing something regularly is "habit_new". A one-off thing to do is a task.
 - "priority": "high" for urgent or important things the person stresses, otherwise only if they say it. "tags" and "list" only if they name them (like "add to my study list", "tag it exam"). "repeat" only for things said to repeat ("every day", "every Monday" = weekly). "durationMinutes" is how long an event lasts. "description" holds extra details that do not fit the title.
 - "countdown" is a date to count down to or remember every year: a birthday, an anniversary, a holiday, or an exam or trip the person wants a countdown for. "category" is "birthday", "anniversary", "holiday" or "countdown", and "date" is required.
-- "money" is money spent, received or moved: "spent 250 on lunch", "got 5000 tuition fee", "sent 1000 from bank to bKash", or a receipt in a photo. "amount" is the number, "moneyType" is expense, income or transfer, "title" is a short note (what it was for), "category" is one word like Food, Transport, Shopping, Bills, Education, Health, Entertainment, Gifts, Salary, Tuition. "account" and "toAccount" only if named. "date"/"time" only if it was not today. If they say how much is LEFT in an account and that the rest was spent ("500 remains in cash, spent the rest on transport"), put that left-over number in both "leaves" and "amount", moneyType expense: the app works out the spend from the account's balance. "leaves" is otherwise null. "date"/"time" only if it was not today.
+- "money" is money spent, received or moved: "spent 250 on lunch", "got 5000 tuition fee", "sent 1000 from bank to bKash", or a receipt in a photo. "amount" is the number, "moneyType" is expense, income or transfer, "title" is a short note (what it was for), "category" is one of the categories they already use${moneyCats.isEmpty ? '' : ' ($moneyCats)'} when one fits (groceries is Food if they use Food), otherwise one word like Food, Transport, Shopping, Bills, Education, Health, Entertainment, Gifts, Salary, Tuition. "account" and "toAccount" only if named. "date"/"time" only if it was not today. If they say how much is LEFT in an account and that the rest was spent ("500 remains in cash, spent the rest on transport"), put that left-over number in both "leaves" and "amount", moneyType expense: the app works out the spend from the account's balance. "leaves" is otherwise null. "date"/"time" only if it was not today.
 ${places.isEmpty ? '' : '- "place" is, for a task tied to a place ("buy milk when I reach Shwapno", "call Ammu when I leave the office"), one of their saved places: ${places.join(', ')}. "placeWhen" is "arrive" or "leave". Otherwise null. A task with a place needs no date.\n'}- A promise is a commitment made to another person. A decision is a choice the person made.
 - A deadline ("before Friday", "by the 20th", "within 3 days") is NOT the reminder time: the thing must be finished before it. Remind at the time they named, on the first day that time is still ahead, and write the deadline in "description" (like "Before Friday 13 Nov"). Only when they give a deadline and no other time, use the deadline as "date".
 - "untilDone" is true when they want to be reminded again and again until it is finished ("until done", "keep reminding me", "every evening till I do it"). Make ONE item (type "alarm" if they asked for an alarm, otherwise "task") whose "date" and "time" are the first reminder; Jarvis repeats it at that time every day until it is completed. Do not also set "repeat", and do not add a second item for the same thing.

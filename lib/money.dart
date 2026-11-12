@@ -2,6 +2,8 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import 'categories.dart';
+import 'categories_page.dart';
 import 'haptics.dart';
 import 'money_io.dart';
 import 'money_sms.dart';
@@ -55,8 +57,15 @@ Future<void> showTxSheet(BuildContext context, Store s, {Rec? tx, DateTime? day}
     isScrollControlled: true,
     builder: (ctx) => StatefulBuilder(builder: (ctx, setS) {
       final color = type == 'income' ? _incomeColor : (type == 'expense' ? _expenseColor : Colors.grey);
-      final used = {for (final t in s.list('tx')) if (t['type'] == type) t['cat'] as String};
-      final cats = {...(type == 'income' ? incomeCats : expenseCats), ...used}.toList();
+      // One chip per category: the ones you use most first, spellings that differ only by case shown once.
+      final seen = <String>{};
+      final cats = [
+        for (final c in [
+          for (final u in Cats.used(s.list('tx').cast<Map<String, dynamic>>(), type)) u.name,
+          ...(type == 'income' ? incomeCats : expenseCats),
+        ])
+          if (seen.add(Cats.key(c))) c,
+      ];
 
       Future<void> save() async {
         final a = num.tryParse(amount.text.trim().replaceAll(',', ''));
@@ -64,7 +73,7 @@ Future<void> showTxSheet(BuildContext context, Store s, {Rec? tx, DateTime? day}
         final fields = <String, dynamic>{
           'type': type,
           'amount': a,
-          'cat': type == 'transfer' ? 'Transfer' : (cat.text.trim().isEmpty ? 'Other' : cat.text.trim()),
+          'cat': type == 'transfer' ? 'Transfer' : (cat.text.trim().isEmpty ? 'Other' : s.tidyCategory(type, cat.text)),
           'account': account,
           'toAccount': type == 'transfer' ? toAccount : null,
           'note': note.text.trim().isEmpty ? null : note.text.trim(),
@@ -509,9 +518,11 @@ class _MoneyPageState extends State<MoneyPage> {
   }
 
   Widget _stats(BuildContext context, List<Rec> txs) {
+    // Spellings that differ only by case count as one category, shown in the spelling used most.
+    final shown = {for (final u in Cats.used(txs.cast<Map<String, dynamic>>(), 'expense').reversed) Cats.key(u.name): u.name};
     final byCat = <String, num>{};
     for (final t in txs.where((t) => t['type'] == 'expense')) {
-      byCat.update(t['cat'] as String, (v) => v + (t['amount'] as num), ifAbsent: () => t['amount'] as num);
+      byCat.update(shown[Cats.key(t['cat'] as String)]!, (v) => v + (t['amount'] as num), ifAbsent: () => t['amount'] as num);
     }
     if (byCat.isEmpty) return _empty();
     final entries = byCat.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
@@ -520,7 +531,14 @@ class _MoneyPageState extends State<MoneyPage> {
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
       children: [
         const Center(child: Text('Expenses by category')),
-        const SizedBox(height: 12),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton.icon(
+            icon: const Icon(Icons.merge_type),
+            label: const Text('Tidy categories'),
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => CategoriesPage(store: s))),
+          ),
+        ),
         SizedBox(
           height: 200,
           child: CustomPaint(

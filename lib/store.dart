@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'categories.dart';
 import 'clash.dart';
 import 'habit_core.dart';
 import 'native.dart';
@@ -726,6 +727,24 @@ class Store extends ChangeNotifier {
 
   String get currency => (settings['currency'] as String?) ?? '৳';
 
+  Map<String, dynamic> get catRules => (settings['catRules'] ??= <String, dynamic>{}) as Map<String, dynamic>;
+
+  /// The spelling to save for a typed or spoken category (see [Cats.tidy]).
+  String tidyCategory(String type, String raw) =>
+      Cats.tidy(raw, type: type, rules: catRules, known: [for (final u in Cats.used(list('tx').cast<Map<String, dynamic>>(), type)) u.name]);
+
+  /// Merges one category into another for good: moves its entries and remembers the rule.
+  Future<int> mergeCategory(String type, String from, String to) async {
+    final undo = <Rec>[
+      for (final t in list('tx'))
+        if (t['type'] == type && Cats.key((t['cat'] as String?) ?? '') == Cats.key(from)) {'op': 'put', 'col': 'tx', 'rec': copyRec(t)},
+    ];
+    final n = Cats.merge(list('tx').cast<Map<String, dynamic>>(), catRules, type, from, to);
+    if (n > 0) logAction('Merged $from into $to ($n)', undo);
+    save();
+    return n;
+  }
+
   /// type is 'income', 'expense' or 'transfer'; a transfer moves money from account to toAccount.
   Rec addTx({
     required String type,
@@ -744,7 +763,7 @@ class Store extends ChangeNotifier {
       'id': nextId(),
       'type': type,
       'amount': amount,
-      'cat': category,
+      'cat': type == 'transfer' ? category : (tidyCategory(type, category).isEmpty ? 'Other' : tidyCategory(type, category)),
       'account': account,
       'toAccount': toAccount,
       'note': note,

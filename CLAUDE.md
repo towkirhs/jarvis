@@ -77,6 +77,8 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    time blocking (Plan my day), deep work (Focus "Deep" mode, sessions with `deep: true`), active recall (`cards`, Leitner boxes),
    GTD lists Inbox/Next/Waiting/Someday + weekly review (`settings.gtdReview`). Countdown groups (`group`), calendar 1-day and
    30-day views. All untested on a phone.
+   Money categories (`lib/categories.dart`, `lib/categories_page.dart`): one spelling per category, merge rules in `settings.catRules`
+   (`expense:groceries` → `Food`), applied in `Store.addTx` and the edit sheet. Untested on a phone.
 5. Groq web answers show no source links (response shape unconfirmed).
 6. Calendar, deferred: custom repeats, find free time, global search, weekly review, what-if planning.
 7. Known limits: repeating events show only the next time; imported times with a named time zone are read as
