@@ -5,6 +5,7 @@ import 'cal_grid.dart' show eventColor;
 import 'cal_index.dart';
 import 'clash.dart';
 import 'haptics.dart';
+import 'phone_calendar.dart';
 import 'store.dart';
 import 'task_sheet.dart';
 
@@ -28,6 +29,7 @@ String eventWhen(CalEntry e) {
 Future<void> showEventView(BuildContext context, Store s, CalEntry e) {
   final it = e.item;
   final repeating = it['repeat'] != null;
+  final ext = it['ext'] as Map?;
   final scheme = Theme.of(context).colorScheme;
   final text = Theme.of(context).textTheme;
   final colour = eventColor(it, scheme);
@@ -85,7 +87,19 @@ Future<void> showEventView(BuildContext context, Store s, CalEntry e) {
           Wrap(
             spacing: 8,
             runSpacing: 4,
-            children: [
+            children: ext != null
+                ? [
+                    // An event from the phone's calendar is changed in the Calendar app.
+                    FilledButton.icon(
+                      icon: const Icon(Icons.open_in_new),
+                      label: const Text('Open in Calendar'),
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        PhoneCalendarApi.open(ext['ev'] as int);
+                      },
+                    ),
+                  ]
+                : [
               FilledButton.icon(
                 icon: const Icon(Icons.edit_outlined),
                 label: Text(repeating ? 'Edit all' : 'Edit'),

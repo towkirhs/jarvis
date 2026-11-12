@@ -32,7 +32,7 @@ jobs:
           rm -f test/widget_test.dart analysis_options.yaml
           D=android/app/src/main/kotlin/com/towkirhs/jarcis
           cp android_overlay/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
-          for f in MainActivity AlarmReceiver AlarmScheduler BootReceiver NoteReceiver NativeChannel BackgroundRunner ActionReceiver ShareActivity MoneyCapture Conversation Voice WakeWord Ring Geo Talk Updater QuickNote; do
+          for f in MainActivity AlarmReceiver AlarmScheduler BootReceiver NoteReceiver NativeChannel BackgroundRunner ActionReceiver ShareActivity MoneyCapture Conversation Voice WakeWord Ring Geo Talk Updater QuickNote PhoneCalendar; do
             cp android_overlay/$f.kt $D/$f.kt
           done
           # Tests for the phone-side command parser (run below with Gradle).

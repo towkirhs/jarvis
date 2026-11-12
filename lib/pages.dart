@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'ai_page.dart';
 import 'clash.dart';
 import 'ics_page.dart';
+import 'phone_calendar_page.dart';
 import 'ai.dart';
 import 'shapes.dart';
 import 'haptics.dart';
@@ -70,6 +71,8 @@ class MoreScreen extends StatelessWidget {
                   ClockScreen(store: store),
                 ),
                 tile(Icons.handshake_outlined, 'Promises', '$promises open', PromisesPage(store: store)),
+                if (!kIsWeb)
+                  tile(Icons.event_repeat_outlined, 'Phone calendar', 'Google Calendar on this phone', PhoneCalendarPage(store: store)),
                 tile(Icons.event_note_outlined, 'Calendar file (.ics)', 'Import and export', IcsPage(store: store)),
                 tile(Icons.hourglass_bottom, 'Countdowns', '${store.list('countdowns').length} saved', CountdownPage(store: store)),
               ]),

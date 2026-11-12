@@ -33,7 +33,7 @@ class MonthView extends StatelessWidget {
     final text = Theme.of(context).textTheme;
     final today = dayKey(DateTime.now());
     final shown = weeks(month);
-    final index = CalIndex.build(store.list('items'), shown.first.first, shown.last.last);
+    final index = CalIndex.build(store.calendarItems, shown.first.first, shown.last.last);
     final byDay = <String, List<Rec>>{for (final e in index.entries) e.key: [for (final c in e.value) c.item]};
     final marked = CalIndex.countdowns(store).keys.toSet();
 

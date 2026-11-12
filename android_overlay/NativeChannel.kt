@@ -47,6 +47,40 @@ object NativeChannel {
                 result.success(null)
             }
             "takeGeoFired" -> result.success(GeoQueue.take(context))
+            "calendarAccess" -> result.success(PhoneCalendar.allowed(context))
+            "calendars", "calendarInstances", "calendarInsert", "calendarUpdate", "calendarDelete", "calendarEvent", "calendarOpen" -> {
+                if (!PhoneCalendar.allowed(context)) {
+                    result.success(null)
+                } else {
+                    try {
+                        when (call.method) {
+                            "calendars" -> result.success(PhoneCalendar.calendars(context))
+                            "calendarInstances" -> result.success(
+                                PhoneCalendar.instances(
+                                    context,
+                                    call.argument<Number>("from")!!.toLong(),
+                                    call.argument<Number>("to")!!.toLong(),
+                                    call.argument<List<Number>>("ids")!!.map { it.toLong() }
+                                )
+                            )
+                            "calendarInsert" -> result.success(
+                                PhoneCalendar.insert(context, call.argument<Number>("cal")!!.toLong(), call.argument<String>("json")!!)
+                            )
+                            "calendarUpdate" -> result.success(
+                                PhoneCalendar.update(context, call.argument<Number>("ev")!!.toLong(), call.argument<String>("json")!!)
+                            )
+                            "calendarDelete" -> result.success(PhoneCalendar.delete(context, call.argument<Number>("ev")!!.toLong()))
+                            "calendarEvent" -> result.success(PhoneCalendar.event(context, call.argument<Number>("ev")!!.toLong()))
+                            else -> {
+                                PhoneCalendar.open(context, call.argument<Number>("ev")!!.toLong())
+                                result.success(null)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        result.error("calendar", e.message, null)
+                    }
+                }
+            }
             "locationAccess" -> result.success(Geo.access(context))
             "here" -> Geo.here(context, result)
             "openUrl" -> {

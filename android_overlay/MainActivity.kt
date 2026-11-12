@@ -56,6 +56,10 @@ class MainActivity : FlutterActivity() {
                     )
                     result.success(null)
                 }
+                "requestCalendar" -> {
+                    requestPermissions(arrayOf(Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR), 5)
+                    result.success(null)
+                }
                 "requestSmsPermission" -> {
                     requestPermissions(arrayOf(Manifest.permission.RECEIVE_SMS), 2)
                     result.success(null)

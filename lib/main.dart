@@ -16,6 +16,7 @@ import 'items_screen.dart';
 import 'journal_screen.dart';
 import 'native.dart';
 import 'pages.dart';
+import 'phone_sync.dart';
 import 'store.dart';
 import 'sync.dart';
 import 'theme.dart';
@@ -110,6 +111,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     _boot();
     _timer = Timer.periodic(const Duration(minutes: 1), (_) => _tick());
     s.addListener(_soonSync);
+    PhoneSync.watch(s);
   }
 
   /// Sends a change to your other devices a few seconds after you make it (several changes go together).
@@ -135,6 +137,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       // Coming back (or switching to this browser tab): fetch what the other device did.
       Sync.run(s, force: true).catchError((_) => null).whenComplete(_tick);
+      unawaited(PhoneSync.run(s));
     }
   }
 
@@ -146,6 +149,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     final launch = await Native.takeLaunchAction();
     if (launch != null) _openCapture(launch);
     await _tick();
+    unawaited(PhoneSync.run(s));
     if (mounted) await Updater.checkDaily(context, s);
   }
 

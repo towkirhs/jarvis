@@ -503,7 +503,7 @@ class _CalendarViewState extends State<_CalendarView> {
   /// Thirty days from [_day], one heading per day that has something on it.
   Widget _agenda(BuildContext context, Store s) {
     final from = DateTime(_day.year, _day.month, _day.day);
-    final index = CalIndex.build(s.list('items'), from, DateTime(from.year, from.month, from.day + 29));
+    final index = CalIndex.build(s.calendarItems, from, DateTime(from.year, from.month, from.day + 29));
     final countdowns = CalIndex.countdowns(s);
     final tt = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
@@ -543,7 +543,7 @@ class _CalendarViewState extends State<_CalendarView> {
     final week = [for (var i = 0; i < 7; i++) DateTime(monday.year, monday.month, monday.day + i)];
     final key = dayKey(_day);
     final todayKey = dayKey(DateTime.now());
-    final entries = CalIndex.build(s.list('items'), _day, _day)[key] ?? const <CalEntry>[];
+    final entries = CalIndex.build(s.calendarItems, _day, _day)[key] ?? const <CalEntry>[];
     final countdowns = CalIndex.countdowns(s)[key] ?? const <Rec>[];
     final scheme = Theme.of(context).colorScheme;
     return ListView(
@@ -654,7 +654,7 @@ class _TimelineGridState extends State<TimelineGrid> {
     final grid = scheme.outlineVariant.withValues(alpha: 0.4);
     final now = DateTime.now();
     final days = [for (var i = 0; i < 7; i++) DateTime(widget.start.year, widget.start.month, widget.start.day + i)];
-    final index = CalIndex.build(s.list('items'), days.first, days.last);
+    final index = CalIndex.build(s.calendarItems, days.first, days.last);
     final perDay = [
       for (final d in days) [for (final e in index[dayKey(d)] ?? const <CalEntry>[]) if (e.item['allDay'] != true) e],
     ];

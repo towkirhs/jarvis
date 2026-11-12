@@ -16,6 +16,8 @@ const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 /// The colour of an item's block: its own colour, else its priority, else its kind.
 Color eventColor(Rec it, ColorScheme scheme) {
+  final ext = it['extColor'];
+  if (ext is int) return Color(ext);
   final own = accents[it['color']];
   if (own != null) return own;
   final p = (it['priority'] as int?) ?? 0;
@@ -163,7 +165,7 @@ class TimeGridState extends State<TimeGrid> {
     final scheme = Theme.of(context).colorScheme;
     final small = Theme.of(context).textTheme.labelSmall;
     final start = _start(_page);
-    final headIndex = CalIndex.build(s.list('items'), start, DateTime(start.year, start.month, start.day + count - 1));
+    final headIndex = CalIndex.build(s.calendarItems, start, DateTime(start.year, start.month, start.day + count - 1));
     final headCountdowns = CalIndex.countdowns(s);
     var rows = 0;
     for (var i = 0; i < count; i++) {
@@ -243,7 +245,7 @@ class _Head extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final days = [for (var i = 0; i < count; i++) DateTime(start.year, start.month, start.day + i)];
-    final index = CalIndex.build(store.list('items'), days.first, days.last);
+    final index = CalIndex.build(store.calendarItems, days.first, days.last);
     final cds = CalIndex.countdowns(store);
     final today = dayKey(DateTime.now());
     return Row(
@@ -376,7 +378,7 @@ class _BodyPageState extends State<_BodyPage> {
     final scheme = widget.scheme;
     final count = widget.count;
     final days = [for (var i = 0; i < count; i++) DateTime(widget.start.year, widget.start.month, widget.start.day + i)];
-    final index = CalIndex.build(s.list('items'), days.first, days.last);
+    final index = CalIndex.build(s.calendarItems, days.first, days.last);
     final now = DateTime.now();
     final todayCol = days.indexWhere((d) => dayKey(d) == dayKey(now));
 
@@ -495,7 +497,7 @@ class _BodyPageState extends State<_BodyPage> {
     final c = eventColor(it, scheme);
     final fg = onEventColor(c);
     final done = it['status'] == 'done';
-    final resizable = it['kind'] != 'alarm';
+    final resizable = it['kind'] != 'alarm' && it['ext'] == null;
     return Positioned(
       key: ValueKey('${it['id']}@${e.start.millisecondsSinceEpoch}'),
       top: top,
@@ -504,16 +506,20 @@ class _BodyPageState extends State<_BodyPage> {
       height: height,
       child: GestureDetector(
         onTap: () => showEventView(context, widget.store, e),
-        onLongPressStart: (_) {
-          Haptics.dragStart();
-          setState(() => _drag = _Drag(e, resize: false));
-        },
-        onLongPressMoveUpdate: (m) => setState(() {
-          _drag?.dx = m.offsetFromOrigin.dx;
-          _drag?.dy = m.offsetFromOrigin.dy;
-        }),
-        onLongPressEnd: (_) => _commit(),
-        onLongPressCancel: () => setState(() => _drag = null),
+        onLongPressStart: it['ext'] != null
+            ? null
+            : (_) {
+                Haptics.dragStart();
+                setState(() => _drag = _Drag(e, resize: false));
+              },
+        onLongPressMoveUpdate: it['ext'] != null
+            ? null
+            : (m) => setState(() {
+                  _drag?.dx = m.offsetFromOrigin.dx;
+                  _drag?.dy = m.offsetFromOrigin.dy;
+                }),
+        onLongPressEnd: it['ext'] != null ? null : (_) => _commit(),
+        onLongPressCancel: it['ext'] != null ? null : () => setState(() => _drag = null),
         child: Opacity(
           opacity: mine && !d.resize ? 0.35 : 1,
           child: Container(

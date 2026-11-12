@@ -54,6 +54,17 @@ class Store extends ChangeNotifier {
   Rec _s = {};
   String apiKey = '';
 
+  /// Events read from the phone's calendar. Shown in the calendar views; never saved or synced.
+  List<Rec> phoneEvents = const [];
+
+  /// What the calendar views draw: Jarvis' items and the phone's events.
+  List<Rec> get calendarItems => phoneEvents.isEmpty ? list('items') : [...list('items'), ...phoneEvents];
+
+  void setExternal(List<Rec> items) {
+    phoneEvents = items;
+    notifyListeners();
+  }
+
   static const _collections = [
     'captures', 'items', 'habits', 'promises', 'decisions', 'inbox', 'actions', 'countdowns', 'focus', 'tx', 'entries',
     'rooms', 'rentPays', 'roomBills', 'houseCosts', 'clocks', 'places', 'memories', 'loanPeople', 'loans', 'cards',
