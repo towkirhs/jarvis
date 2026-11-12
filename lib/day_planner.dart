@@ -1,3 +1,5 @@
+import 'habit_core.dart';
+
 /// Lays today's tasks into the free time between fixed events, on the phone, with no AI.
 /// Pure Dart so it can be tested on its own.
 class PlanBlock {
@@ -25,7 +27,10 @@ class PlanEdit {
 }
 
 class DayPlan {
-  DayPlan(this.blocks, this.overflow, [this.skipped = const []]);
+  DayPlan(this.blocks, this.overflow, [this.skipped = const [], this.quick = const []]);
+
+  /// Quick tasks (a call, a payment): done any time, so they get no block.
+  final List<PlanBlock> quick;
 
   /// Tasks the person left out of today's plan.
   final List<PlanBlock> skipped;
@@ -38,6 +43,49 @@ class DayPlan {
 }
 
 class DayPlanner {
+  static const _quickVerbs = [
+    'call', 'phone', 'text', 'message', 'msg', 'whatsapp', 'reply', 'pay', 'send', 'email', 'mail', 'log',
+    'transfer', 'recharge', 'order', 'book', 'ask', 'remind', 'tell', 'save',
+  ];
+
+  /// A task that needs no time block: marked so (`quick`), five minutes or less, or starting with a verb
+  /// like call, pay or send. `quick: false` keeps a block whatever the title.
+  static bool isQuick(Map<String, dynamic> i) {
+    final q = i['quick'];
+    if (q is bool) return q;
+    final est = i['est'] as int?;
+    if (est != null && est <= 5) return true;
+    final first = '${i['title'] ?? ''}'.trim().toLowerCase().split(RegExp(r'\s+')).first;
+    return _quickVerbs.contains(first);
+  }
+
+  /// Habits due today that take time, as tasks for the plan. Their id is minus the habit's id.
+  /// A habit takes time when it has `planMin` (minutes, 0 = never), or is a duration habit (its target).
+  /// Habits already done today, archived, not due today, or already on today's calendar are left out.
+  static List<Map<String, dynamic>> habitTasks(List<Map<String, dynamic>> habits, DateTime now, {List<Map<String, dynamic>> items = const []}) {
+    final today = DateTime(now.year, now.month, now.day);
+    final tomorrow = today.add(const Duration(days: 1)).millisecondsSinceEpoch;
+    bool onCalendar(Map<String, dynamic> h) => items.any((i) =>
+        i['kind'] == 'event' &&
+        (i['planHabit'] == h['id'] || i['habitId'] == h['id']) &&
+        i['when'] is int &&
+        (i['when'] as int) >= today.millisecondsSinceEpoch &&
+        (i['when'] as int) < tomorrow);
+    return [
+      for (final h in habits)
+        if (h['archived'] != true && HabitCore.scheduled(h, today) && !HabitCore.done(h, today) && !onCalendar(h))
+          if (((h['planMin'] as num?) ?? (h['type'] == 'duration' ? (h['target'] as num?) : null) ?? 0) > 0)
+            {
+              'id': -(h['id'] as int),
+              'kind': 'task',
+              'title': h['name'],
+              'est': ((h['planMin'] as num?) ?? (h['target'] as num)).round(),
+              'priority': 0,
+              'habitId': h['id'],
+            },
+    ];
+  }
+
   /// [items] are open items. [ratios] maps a category to how much longer the person usually takes
   /// than they estimate (from finished tasks). Tasks are placed most urgent first: overdue, then by
   /// priority, then vital (Pareto) first, then by deadline; tasks dated after today are left alone.
@@ -64,8 +112,13 @@ class DayPlanner {
     ]..sort((a, b) => a.start.compareTo(b.start));
 
     // To place: tasks without a date, due today, or overdue.
+    final quick = <PlanBlock>[
+      for (final i in items)
+        if (i['kind'] == 'task' && isQuick(i) && (when(i) == null || when(i)!.isBefore(tomorrow)))
+          PlanBlock(i['title'] as String, today, 0, itemId: i['id'] as int?),
+    ];
     final candidates = items.where((i) {
-      if (i['kind'] != 'task') return false;
+      if (i['kind'] != 'task' || isQuick(i)) return false;
       final w = when(i);
       return w == null || w.isBefore(tomorrow);
     }).toList();
@@ -140,6 +193,6 @@ class DayPlanner {
       if (!done) overflow.add(PlanBlock(t['title'] as String, today, m, itemId: t['id'] as int?));
     }
     final blocks = [...fixed, ...pinned, ...placed]..sort((a, b) => a.start.compareTo(b.start));
-    return DayPlan(blocks, overflow, skipped);
+    return DayPlan(blocks, overflow, skipped, quick);
   }
 }

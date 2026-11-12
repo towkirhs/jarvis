@@ -81,7 +81,8 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    (`expense:groceries` → `Food`), applied in `Store.addTx` and the edit sheet. Untested on a phone.
    Habits from the calendar (`lib/habit_link.dart`): a habit's `link` words match finished events and done tasks (last 14 days);
    logs written with `cal: true`, run on every save and on resume; manual logs win. The other way, `toCal: true` adds an event (`habitId`, `habitDay`, list 'Habits') when you tick the habit,
-   moved or removed with the log (`Store._habitBlock`). Untested on a phone.
+   moved or removed with the log (`Store._habitBlock`). Plan my day: quick tasks (`DayPlanner.isQuick`, item `quick`) get no block;
+   habits with `planMin` (or duration target) get one, applied as a task with `planHabit` that logs the habit when done. Untested on a phone.
 5. Groq web answers show no source links (response shape unconfirmed).
 6. Calendar, deferred: custom repeats, find free time, global search, weekly review, what-if planning.
 7. Known limits: repeating events show only the next time; imported times with a named time zone are read as

@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:jarcis/habit_link.dart';
 
 void main() {
+  planTests();
   blockTests();
   final now = DateTime(2026, 11, 12, 15);
   int at(int d, int h, [int m = 0]) => DateTime(2026, 11, d, h, m).millisecondsSinceEpoch;
@@ -106,5 +107,16 @@ void blockTests() {
       ];
       expect(HabitLink.compute(h, items, now), isEmpty);
     });
+  });
+}
+
+void planTests() {
+  test('a task Plan my day made for a habit logs it when done, even with no words', () {
+    final h = {'id': 7, 'type': 'yesno'};
+    final r = HabitLink.compute(h, [
+      {'kind': 'task', 'title': 'Evening session', 'status': 'done', 'doneAt': DateTime(2026, 11, 12, 9).millisecondsSinceEpoch, 'planHabit': 7},
+      {'kind': 'task', 'title': 'Other', 'status': 'done', 'doneAt': DateTime(2026, 11, 12, 9).millisecondsSinceEpoch, 'planHabit': 8},
+    ], DateTime(2026, 11, 12, 15));
+    expect(r, {'2026-11-12': {'v': 1, 'cal': true}});
   });
 }

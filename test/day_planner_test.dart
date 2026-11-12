@@ -10,6 +10,7 @@ Map<String, dynamic> task(int id, String title, {int? est, int priority = 0, int
 String hm(DateTime d) => '${d.hour}:${d.minute.toString().padLeft(2, '0')}';
 
 void main() {
+  quickAndHabitTests();
   editTests();
   test('fills the morning around a fixed class, most urgent first', () {
     final plan = DayPlanner.plan(now: now, items: [
@@ -84,6 +85,51 @@ void editTests() {
     test('a task pinned before the current time keeps that time', () {
       final plan = DayPlanner.plan(now: now, items: items, edits: {2: PlanEdit(start: DateTime(2026, 11, 5, 8))});
       expect(view(plan).first, '8:00 Read notes 30');
+    });
+  });
+}
+
+void quickAndHabitTests() {
+  group('quick tasks and habits', () {
+    test('calls, payments and short tasks need no block; you can say otherwise', () {
+      expect(DayPlanner.isQuick({'title': 'Call Tomalika Apu'}), true);
+      expect(DayPlanner.isQuick({'title': 'pay electricity bill'}), true);
+      expect(DayPlanner.isQuick({'title': 'Write report', 'est': 5}), true);
+      expect(DayPlanner.isQuick({'title': 'Read 200 pages for exam'}), false);
+      expect(DayPlanner.isQuick({'title': 'Call plumber', 'quick': false}), false);
+      expect(DayPlanner.isQuick({'title': 'Check cBLAST', 'quick': true}), true);
+      expect(DayPlanner.isQuick({'title': 'Recall notes'}), false);
+    });
+
+    test('quick tasks are listed apart and take no time from the day', () {
+      final plan = DayPlanner.plan(now: now, items: [task(1, 'Call Apu'), task(2, 'Read notes', est: 30)]);
+      expect(plan.blocks.map((b) => b.title), ['Read notes']);
+      expect(plan.quick.map((b) => b.title), ['Call Apu']);
+      expect(plan.blocks.first.start, DateTime(2026, 11, 5, 9, 5));
+    });
+
+    test('habits due today that take time become tasks to place; done or unscheduled ones do not', () {
+      final habits = [
+        {'id': 7, 'name': 'Tuition', 'type': 'yesno', 'planMin': 60, 'logs': {}},
+        {'id': 8, 'name': 'Study', 'type': 'duration', 'target': 90, 'logs': {}},
+        {'id': 9, 'name': 'Walk', 'type': 'duration', 'target': 30, 'logs': {'2026-11-05': {'v': 30}}},
+        {'id': 10, 'name': 'Water', 'type': 'quantity', 'target': 3, 'logs': {}},
+        {'id': 11, 'name': 'Gym', 'type': 'yesno', 'planMin': 60, 'sched': {'kind': 'days', 'days': [1]}, 'logs': {}},
+        {'id': 12, 'name': 'Read', 'type': 'duration', 'target': 20, 'planMin': 0, 'logs': {}},
+        {'id': 13, 'name': 'Old', 'type': 'yesno', 'planMin': 30, 'archived': true, 'logs': {}},
+      ];
+      final t = DayPlanner.habitTasks([for (final h in habits) {...h, 'start': '2026-01-01'}], now);
+      expect(t.map((x) => '${x['title']} ${x['est']} ${x['id']}'), ['Tuition 60 -7', 'Study 90 -8']);
+    });
+
+    test('a habit already on today\'s calendar is not proposed again', () {
+      final habits = [
+        {'id': 7, 'name': 'Tuition', 'type': 'yesno', 'planMin': 60, 'logs': {}},
+      ];
+      final items = [
+        {'kind': 'event', 'title': 'Tuition', 'when': at(17), 'dur': 60, 'planHabit': 7},
+      ];
+      expect(DayPlanner.habitTasks([for (final h in habits) {...h, 'start': '2026-01-01'}], now, items: items), isEmpty);
     });
   });
 }

@@ -4,6 +4,7 @@ import 'habit_core.dart';
 /// done task, whose title has one of those words. What it logs depends on the habit:
 /// minutes for duration and limit habits, how many for count habits, the end time for "by a time" habits
 /// (the end of sleep is when you got up), and "done" for the rest.
+/// A task Plan my day made for the habit (`planHabit`) counts when it is done, with or without words.
 /// Calendar logs carry `cal: true`. Anything you log yourself is never touched.
 class HabitLink {
   /// How far back the calendar is read.
@@ -23,14 +24,14 @@ class HabitLink {
   /// The day logs the calendar gives [habit] over the last [days] days, by 'YYYY-MM-DD'.
   static Map<String, Map<String, dynamic>> compute(Map<String, dynamic> habit, Iterable<Map<String, dynamic>> items, DateTime now) {
     final words = (habit['link'] as List?) ?? const [];
-    if (words.isEmpty) return {};
     final from = DateTime(now.year, now.month, now.day - days);
     final minutes = <String, int>{};
     final count = <String, int>{};
     final ends = <String, DateTime>{};
     for (final i in items) {
       if (i['habitId'] != null && i['habitId'] == habit['id']) continue; // a block this habit made itself
-      if (!matches('${i['title'] ?? ''}', words)) continue;
+      // A task Plan my day made for this habit always counts; anything else counts by its title.
+      if (i['planHabit'] != habit['id'] && !matches('${i['title'] ?? ''}', words)) continue;
       DateTime? end;
       int mins;
       if (i['kind'] == 'task') {

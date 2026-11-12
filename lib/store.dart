@@ -117,7 +117,7 @@ class Store extends ChangeNotifier {
     final items = list('items').cast<Map<String, dynamic>>();
     var changed = false;
     for (final h in list('habits')) {
-      if (((h['link'] as List?) ?? const []).isEmpty) continue;
+      if (((h['link'] as List?) ?? const []).isEmpty && !items.any((i) => i['planHabit'] == h['id'])) continue;
       if (HabitLink.apply(h['logs'] as Rec, HabitLink.compute(h, items, now), now)) changed = true;
     }
     return changed;

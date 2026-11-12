@@ -47,6 +47,7 @@ class _HabitEditorState extends State<HabitEditor> {
   late int? _after = old?['after'] as int?;
   late String? _remind = old?['remind'] as String?;
   late bool _toCal = old?['toCal'] == true;
+  late int? _planMin = (old?['planMin'] as num?)?.toInt();
   late final _link = TextEditingController(text: ((old?['link'] as List?) ?? const []).join(', '));
   late int _color = (old?['color'] as int?) ?? s.list('habits').length;
   late String? _icon = old?['icon'] as String?;
@@ -125,6 +126,7 @@ class _HabitEditorState extends State<HabitEditor> {
       final link = [for (final w in _link.text.split(',')) if (w.trim().isNotEmpty) w.trim().toLowerCase()];
       r['link'] = link.isEmpty ? null : link;
       r['toCal'] = _toCal ? true : null;
+      r['planMin'] = _planMin;
       r['remind'] = _remind;
       if (_remind != null) r['rid'] ??= s.nextId();
       r['color'] = _color;
@@ -410,6 +412,24 @@ class _HabitEditorState extends State<HabitEditor> {
               setState(() => _toCal = on);
             },
           ),
+          label('Time in Plan my day'),
+          Text(
+            _type == 'duration' && _planMin == null
+                ? 'Gets a block as long as its target. Pick a length to change it, or Off.'
+                : 'Habits that take time, like tuition or a walk, get a block on the days they are due.',
+            style: tt.bodySmall,
+          ),
+          const SizedBox(height: 6),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            ChoiceChip(
+              label: Text(_type == 'duration' ? 'Target' : 'Off'),
+              selected: _planMin == null,
+              onSelected: (_) => setState(() => _planMin = null),
+            ),
+            if (_type == 'duration') ChoiceChip(label: const Text('Off'), selected: _planMin == 0, onSelected: (_) => setState(() => _planMin = 0)),
+            for (final m in [15, 30, 45, 60, 90, 120])
+              ChoiceChip(label: Text(fmtMinutes(m)), selected: _planMin == m, onSelected: (_) => setState(() => _planMin = m)),
+          ]),
           label('Reminder'),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,

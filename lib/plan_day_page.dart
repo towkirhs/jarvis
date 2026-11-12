@@ -22,19 +22,47 @@ class _PlanDayPageState extends State<PlanDayPage> {
   final _edits = <int, PlanEdit>{};
 
   DayPlan _plan() {
-    final open = store.list('items').where((i) => i['status'] == 'open').toList();
+    final now = DateTime.now();
+    final today = dayKey(now);
+    // A habit's planned task from an earlier day is stale: today gets a fresh one.
+    final open = store.list('items').where((i) => i['status'] == 'open' && (i['planHabit'] == null || i['habitDay'] == today)).toList();
+    final habits = DayPlanner.habitTasks(store.list('habits').cast<Map<String, dynamic>>(), now, items: store.list('items').cast<Map<String, dynamic>>());
+    // A habit with a reminder time later today starts at that time, unless you moved it.
+    final pins = <int, PlanEdit>{
+      for (final t in habits)
+        if (_remindToday(store.byId('habits', t['habitId'] as int), now) case final at?) t['id'] as int: PlanEdit(start: at),
+    };
     final ratios = <String, double>{
       for (final i in open)
         if (i['cat'] != null && store.estimateSuggestion(i['cat'] as String, 60) != null)
           i['cat'] as String: store.estimateSuggestion(i['cat'] as String, 60)!.ratio,
     };
-    return DayPlanner.plan(now: DateTime.now(), items: open, ratios: ratios, edits: _edits);
+    return DayPlanner.plan(now: now, items: [...open, ...habits], ratios: ratios, edits: {...pins, ..._edits});
+  }
+
+  DateTime? _remindToday(Rec? h, DateTime now) {
+    final r = h?['remind'] as String?;
+    if (r == null) return null;
+    final p = r.split(':');
+    final at = DateTime(now.year, now.month, now.day, int.parse(p[0]), int.parse(p[1]));
+    return at.isAfter(now) ? at : null;
   }
 
   Future<void> _apply(BuildContext context, DayPlan plan) async {
     Haptics.success();
     final undo = <Rec>[];
-    for (final b in plan.blocks.where((b) => !b.fixed)) {
+    for (final b in plan.blocks.where((b) => !b.fixed && (b.itemId ?? 0) < 0)) {
+      // A habit's time: a task linked to the habit, so ticking it off logs the habit.
+      await store.addItem(
+        kind: 'task',
+        title: b.title,
+        when: b.start.millisecondsSinceEpoch,
+        est: b.minutes,
+        undo: undo,
+        extra: {'planHabit': -b.itemId!, 'habitDay': dayKey(DateTime.now()), 'list': 'Habits', 'allDay': false, 'quick': false},
+      );
+    }
+    for (final b in plan.blocks.where((b) => !b.fixed && (b.itemId ?? 0) > 0)) {
       final it = store.byId('items', b.itemId);
       if (it == null) continue;
       undo.add({'op': 'put', 'col': 'items', 'rec': copyRec(it)});
@@ -79,8 +107,8 @@ class _PlanDayPageState extends State<PlanDayPage> {
   Future<void> _adjust(BuildContext context, PlanBlock b) async {
     final id = b.itemId;
     final it = id == null ? null : store.byId('items', id);
-    if (it == null) return;
-    if (b.fixed) return showTaskSheet(context, store, item: it);
+    if (id == null || (it == null && id > 0)) return; // a habit's time has a negative id and no task yet
+    if (b.fixed && it != null) return showTaskSheet(context, store, item: it);
     var start = b.start;
     var minutes = b.minutes;
     await showModalBottomSheet<void>(
@@ -100,7 +128,7 @@ class _PlanDayPageState extends State<PlanDayPage> {
                   final t = await showTimePicker(context: ctx, initialTime: TimeOfDay.fromDateTime(start));
                   if (t == null) return;
                   setS(() => start = DateTime(start.year, start.month, start.day, t.hour, t.minute));
-                  _change(id!, (e) => e.copyWith(start: start));
+                  _change(id, (e) => e.copyWith(start: start));
                 },
               ),
               const SizedBox(height: 16),
@@ -112,7 +140,7 @@ class _PlanDayPageState extends State<PlanDayPage> {
                       ? null
                       : () {
                           setS(() => minutes -= minutes > 60 ? 15 : 5);
-                          _change(id!, (e) => e.copyWith(minutes: minutes));
+                          _change(id, (e) => e.copyWith(minutes: minutes));
                         },
                 ),
                 Expanded(child: Center(child: Text(fmtMinutes(minutes), style: Theme.of(ctx).textTheme.titleMedium))),
@@ -121,7 +149,7 @@ class _PlanDayPageState extends State<PlanDayPage> {
                   icon: const Icon(Icons.add),
                   onPressed: () {
                     setS(() => minutes += minutes >= 60 ? 15 : 5);
-                    _change(id!, (e) => e.copyWith(minutes: minutes));
+                    _change(id, (e) => e.copyWith(minutes: minutes));
                   },
                 ),
               ]),
@@ -132,26 +160,39 @@ class _PlanDayPageState extends State<PlanDayPage> {
                     selected: minutes == m,
                     onSelected: (_) {
                       setS(() => minutes = m);
-                      _change(id!, (e) => e.copyWith(minutes: m));
+                      _change(id, (e) => e.copyWith(minutes: m));
                     },
                   ),
               ]),
               const SizedBox(height: 12),
-              Wrap(spacing: 8, children: [
-                TextButton.icon(
-                  icon: const Icon(Icons.edit_outlined),
-                  label: const Text('Edit task'),
-                  onPressed: () {
+              if (it != null)
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Quick, no time block'),
+                  subtitle: const Text('Like a call or a payment: listed apart, done any time'),
+                  value: false,
+                  onChanged: (_) {
                     Navigator.pop(ctx);
-                    showTaskSheet(context, store, item: it);
+                    _edits.remove(id);
+                    store.updateRec('items', it, '${it['title']}: quick', (r) => r['quick'] = true);
                   },
                 ),
+              Wrap(spacing: 8, children: [
+                if (it != null)
+                  TextButton.icon(
+                    icon: const Icon(Icons.edit_outlined),
+                    label: const Text('Edit task'),
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      showTaskSheet(context, store, item: it);
+                    },
+                  ),
                 if (_edits[id]?.start != null)
                   TextButton.icon(
                     icon: const Icon(Icons.auto_fix_high),
                     label: const Text('Let Jarvis place it'),
                     onPressed: () {
-                      _change(id!, (e) => e.copyWith(clearStart: true));
+                      _change(id, (e) => e.copyWith(clearStart: true));
                       Navigator.pop(ctx);
                     },
                   ),
@@ -159,7 +200,7 @@ class _PlanDayPageState extends State<PlanDayPage> {
                   icon: const Icon(Icons.event_busy),
                   label: const Text('Leave out today'),
                   onPressed: () {
-                    _change(id!, (e) => e.copyWith(skip: true));
+                    _change(id, (e) => e.copyWith(skip: true));
                     Navigator.pop(ctx);
                   },
                 ),
@@ -201,7 +242,10 @@ class _PlanDayPageState extends State<PlanDayPage> {
                   Card(
                     color: b.fixed ? scheme.surfaceContainerHighest : null,
                     child: ListTile(
-                      leading: Icon(b.fixed ? Icons.event : Icons.check_box_outline_blank, color: b.fixed ? null : scheme.primary),
+                      leading: Icon(
+                        b.fixed ? Icons.event : ((b.itemId ?? 0) < 0 || store.byId('items', b.itemId)?['planHabit'] != null ? Icons.local_fire_department_outlined : Icons.check_box_outline_blank),
+                        color: b.fixed ? null : scheme.primary,
+                      ),
                       title: Text(b.title),
                       subtitle: Text('${clock(b.start.millisecondsSinceEpoch)} – ${clock(b.end.millisecondsSinceEpoch)}  ·  ${fmtMinutes(b.minutes)}'
                           '${b.fixed ? '  ·  already planned' : ''}${_changed(b.itemId) ? '  ·  changed' : ''}'),
@@ -227,6 +271,32 @@ class _PlanDayPageState extends State<PlanDayPage> {
                       onPressed: () => _moveRest(context, plan),
                     ),
                   ),
+                ],
+                if (plan.quick.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Text('Quick, any time', style: Theme.of(context).textTheme.titleSmall),
+                  Text('No block needed. Tick them off when done.', style: TextStyle(color: scheme.onSurfaceVariant)),
+                  for (final b in plan.quick)
+                    Builder(builder: (context) {
+                      final it = store.byId('items', b.itemId);
+                      if (it == null) return const SizedBox.shrink();
+                      return ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        leading: Checkbox(
+                          value: false,
+                          onChanged: (_) {
+                            Haptics.success();
+                            store.markDone(it);
+                          },
+                        ),
+                        title: Text(b.title),
+                        trailing: TextButton(
+                          onPressed: () => store.updateRec('items', it, '${it['title']}: needs time', (r) => r['quick'] = false),
+                          child: const Text('Needs time'),
+                        ),
+                      );
+                    }),
                 ],
                 if (plan.skipped.isNotEmpty) ...[
                   const SizedBox(height: 12),
