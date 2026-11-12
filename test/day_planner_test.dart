@@ -10,6 +10,7 @@ Map<String, dynamic> task(int id, String title, {int? est, int priority = 0, int
 String hm(DateTime d) => '${d.hour}:${d.minute.toString().padLeft(2, '0')}';
 
 void main() {
+  editTests();
   test('fills the morning around a fixed class, most urgent first', () {
     final plan = DayPlanner.plan(now: now, items: [
       {'id': 1, 'kind': 'event', 'title': 'Class', 'when': at(11), 'dur': 60},
@@ -51,5 +52,38 @@ void main() {
     final plan = DayPlanner.plan(now: late, items: [task(1, 'Short', est: 30), task(2, 'Long', est: 120)]);
     expect(plan.blocks.map((b) => b.title).toList(), ['Short']);
     expect(plan.overflow.map((b) => b.title).toList(), ['Long']);
+  });
+}
+
+void editTests() {
+  group('edits to the proposed plan', () {
+    final items = [
+      task(2, 'Read notes', est: 30),
+      task(3, 'Lab report', est: 60, priority: 3),
+      task(4, 'Call Apu', est: 30),
+    ];
+    List<String> view(DayPlan p) => p.blocks.map((b) => '${hm(b.start)} ${b.title} ${b.minutes}').toList();
+
+    test('a task can be pinned to a time and the others flow around it', () {
+      final plan = DayPlanner.plan(now: now, items: items, edits: {3: PlanEdit(start: DateTime(2026, 11, 5, 9, 30))});
+      // Read notes (30 min) does not fit in the 25 minutes before 9:30, so it goes after the pinned task.
+      expect(view(plan), ['9:30 Lab report 60', '10:30 Read notes 30', '11:10 Call Apu 30']);
+    });
+
+    test('a task can get its own length', () {
+      final plan = DayPlanner.plan(now: now, items: items, edits: {2: PlanEdit(minutes: 90)});
+      expect(view(plan).firstWhere((l) => l.contains('Read notes')), '10:15 Read notes 90');
+    });
+
+    test('a task can be left out, and shows up as skipped', () {
+      final plan = DayPlanner.plan(now: now, items: items, edits: {4: PlanEdit(skip: true)});
+      expect(plan.blocks.any((b) => b.title == 'Call Apu'), false);
+      expect(plan.skipped.map((b) => b.title), ['Call Apu']);
+    });
+
+    test('a task pinned before the current time keeps that time', () {
+      final plan = DayPlanner.plan(now: now, items: items, edits: {2: PlanEdit(start: DateTime(2026, 11, 5, 8))});
+      expect(view(plan).first, '8:00 Read notes 30');
+    });
   });
 }

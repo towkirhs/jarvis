@@ -13,8 +13,22 @@ class PlanBlock {
   DateTime get end => start.add(Duration(minutes: minutes));
 }
 
+/// A change to one proposed task: a time of its own, a length of its own, or left out of today.
+class PlanEdit {
+  const PlanEdit({this.start, this.minutes, this.skip = false});
+  final DateTime? start;
+  final int? minutes;
+  final bool skip;
+
+  PlanEdit copyWith({DateTime? start, int? minutes, bool? skip, bool clearStart = false}) =>
+      PlanEdit(start: clearStart ? null : (start ?? this.start), minutes: minutes ?? this.minutes, skip: skip ?? this.skip);
+}
+
 class DayPlan {
-  DayPlan(this.blocks, this.overflow);
+  DayPlan(this.blocks, this.overflow, [this.skipped = const []]);
+
+  /// Tasks the person left out of today's plan.
+  final List<PlanBlock> skipped;
 
   /// Events and placed tasks, in time order.
   final List<PlanBlock> blocks;
@@ -31,6 +45,7 @@ class DayPlanner {
     required DateTime now,
     required List<Map<String, dynamic>> items,
     Map<String, double> ratios = const {},
+    Map<int, PlanEdit> edits = const {},
     int dayStartHour = 8,
     int dayEndHour = 22,
     int buffer = 10,
@@ -49,11 +64,12 @@ class DayPlanner {
     ]..sort((a, b) => a.start.compareTo(b.start));
 
     // To place: tasks without a date, due today, or overdue.
-    final tasks = items.where((i) {
+    final candidates = items.where((i) {
       if (i['kind'] != 'task') return false;
       final w = when(i);
       return w == null || w.isBefore(tomorrow);
-    }).toList()
+    }).toList();
+    final tasks = candidates.where((i) => edits[i['id']]?.skip != true && edits[i['id']]?.start == null).toList()
       ..sort((a, b) {
         int rank(Map<String, dynamic> i) {
           final w = when(i);
@@ -75,6 +91,8 @@ class DayPlanner {
       });
 
     int length(Map<String, dynamic> i) {
+      final own = edits[i['id']]?.minutes;
+      if (own != null) return own;
       final est = (i['est'] as int?) ?? defaultMinutes;
       final ratio = ratios[i['cat']] ?? 1.0;
       final m = (est * ratio / 5).round() * 5;
@@ -87,9 +105,21 @@ class DayPlanner {
         : DateTime(now.year, now.month, now.day, now.hour, (now.minute ~/ 5 + 1) * 5);
     final dayEnd = today.add(Duration(hours: dayEndHour));
 
-    // Free gaps between the fixed events.
+    // Tasks the person pinned to a time stay there; the rest flow around them like around events.
+    final pinned = <PlanBlock>[
+      for (final i in candidates)
+        if (edits[i['id']]?.skip != true && edits[i['id']]?.start != null)
+          PlanBlock(i['title'] as String, edits[i['id']]!.start!, length(i), itemId: i['id'] as int?),
+    ];
+    final skipped = <PlanBlock>[
+      for (final i in candidates)
+        if (edits[i['id']]?.skip == true) PlanBlock(i['title'] as String, today, length(i), itemId: i['id'] as int?),
+    ];
+    final occupied = [...fixed, ...pinned]..sort((a, b) => a.start.compareTo(b.start));
+
+    // Free gaps between the fixed events and pinned tasks.
     final gaps = <(DateTime, DateTime)>[];
-    for (final f in fixed) {
+    for (final f in occupied) {
       if (f.start.isAfter(cursor)) gaps.add((cursor, f.start.isBefore(dayEnd) ? f.start : dayEnd));
       if (f.end.isAfter(cursor)) cursor = f.end;
     }
@@ -109,7 +139,7 @@ class DayPlanner {
       }
       if (!done) overflow.add(PlanBlock(t['title'] as String, today, m, itemId: t['id'] as int?));
     }
-    final blocks = [...fixed, ...placed]..sort((a, b) => a.start.compareTo(b.start));
-    return DayPlan(blocks, overflow);
+    final blocks = [...fixed, ...pinned, ...placed]..sort((a, b) => a.start.compareTo(b.start));
+    return DayPlan(blocks, overflow, skipped);
   }
 }
