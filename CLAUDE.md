@@ -88,7 +88,14 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    minute, pushes 5 s after a change, and on resume. Setup code (`Sync.makeCode`, `JARVIS-SYNC1.`) joins a device.
    Web: PWA files in `web_overlay/` (copied by CI), browser notifications (`lib/web_notify*.dart`, `WebReminders`),
    NavigationRail at ≥ 840 px. Untested on a real phone/PC pair.
+   Calendar overhaul (`lib/cal_index.dart`, `cal_grid.dart`, `cal_quick.dart`, `cal_event.dart`, `cal_edit.dart`, `phone_calendar.dart`,
+   `phone_sync.dart`): repeats show on every date (`CalIndex`); items gained `location`, `color`, `span` (all-day days) and `skip`
+   (skipped repeat dates). Swipeable time grid with long-press drag, bottom-handle resize, tap an empty slot for quick add (the Calendar
+   tab's FAB opens it too), event view sheet (Edit this date / Skip this date). The grid captures sideways swipes, so main-tab swipe
+   does not work over it. Phone calendar two-way sync: More → Phone calendar (needs the calendar permission). Only timed events are
+   mirrored; skipped dates are mirrored for timed repeats only; use one phone as the write-to device or events duplicate. Widget tests
+   cover the grid in CI; untested on a real phone.
 5. Groq web answers show no source links (response shape unconfirmed).
 6. Calendar, deferred: custom repeats, find free time, global search, weekly review, what-if planning.
-7. Known limits: repeating events show only the next time; imported times with a named time zone are read as
+7. Known limits: imported times with a named time zone are read as
    local; alarms set from chat use the older notification-style alarm.
