@@ -29,6 +29,7 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
 - A push to `main` publishes release `build-N` (APK `jarcis.apk`, plus `jarcis-web.zip`) and the web app.
 - Workflow: work on a branch → test locally → push the branch → wait for CI → merge to main with `--ff-only` → push.
   Watch CI with `gh run watch <id> -R towkirhs/jarvis --exit-status`.
+- CI pins Flutter 3.47.9 (`flutter-version` in the workflow): 3.50.0 broke the release build in Android lint.
 - CI often fails with 504s downloading Gradle or Kotlin files. That isn't a code error: re-run the failed job.
 - Releases are signed with a fixed key from a repo secret, so they update over each other.
 

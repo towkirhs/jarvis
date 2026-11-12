@@ -20,6 +20,8 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          # Pinned: 3.50.0's Android lint crashes on image_picker_android (2026-11-12). Raise on purpose.
+          flutter-version: 3.47.9
 
       # The Android and web scaffolds are generated here, then our own files replace the defaults.
       - name: Generate scaffold
