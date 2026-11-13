@@ -101,6 +101,13 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    the day is opened again ("Place everything again" re-flows). Repeating and phone events are fixed blocks. Overflow tasks say why and
    can move to the next day they fit (up to 21 days ahead) or a picked day. Opened from Plan my day, or the calendar toolbar for the
    day on show. Rules only (no AI); untested on a phone.
+   Rules and links (`lib/rules.dart` pure, `lib/rule_runner.dart`, `lib/rules_page.dart`, collection `rules`): "when X, if Y, do Z".
+   Every `Store.save` compares `Rules.seen` keys (new tx/rentPays/loans/items, done items, done habit days) with the last save and
+   runs matching rules; `ruleTick` (every minute and on resume) does `time` rules and finished events, so time rules only run while
+   Jarvis is open or when it next opens. A rule's own changes set off no rule (`ruleBusy`); data merged by sync or a backup sets
+   off nothing. Each firing is one Activity entry with Undo and a SnackBar (`ruleNotice`). Built-in links are rules with fixed ids
+   -101.. (rent→Money, lend→expense, take→income, paying a bill ticks its task), off by default. The AI and ChatGPT write
+   `type: rule` items (`Rules.aiSpec`, `docs/chatgpt-project.md`). More → Rules and links. Untested on a phone.
 5. Groq web answers show no source links (response shape unconfirmed).
 6. Calendar, deferred: custom repeats, find free time, global search, weekly review, what-if planning.
 7. Known limits: imported times with a named time zone are read as
