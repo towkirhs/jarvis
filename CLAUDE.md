@@ -95,6 +95,12 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    does not work over it. Phone calendar two-way sync: More → Phone calendar (needs the calendar permission). Only timed events are
    mirrored; skipped dates are mirrored for timed repeats only; use one phone as the write-to device or events duplicate. Widget tests
    cover the grid in CI; untested on a real phone.
+   Plan any day (`lib/day_planner.dart`, `lib/plan_day_page.dart`): `DayPlanner.plan(day:, extra:)`; tasks may carry `winFrom`/`winTo`
+   (minutes after midnight, a window to stay inside) and `estMax` (longest length: spare time is given to it after every task has its
+   shortest). Window tasks are placed first, earliest end first. Applying stamps `planned: 'YYYY-MM-DD'`: such tasks keep their time when
+   the day is opened again ("Place everything again" re-flows). Repeating and phone events are fixed blocks. Overflow tasks say why and
+   can move to the next day they fit (up to 21 days ahead) or a picked day. Opened from Plan my day, or the calendar toolbar for the
+   day on show. Rules only (no AI); untested on a phone.
 5. Groq web answers show no source links (response shape unconfirmed).
 6. Calendar, deferred: custom repeats, find free time, global search, weekly review, what-if planning.
 7. Known limits: imported times with a named time zone are read as
