@@ -431,6 +431,11 @@ class _CalendarViewState extends State<_CalendarView> {
                       icon: const Icon(Icons.chevron_right),
                       onPressed: () => _go(1),
                     ),
+                    IconButton(
+                      tooltip: 'Plan this day',
+                      icon: const Icon(Icons.auto_awesome_motion),
+                      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PlanDayPage(store: s, day: _day))),
+                    ),
                     PopupMenuButton<String>(
                       tooltip: 'View',
                       icon: Icon(switch (_view) {
