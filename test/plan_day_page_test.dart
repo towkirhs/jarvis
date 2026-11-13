@@ -26,7 +26,7 @@ void main() {
     await t.pumpWidget(MaterialApp(home: PlanDayPage(store: s, day: day)));
     await t.pumpAndSettle();
     expect(find.text('Study for exam'), findsOneWidget);
-    expect(find.textContaining('13:00'), findsOneWidget);
+    expect(find.textContaining('1:00 pm'), findsOneWidget);
     expect(find.textContaining('has a time window'), findsOneWidget);
     expect(find.text('Add tasks'), findsOneWidget);
 
