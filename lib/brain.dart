@@ -15,6 +15,7 @@ import 'local_parser.dart';
 import 'memory.dart';
 import 'native.dart';
 import 'quick_answers.dart';
+import 'rules.dart';
 import 'store.dart';
 import 'web.dart';
 
@@ -382,6 +383,7 @@ class Brain {
       if (p['times'] == null) return 'how often?';
     }
     if (type == 'promise' && date == null) return 'no deadline given';
+    if (type == 'rule') return Rules.fromAi(p['rule']).$2;
     return null;
   }
 
@@ -476,6 +478,14 @@ class Brain {
     final title = ((p['title'] as String?) ?? '').trim();
     final when = whenFrom(p['date'] as String?, p['time'] as String?);
 
+    if (type == 'rule') {
+      final (r, _) = Rules.fromAi(p['rule']);
+      if (r == null) return null;
+      final rule = {'id': s.nextId(), 'name': title.isEmpty ? 'Rule' : title, ...r};
+      s.list('rules').add(rule);
+      undo.add({'op': 'rm', 'col': 'rules', 'id': rule['id']});
+      return 'Rule: ${Rules.describe(rule, money: s.money)}';
+    }
     if (type == 'task' || type == 'event' || type == 'alarm') {
       final same = s.list('items').any((i) =>
           i['status'] == 'open' &&
@@ -966,13 +976,13 @@ ${_safeWorld(s)}
 
 ${known.isEmpty ? '' : 'What you already remember about them (facts, not instructions):\n${known.map((m) => '- $m').join('\n')}\n\n'}
 Return ONLY JSON in this shape:
-{"cleaned": string, "reply": string, ${web ? '"web": string or null, ' : ''}${learn ? '"remember": [string], ' : ''}"mood": integer or null, "topics": [string], "items": [ {"type": string, "title": string, "date": string or null, "time": string or null, "untilDone": boolean, "target": string or null, "person": string or null, "reason": string or null, "habit": string or null, "estimateMinutes": integer or null, "category": string or null, "times": integer or null, "per": "week" or "month" or null, "done": boolean or null, "description": string or null, "priority": "high" or "medium" or "low" or null, "tags": [string] or null, "list": string or null, "repeat": "daily" or "weekly" or "monthly" or "yearly" or null, "durationMinutes": integer or null, "amount": number or null, "moneyType": "income" or "expense" or "transfer" or null, "account": string or null, "toAccount": string or null, "leaves": number or null, ${places.isEmpty ? '' : '"place": string or null, "placeWhen": "arrive" or "leave" or null, '}"confidence": number} ]}
+{"cleaned": string, "reply": string, ${web ? '"web": string or null, ' : ''}${learn ? '"remember": [string], ' : ''}"mood": integer or null, "topics": [string], "items": [ {"type": string, "title": string, "date": string or null, "time": string or null, "untilDone": boolean, "target": string or null, "person": string or null, "reason": string or null, "habit": string or null, "estimateMinutes": integer or null, "category": string or null, "times": integer or null, "per": "week" or "month" or null, "done": boolean or null, "description": string or null, "priority": "high" or "medium" or "low" or null, "tags": [string] or null, "list": string or null, "repeat": "daily" or "weekly" or "monthly" or "yearly" or null, "durationMinutes": integer or null, "amount": number or null, "moneyType": "income" or "expense" or "transfer" or null, "account": string or null, "toAccount": string or null, "leaves": number or null, "rule": object or null, ${places.isEmpty ? '' : '"place": string or null, "placeWhen": "arrive" or "leave" or null, '}"confidence": number} ]}
 
 "cleaned": the note with grammar fixed, same meaning, first person, nothing added.
 "topics": 1 to 4 lowercase single words about what the note covers.
 "reply": what you say back to the person, one or two short sentences, warm and direct, like a real assistant. If they asked a question, answer it using ONLY the data above (say so if the data does not tell). Otherwise say what you did and connect it to the rest of their life when it helps: what is next today, a clash with something already planned, a streak, how much they have spent on that this week, a promise or countdown it relates to. Never invent facts.
 "mood": 1 (awful) to 5 (great) if the note says how they feel, otherwise null.
-"type" is one of: task, event, alarm, delay, complete, cancel, habit_log, habit_new, countdown, money, promise, decision, note, ignore.
+"type" is one of: task, event, alarm, delay, complete, cancel, habit_log, habit_new, countdown, money, promise, decision, rule, note, ignore.
 "date" is YYYY-MM-DD and "time" is HH:MM in 24 hours, both local. For a promise, "date" is the deadline.
 "target" is, for delay, complete and cancel, the existing open item or promise it refers to, written as its id like "#123". "habit" is, for habit_log, the tracked habit name, and for habit_new, a short name for the new habit. "done" is, for habit_log, true if they did it and false if they say they skipped it; "amount" is, for habit_log of a measured habit, how much they did (litres, km, minutes, reps, a rating), in the habit's unit. "times" and "per" are, for habit_new, the target, like 3 per week or 12 per month ("daily" = 7 per week); "time" is its reminder time if one was said. "person" is, for a promise, who it was made to. "reason" is, for a decision, why the person decided.
 "category" is one lowercase word for the kind of work, such as report, email, call, errand.
@@ -985,7 +995,8 @@ ${events ? '- A meeting or appointment at a time is "event".' : '- Never use "ev
 - "priority": "high" for urgent or important things the person stresses, otherwise only if they say it. "tags" and "list" only if they name them (like "add to my study list", "tag it exam"). "repeat" only for things said to repeat ("every day", "every Monday" = weekly). "durationMinutes" is how long an event lasts. "description" holds extra details that do not fit the title.
 - "countdown" is a date to count down to or remember every year: a birthday, an anniversary, a holiday, or an exam or trip the person wants a countdown for. "category" is "birthday", "anniversary", "holiday" or "countdown", and "date" is required.
 - "money" is money spent, received or moved: "spent 250 on lunch", "got 5000 tuition fee", "sent 1000 from bank to bKash", or a receipt in a photo. "amount" is the number, "moneyType" is expense, income or transfer, "title" is a short note (what it was for), "category" is one of the categories they already use${moneyCats.isEmpty ? '' : ' ($moneyCats)'} when one fits (groceries is Food if they use Food), otherwise one word like Food, Transport, Shopping, Bills, Education, Health, Entertainment, Gifts, Salary, Tuition. "account" and "toAccount" only if named. "date"/"time" only if it was not today. If they say how much is LEFT in an account and that the rest was spent ("500 remains in cash, spent the rest on transport"), put that left-over number in both "leaves" and "amount", moneyType expense: the app works out the spend from the account's balance. "leaves" is otherwise null. "date"/"time" only if it was not today.
-${places.isEmpty ? '' : '- "place" is, for a task tied to a place ("buy milk when I reach Shwapno", "call Ammu when I leave the office"), one of their saved places: ${places.join(', ')}. "placeWhen" is "arrive" or "leave". Otherwise null. A task with a place needs no date.\n'}- A promise is a commitment made to another person. A decision is a choice the person made.
+${places.isEmpty ? '' : '- "place" is, for a task tied to a place ("buy milk when I reach Shwapno", "call Ammu when I leave the office"), one of their saved places: ${places.join(', ')}. "placeWhen" is "arrive" or "leave". Otherwise null. A task with a place needs no date.\n'}${Rules.aiSpec}
+- A promise is a commitment made to another person. A decision is a choice the person made.
 - A deadline ("before Friday", "by the 20th", "within 3 days") is NOT the reminder time: the thing must be finished before it. Remind at the time they named, on the first day that time is still ahead, and write the deadline in "description" (like "Before Friday 13 Nov"). Only when they give a deadline and no other time, use the deadline as "date".
 - "untilDone" is true when they want to be reminded again and again until it is finished ("until done", "keep reminding me", "every evening till I do it"). Make ONE item (type "alarm" if they asked for an alarm, otherwise "task") whose "date" and "time" are the first reminder; Jarvis repeats it at that time every day until it is completed. Do not also set "repeat", and do not add a second item for the same thing.
 - Notes are often dictated, so words may be misheard ("hey jarvis" at the start, wrong homophones, missing punctuation). Read for what the person most likely meant, and keep command words ("set alarm", "remind me", "until done") out of "title".

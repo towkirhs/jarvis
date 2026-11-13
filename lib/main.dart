@@ -111,7 +111,19 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     _boot();
     _timer = Timer.periodic(const Duration(minutes: 1), (_) => _tick());
     s.addListener(_soonSync);
+    s.ruleNotice.addListener(_ruleDid);
     PhoneSync.watch(s);
+  }
+
+  /// A rule just acted: say which one and what it did, with Undo.
+  void _ruleDid() {
+    final n = s.ruleNotice.value;
+    if (n == null || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(n.text),
+      duration: const Duration(seconds: 6),
+      action: SnackBarAction(label: 'Undo', onPressed: () => s.undo(n.actionId)),
+    ));
   }
 
   /// Sends a change to your other devices a few seconds after you make it (several changes go together).
@@ -127,6 +139,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     _timer?.cancel();
     _syncSoon?.cancel();
     s.removeListener(_soonSync);
+    s.ruleNotice.removeListener(_ruleDid);
     _pages.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -185,6 +198,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
   /// Runs every minute while the app is open: retries waiting notes and writes the evening summary.
   Future<void> _tick() async {
     s.linkHabitsNow();
+    s.ruleTick();
     if (kIsWeb) WebReminders.check(s);
     await _applyDone();
     await Clock.drainFired(s);

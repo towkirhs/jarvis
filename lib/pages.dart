@@ -22,6 +22,7 @@ import 'decide_page.dart';
 import 'drive_page.dart';
 import 'voice_page.dart';
 import 'rent_page.dart';
+import 'rules_page.dart';
 import 'store.dart';
 import 'sync.dart';
 import 'sync_page.dart';
@@ -87,6 +88,7 @@ class MoreScreen extends StatelessWidget {
                 tile(Icons.meeting_room_outlined, 'Rooms and rent', '${store.list('rooms').length} rooms', RentPage(store: store)),
               ]),
               group('Connections', [
+                tile(Icons.account_tree_outlined, 'Rules and links', '${store.list('rules').where((r) => r['on'] == true).length} on', RulesPage(store: store)),
                 tile(Icons.record_voice_over_outlined, 'Hey Jarvis', 'Wake word and phone actions', VoicePage(store: store)),
                 tile(Icons.add_to_drive, 'Google Drive', 'Ask your files', DrivePage(store: store)),
               ]),

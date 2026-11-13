@@ -8,6 +8,8 @@ import 'clash.dart';
 import 'habit_core.dart';
 import 'habit_link.dart';
 import 'native.dart';
+import 'rule_runner.dart';
+import 'rules.dart';
 import 'sync_merge.dart';
 
 typedef Rec = Map<String, dynamic>;
@@ -67,7 +69,7 @@ class Store extends ChangeNotifier {
 
   static const _collections = [
     'captures', 'items', 'habits', 'promises', 'decisions', 'inbox', 'actions', 'countdowns', 'focus', 'tx', 'entries',
-    'rooms', 'rentPays', 'roomBills', 'houseCosts', 'clocks', 'places', 'memories', 'loanPeople', 'loans', 'cards',
+    'rooms', 'rentPays', 'roomBills', 'houseCosts', 'clocks', 'places', 'memories', 'loanPeople', 'loans', 'cards', 'rules',
   ];
 
   Future<void> load() async {
@@ -76,6 +78,7 @@ class Store extends ChangeNotifier {
     _s = raw == null ? <String, dynamic>{} : jsonDecode(raw) as Rec;
     _fillDefaults();
     _snap = Stamps.snapshot(_s);
+    _ruleSeen = _seenNow();
     apiKey = _prefs.getString('gemini_key') ?? '';
   }
 
@@ -88,6 +91,13 @@ class Store extends ChangeNotifier {
           {'id': 4, 'name': 'Bank', 'group': 'Bank', 'initial': 0},
           {'id': 5, 'name': 'bKash', 'group': 'Mobile wallet', 'initial': 0},
         ]);
+    // The built-in links between parts of Jarvis: rules with fixed ids (the same on every device), off at first.
+    final rules = list('rules');
+    var b = -101;
+    for (final r in Rules.builtins()) {
+      final id = b--;
+      if (!rules.any((x) => x['id'] == id)) rules.add({'id': id, ...r});
+    }
     _s.putIfAbsent('summaries', () => <String, dynamic>{});
     _s.putIfAbsent('boosts', () => <String, dynamic>{});
     _s.putIfAbsent('next', () => 100);
@@ -125,6 +135,49 @@ class Store extends ChangeNotifier {
     changes++;
     _prefs.setBool('local_dirty', true);
     notifyListeners();
+    _runRules();
+  }
+
+  // ---------- rules ----------
+
+  /// What had happened at the last save (see [Rules.seen]); a save compares against it.
+  Set<String> _ruleSeen = {};
+
+  /// True while a rule is doing its work: its own changes set off no other rule.
+  bool ruleBusy = false;
+
+  /// The last thing a rule did, for the app to show with Undo.
+  final ruleNotice = ValueNotifier<({String text, int actionId})?>(null);
+
+  Set<String> _seenNow() => Rules.seen(_s, habitDone: (h, day) {
+        final d = DateTime.tryParse(day);
+        return d != null && HabitCore.done(h.cast<String, dynamic>(), d);
+      });
+
+  void _runRules() {
+    final now = _seenNow();
+    final before = _ruleSeen;
+    _ruleSeen = now;
+    if (ruleBusy) return;
+    final events = Rules.happened(before, now, _s);
+    if (events.isEmpty) return;
+    ruleBusy = true;
+    try {
+      RuleRunner.run(this, events);
+    } finally {
+      ruleBusy = false;
+    }
+  }
+
+  /// Time rules and finished events; called every minute while Jarvis is open, and when it comes back.
+  void ruleTick() {
+    if (ruleBusy) return;
+    ruleBusy = true;
+    try {
+      RuleRunner.tick(this);
+    } finally {
+      ruleBusy = false;
+    }
   }
 
   /// Lets finished calendar events and done tasks fill in linked habits (see [HabitLink]).
@@ -160,6 +213,7 @@ class Store extends ChangeNotifier {
     _s = s;
     _fillDefaults();
     _snap = Stamps.snapshot(_s); // merged records keep their own times
+    _ruleSeen = _seenNow(); // what came from the other device was handled there
     save();
     await resyncAll();
   }
@@ -983,6 +1037,7 @@ class Store extends ChangeNotifier {
     }
     _s = data;
     _fillDefaults();
+    _ruleSeen = _seenNow();
     save();
     await resyncAll();
   }
