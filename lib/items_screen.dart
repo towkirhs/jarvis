@@ -7,7 +7,6 @@ import 'cal_grid.dart';
 import 'cal_index.dart';
 import 'cal_quick.dart';
 import 'clock.dart';
-import 'engine_page.dart';
 import 'haptics.dart';
 import 'habits_screen.dart';
 import 'month_view.dart';
@@ -96,7 +95,6 @@ class ItemTile extends StatelessWidget {
         ? (open ? Icons.check_box_outline_blank : Icons.check_box)
         : (it['kind'] == 'alarm' ? Icons.alarm : Icons.event);
     final details = [
-      if (it['vital'] == true) '★ vital',
       if (w != null) it['allDay'] == true ? niceDay(w) : niceWhen(w),
       if (it['repeat'] != null) repeatNames[it['repeat']]!,
       if (it['untilDone'] == true) 'daily until done',
@@ -301,11 +299,6 @@ class _ListViewState extends State<_ListView> {
                   icon: const Icon(Icons.auto_awesome_motion),
                   label: const Text('Plan my day'),
                   onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PlanDayPage(store: s))),
-                ),
-                FilledButton.tonalIcon(
-                  icon: const Icon(Icons.bolt_outlined),
-                  label: const Text('Engine'),
-                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => EnginePage(store: s))),
                 ),
               ]),
               const SizedBox(height: 8),
@@ -801,7 +794,7 @@ class _TimelineGridState extends State<TimelineGrid> {
   }
 }
 
-/// The Matrix on its own page, opened from the productivity engine.
+/// The Matrix on its own page, opened from Plan my day.
 class MatrixPage extends StatelessWidget {
   const MatrixPage({super.key, required this.store});
   final Store store;
@@ -815,7 +808,6 @@ class MatrixPage extends StatelessWidget {
 
 /// Eisenhower Matrix. Priority decides the quadrant: High = urgent and important,
 /// Medium = important, Low = urgent, None = neither. Moving a task changes its priority.
-/// Vital (Pareto) tasks come first in each box; Waiting and Someday tasks are left out (GTD).
 class _MatrixView extends StatelessWidget {
   const _MatrixView({required this.store});
   final Store store;
@@ -832,9 +824,7 @@ class _MatrixView extends StatelessWidget {
   Widget build(BuildContext context) => ListenableBuilder(
         listenable: store,
         builder: (context, _) {
-          final open = store.list('items').where((i) => i['status'] == 'open' && i['list'] != 'Waiting' && i['list'] != 'Someday').toList()
-            ..sort(_byWhen)
-            ..sort((a, b) => (b['vital'] == true ? 1 : 0).compareTo(a['vital'] == true ? 1 : 0));
+          final open = store.list('items').where((i) => i['status'] == 'open').toList()..sort(_byWhen);
           Widget quadrant((int, String, String, MaterialColor) q) {
             final (p, name, meaning, color) = q;
             final items = open.where((i) => ((i['priority'] as int?) ?? 0) == p).toList();
@@ -873,7 +863,7 @@ class _MatrixView extends StatelessWidget {
                                             child: Column(
                                               crossAxisAlignment: CrossAxisAlignment.start,
                                               children: [
-                                                Text('${it['vital'] == true ? '★ ' : ''}${it['title']}'),
+                                                Text('${it['title']}'),
                                                 if (it['when'] != null)
                                                   Text(niceWhen(it['when'] as int),
                                                       style: TextStyle(fontSize: 11, color: color)),
@@ -897,7 +887,7 @@ class _MatrixView extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(8, 8, 8, 80),
             child: Column(
               children: [
-                const Text('Long-press a task to move it, park it, or mark it vital.'),
+                const Text('Hold a task to move it to another box.'),
                 Expanded(
                   child: Row(children: [Expanded(child: quadrant(_quadrants[0])), Expanded(child: quadrant(_quadrants[1]))]),
                 ),
@@ -911,7 +901,7 @@ class _MatrixView extends StatelessWidget {
       );
 
   Future<void> _move(BuildContext context, Rec it) async {
-    final p = await showDialog<Object>(
+    final p = await showDialog<int>(
       context: context,
       builder: (ctx) => SimpleDialog(
         title: Text('Move "${it['title']}"'),
@@ -921,23 +911,10 @@ class _MatrixView extends StatelessWidget {
               onPressed: () => Navigator.pop(ctx, p),
               child: Text('$name · $meaning', style: TextStyle(color: color)),
             ),
-          const Divider(),
-          SimpleDialogOption(
-            onPressed: () => Navigator.pop(ctx, 'vital'),
-            child: Text(it['vital'] == true ? 'Not vital' : '★ Mark vital (Pareto)'),
-          ),
-          SimpleDialogOption(onPressed: () => Navigator.pop(ctx, 'Waiting'), child: const Text('Waiting for someone (GTD)')),
-          SimpleDialogOption(onPressed: () => Navigator.pop(ctx, 'Someday'), child: const Text('Someday, maybe (GTD)')),
         ],
       ),
     );
     if (p == null) return;
-    if (p is int) {
-      await store.updateRec('items', it, 'Moved ${it['title']} to ${priorityNames[p]} priority', (r) => r['priority'] = p);
-    } else if (p == 'vital') {
-      await store.updateRec('items', it, '${it['title']}: ${it['vital'] == true ? 'not vital' : 'vital'}', (r) => r['vital'] = r['vital'] != true);
-    } else {
-      await store.updateRec('items', it, 'Moved ${it['title']} to $p', (r) => r['list'] = p);
-    }
+    await store.updateRec('items', it, 'Moved ${it['title']} to ${priorityNames[p]} priority', (r) => r['priority'] = p);
   }
 }

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -8,6 +9,8 @@ import 'clash.dart';
 import 'habit_core.dart';
 import 'habit_link.dart';
 import 'native.dart';
+import 'needs.dart';
+import 'piece_facts.dart';
 import 'rule_runner.dart';
 import 'rules.dart';
 import 'sync_merge.dart';
@@ -128,14 +131,62 @@ class Store extends ChangeNotifier {
   /// What each record looked like at the last save, to stamp changes for sync (see [Stamps]).
   Map<String, Map<Object, int>> _snap = {};
 
+  // ---------- links between pieces ----------
+
+  bool _needsMet(Rec it) {
+    final f = PieceFacts(this);
+    final needs = f.needsOf(it);
+    return !Needs.has(needs) || f.stateOf(needs).state == NeedState.met;
+  }
+
+  /// Whether each linked item's reminder was on at the last look.
+  final _needWas = <int, bool>{};
+
+  /// Switches reminders of linked pieces on or off as what they depend on changes.
+  void syncNeeds() {
+    for (final it in list('items')) {
+      if (it['status'] != 'open' || it['nid'] == null || it['when'] == null) continue;
+      if (!Needs.has(PieceFacts(this).needsOf(it))) continue;
+      final met = _needsMet(it);
+      if (_needWas[it['id']] == met) continue;
+      _needWas[it['id'] as int] = met;
+      unawaited(syncRecord('items', it));
+    }
+  }
+
+  /// "Counts as done when…": finishes tasks and ticks habits whose `doneIf` holds now.
+  void _autoDone() {
+    final now = DateTime.now();
+    for (var pass = 0; pass < 3; pass++) {
+      var changed = false;
+      final f = PieceFacts(this);
+      for (final it in list('items')) {
+        if (it['status'] == 'open' && it['kind'] == 'task' && Needs.holdsNow(it['doneIf'], f)) {
+          it['status'] = 'done';
+          it['doneAt'] = now.millisecondsSinceEpoch;
+          it['doneBy'] = 'link';
+          changed = true;
+        }
+      }
+      for (final h in list('habits')) {
+        if (h['archived'] == true || !Needs.holdsNow(h['doneIf'], f) || HabitCore.done(h, now)) continue;
+        (h['logs'] as Rec)[dayKey(now)] = (h['type'] ?? 'yesno') == 'yesno' ? 'yes' : {'v': h['target'] ?? 1};
+        changed = true;
+      }
+      if (!changed) break;
+    }
+  }
+
   void save() {
     _linkHabits();
+    _autoDone();
     _snap = Stamps.stamp(_s, _snap, DateTime.now().millisecondsSinceEpoch);
     _prefs.setString('state', jsonEncode(_s));
     changes++;
     _prefs.setBool('local_dirty', true);
     notifyListeners();
     _runRules();
+    syncNeeds();
   }
 
   // ---------- rules ----------
@@ -171,6 +222,7 @@ class Store extends ChangeNotifier {
 
   /// Time rules and finished events; called every minute while Jarvis is open, and when it comes back.
   void ruleTick() {
+    syncNeeds(); // a piece's planned time may have gone by
     if (ruleBusy) return;
     ruleBusy = true;
     try {
@@ -272,6 +324,12 @@ class Store extends ChangeNotifier {
     if (untilDone) at = nextDaily(at, DateTime.now());
     if (at == null || r['status'] != 'open' || at <= DateTime.now().millisecondsSinceEpoch) {
       await Native.cancel(nid);
+      return;
+    }
+    // A linked piece stays quiet until what it depends on has happened.
+    if (col == 'items' && !_needsMet(r)) {
+      await Native.cancel(nid);
+      await Native.cancel(Lead.id(nid));
       return;
     }
     final isAlarm = col == 'items' && r['kind'] != 'task';
@@ -638,6 +696,14 @@ class Store extends ChangeNotifier {
         r['actual'] = minutes < 1 ? 1 : minutes;
       }
     });
+    // The last block of a task done in blocks finishes the task itself.
+    final parent = byId('items', it['partOf'] as int?);
+    if (parent != null && parent['status'] == 'open') {
+      final done = list('items')
+          .where((x) => x['partOf'] == parent['id'] && x['status'] == 'done')
+          .fold<int>(0, (a, x) => a + ((x['est'] as int?) ?? 0));
+      if (done >= ((parent['est'] as int?) ?? 0)) await markDone(parent);
+    }
     await boost('Done: ${it['title']}');
   }
 

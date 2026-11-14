@@ -12,7 +12,8 @@ import 'haptics.dart';
 import 'memory_page.dart';
 import 'brain.dart';
 import 'countdown_screen.dart';
-import 'engine_page.dart';
+import 'plan_day_page.dart';
+import 'recall_page.dart';
 import 'loans_page.dart';
 import 'clock_screen.dart';
 import 'habit_core.dart';
@@ -64,7 +65,8 @@ class MoreScreen extends StatelessWidget {
             children: [
               Text('More', style: Theme.of(context).textTheme.headlineSmall),
               group('Plan', [
-                tile(Icons.bolt_outlined, 'Productivity engine', 'What to do now, and why', EnginePage(store: store)),
+                tile(Icons.auto_awesome_motion, 'Plan my day', 'Tasks, habits and links, placed for you', PlanDayPage(store: store)),
+                tile(Icons.style_outlined, 'Flashcards', '${dueCards(store)} due', RecallPage(store: store)),
                 tile(Icons.inbox_outlined, 'Review inbox', inbox == 0 ? 'All clear' : '$inbox waiting', InboxPage(store: store), badge: inbox),
                 tile(
                   Icons.alarm,

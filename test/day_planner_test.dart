@@ -119,7 +119,8 @@ void quickAndHabitTests() {
         {'id': 13, 'name': 'Old', 'type': 'yesno', 'planMin': 30, 'archived': true, 'logs': {}},
       ];
       final t = DayPlanner.habitTasks([for (final h in habits) {...h, 'start': '2026-01-01'}], now);
-      expect(t.map((x) => '${x['title']} ${x['est']} ${x['id']}'), ['Tuition 60 -7', 'Study 90 -8']);
+      expect(t.where((x) => x['quick'] != true).map((x) => '${x['title']} ${x['est']} ${x['id']}'), ['Tuition 60 -7', 'Study 90 -8']);
+      expect(t.where((x) => x['quick'] == true).map((x) => x['title']), ['Water', 'Read']);
     });
 
     test('a habit already on today\'s calendar is not proposed again', () {

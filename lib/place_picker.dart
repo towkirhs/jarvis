@@ -232,8 +232,12 @@ class _PlacePickerPageState extends State<PlacePickerPage> {
                 },
               ),
               children: [
+                // CARTO's map of OpenStreetMap data: OpenStreetMap's own tile servers block or limit apps.
                 TileLayer(
-                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  urlTemplate: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+                  subdomains: const ['a', 'b', 'c', 'd'],
+                  retinaMode: RetinaMode.isHighDensity(context),
+                  maxNativeZoom: 20,
                   userAgentPackageName: 'com.towkirhs.jarcis',
                 ),
                 if (_pin != null)
@@ -257,7 +261,7 @@ class _PlacePickerPageState extends State<PlacePickerPage> {
                       child: Icon(Icons.location_on, size: 40, color: scheme.primary),
                     ),
                   ]),
-                const RichAttributionWidget(attributions: [TextSourceAttribution('OpenStreetMap contributors')]),
+                const RichAttributionWidget(attributions: [TextSourceAttribution('OpenStreetMap contributors'), TextSourceAttribution('CARTO')]),
               ],
             ),
             if (_found.isNotEmpty)
@@ -282,6 +286,25 @@ class _PlacePickerPageState extends State<PlacePickerPage> {
                   ]),
                 ),
               ),
+            Positioned(
+              right: 16,
+              bottom: 112,
+              child: Column(children: [
+                FloatingActionButton.small(
+                  heroTag: 'zoomIn',
+                  tooltip: 'Zoom in',
+                  onPressed: () => _map.move(_map.camera.center, _map.camera.zoom + 1),
+                  child: const Icon(Icons.add),
+                ),
+                const SizedBox(height: 8),
+                FloatingActionButton.small(
+                  heroTag: 'zoomOut',
+                  tooltip: 'Zoom out',
+                  onPressed: () => _map.move(_map.camera.center, _map.camera.zoom - 1),
+                  child: const Icon(Icons.remove),
+                ),
+              ]),
+            ),
             Positioned(
               right: 16,
               bottom: 56,

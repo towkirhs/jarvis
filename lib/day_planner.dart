@@ -1,11 +1,16 @@
 import 'cal_index.dart';
 import 'habit_core.dart';
+import 'needs.dart';
 import 'store.dart' show dayKey, fmtMinutes;
 
 /// Lays today's tasks into the free time between fixed events, on the phone, with no AI.
 /// Pure Dart so it can be tested on its own.
 class PlanBlock {
-  PlanBlock(this.title, this.start, this.minutes, {this.itemId, this.fixed = false, this.reason});
+  PlanBlock(this.title, this.start, this.minutes, {this.itemId, this.fixed = false, this.reason, this.part, this.parts});
+
+  /// For one block of a task split into blocks: which one (from 1) of how many.
+  final int? part;
+  final int? parts;
   final String title;
   final DateTime start;
   final int minutes;
@@ -24,7 +29,10 @@ class PlanBlock {
 /// a time window it must stay inside, or left out of the day. The window and the longest length
 /// are the task's own (`winFrom`, `winTo`, `estMax` on the item); here they override it.
 class PlanEdit {
-  const PlanEdit({this.start, this.minutes, this.skip = false, this.from, this.to, this.max, this.noWindow = false});
+  const PlanEdit({this.start, this.minutes, this.skip = false, this.from, this.to, this.max, this.noWindow = false, this.blocks});
+
+  /// For a task split into blocks: how many of them to do on this day at most.
+  final int? blocks;
   final DateTime? start;
   final int? minutes;
   final bool skip;
@@ -39,7 +47,8 @@ class PlanEdit {
   /// Ignore the window the task has.
   final bool noWindow;
 
-  PlanEdit copyWith({DateTime? start, int? minutes, bool? skip, bool clearStart = false, int? from, int? to, int? max, bool? noWindow}) => PlanEdit(
+  PlanEdit copyWith({DateTime? start, int? minutes, bool? skip, bool clearStart = false, int? from, int? to, int? max, bool? noWindow, int? blocks}) => PlanEdit(
+        blocks: blocks ?? this.blocks,
         start: clearStart ? null : (start ?? this.start),
         minutes: minutes ?? this.minutes,
         skip: skip ?? this.skip,
@@ -51,7 +60,14 @@ class PlanEdit {
 }
 
 class DayPlan {
-  DayPlan(this.blocks, this.overflow, [this.skipped = const [], this.quick = const [], this.notes = const []]);
+  DayPlan(this.blocks, this.overflow,
+      [this.skipped = const [], this.quick = const [], this.notes = const [], this.standby = const [], this.off = const []]);
+
+  /// Fallbacks: pieces that come in only if another piece is missed. No time is kept for them.
+  final List<PlanBlock> standby;
+
+  /// Pieces whose condition does not hold on this day (not enough money, a countdown that ended).
+  final List<PlanBlock> off;
 
   /// What Jarvis worked out: how much time is spare, what was stretched, what is outside its window.
   final List<String> notes;
@@ -86,32 +102,41 @@ class DayPlanner {
     return _quickVerbs.contains(first);
   }
 
-  /// Habits due today that take time, as tasks for the plan. Their id is minus the habit's id.
-  /// A habit takes time when it has `planMin` (minutes, 0 = never), or is a duration habit (its target).
-  /// Habits already done today, archived, not due today, or already on today's calendar are left out.
-  static List<Map<String, dynamic>> habitTasks(List<Map<String, dynamic>> habits, DateTime now, {List<Map<String, dynamic>> items = const []}) {
+  /// Habits for the day, as pieces for the plan. Their id is minus the habit's id.
+  /// A habit that takes time (`planMin` minutes, or a duration habit's target) gets a block; one with no
+  /// length is a quick piece, ticked off any time. Habits in [extra] (as minus their id) were added by hand:
+  /// they are included even when not due, with 30 minutes if they have no length.
+  /// Habits already done that day, archived, or already on that day's calendar are left out.
+  static List<Map<String, dynamic>> habitTasks(List<Map<String, dynamic>> habits, DateTime now,
+      {List<Map<String, dynamic>> items = const [], Set<int> extra = const {}}) {
     final today = DateTime(now.year, now.month, now.day);
     final tomorrow = today.add(const Duration(days: 1)).millisecondsSinceEpoch;
     bool onCalendar(Map<String, dynamic> h) => items.any((i) =>
-        i['kind'] == 'event' &&
         (i['planHabit'] == h['id'] || i['habitId'] == h['id']) &&
+        i['status'] != 'done' &&
         i['when'] is int &&
         (i['when'] as int) >= today.millisecondsSinceEpoch &&
         (i['when'] as int) < tomorrow);
+    int minutes(Map<String, dynamic> h) =>
+        ((h['planMin'] as num?) ?? (h['type'] == 'duration' ? (h['target'] as num?) : null) ?? 0).round();
     return [
       for (final h in habits)
-        if (h['archived'] != true && HabitCore.scheduled(h, today) && !HabitCore.done(h, today) && !onCalendar(h))
-          if (((h['planMin'] as num?) ?? (h['type'] == 'duration' ? (h['target'] as num?) : null) ?? 0) > 0)
+        if (h['archived'] != true && !HabitCore.done(h, today) && !onCalendar(h))
+          if (extra.contains(-(h['id'] as int)) || HabitCore.scheduled(h, today))
             {
               'id': -(h['id'] as int),
               'kind': 'task',
               'title': h['name'],
-              'est': ((h['planMin'] as num?) ?? (h['target'] as num)).round(),
+              'est': minutes(h) > 0 ? minutes(h) : (extra.contains(-(h['id'] as int)) ? 30 : null),
+              'quick': minutes(h) <= 0 && !extra.contains(-(h['id'] as int)),
               'priority': 0,
               'habitId': h['id'],
             },
     ];
   }
+
+  /// The piece an item stands for: a habit's planned task is that habit (minus its id).
+  static int pieceId(Map<String, dynamic> i) => i['planHabit'] is int ? -(i['planHabit'] as int) : i['id'] as int;
 
   static String _hm(int m) => '${(m ~/ 60).toString().padLeft(2, '0')}:${(m % 60).toString().padLeft(2, '0')}';
 
@@ -123,8 +148,13 @@ class DayPlanner {
   /// and overdue ones. A task has `est` minutes, may have a longest length `estMax`, and may have a time
   /// window `winFrom`/`winTo` (minutes after midnight) it must stay inside. Tasks with a window are placed
   /// first, the ones with the earliest end first, because they have the fewest choices; the rest follow
-  /// most urgent first: overdue, priority, vital (Pareto), deadline. Every task gets its shortest length;
-  /// the time left over is then given to tasks with a longest length.
+  /// most urgent first: overdue, priority (the day's own, `dayPri`, when set), deadline. Every task gets its
+  /// shortest length; the time left over is then given to tasks with a longest length.
+  ///
+  /// A task with `chunk` minutes is done in blocks of that length (an 8 hour task in 2 hour blocks): its
+  /// blocks are placed one by one, as many as fit, less what its parts (items with `partOf`) already cover.
+  /// [needs] says where each linked piece stands (by item id): one that follows other pieces starts after
+  /// them; a fallback (standby) or one whose condition does not hold (off) gets no time.
   static DayPlan plan({
     required DateTime now,
     DateTime? day,
@@ -132,6 +162,7 @@ class DayPlanner {
     required List<Map<String, dynamic>> items,
     Map<String, double> ratios = const {},
     Map<int, PlanEdit> edits = const {},
+    Map<int, NeedResult> needs = const {},
     int dayStartHour = 8,
     int dayEndHour = 22,
     int buffer = 10,
@@ -153,17 +184,57 @@ class DayPlanner {
 
     bool wanted(Map<String, dynamic> i) {
       final w = when(i);
-      if (extra.contains(i['id'])) return true;
+      if (extra.contains(i['id']) || i['habitId'] != null) return true;
       if (w != null && !w.isBefore(today) && w.isBefore(tomorrow)) return true;
       return isToday && (w == null || w.isBefore(tomorrow));
     }
 
+    // Pieces held back by a link or a condition get no time.
+    final standby = <PlanBlock>[];
+    final off = <PlanBlock>[];
+    bool held(Map<String, dynamic> i) {
+      final n = needs[i['id']];
+      if (n == null || (n.state != NeedState.standby && n.state != NeedState.off)) return false;
+      (n.state == NeedState.off ? off : standby)
+          .add(PlanBlock(i['title'] as String, today, (i['est'] as int?) ?? 0, itemId: i['id'] as int?, reason: n.why));
+      return true;
+    }
+
+    final forDay = [
+      for (final i in items)
+        if (i['kind'] == 'task' && i['status'] != 'done' && wanted(i) && (edits[i['id']]?.skip == true || !held(i))) i,
+    ];
+
     // To place: tasks for the day.
     final quick = <PlanBlock>[
-      for (final i in items)
-        if (i['kind'] == 'task' && isQuick(i) && wanted(i)) PlanBlock(i['title'] as String, today, 0, itemId: i['id'] as int?),
+      for (final i in forDay)
+        if (isQuick(i) && edits[i['id']]?.skip != true)
+          PlanBlock(i['title'] as String, today, 0, itemId: i['id'] as int?, reason: needs[i['id']]?.why),
     ];
-    final candidates = items.where((i) => i['kind'] == 'task' && !isQuick(i) && wanted(i)).toList();
+    // A task done in blocks: one candidate per block still to do.
+    final notes = <String>[];
+    final candidates = <Map<String, dynamic>>[];
+    final splitLeft = <int, int>{}; // task id -> minutes not given a block today by choice
+    for (final i in forDay) {
+      if (isQuick(i) && edits[i['id']]?.skip != true) continue;
+      final chunk = (i['chunk'] as num?)?.toInt() ?? 0;
+      final est = (i['est'] as int?) ?? 0;
+      if (chunk <= 0 || est <= chunk || edits[i['id']]?.skip == true) {
+        candidates.add(i);
+        continue;
+      }
+      final covered = items.where((x) => x['partOf'] == i['id']).fold<int>(0, (a, x) => a + ((x['est'] as int?) ?? 0));
+      var left = est - covered;
+      if (left <= 0) continue;
+      final all = (left / chunk).ceil();
+      final n = (edits[i['id']]?.blocks ?? all).clamp(0, all);
+      for (var k = 0; k < n; k++) {
+        final m = left < chunk ? left : chunk;
+        candidates.add({...i, 'est': m, '_part': k + 1, '_parts': all});
+        left -= m;
+      }
+      if (left > 0 && n < all) splitLeft[i['id'] as int] = left;
+    }
 
     (int, int)? window(Map<String, dynamic> i) {
       final e = edits[i['id']];
@@ -174,7 +245,14 @@ class DayPlanner {
       return (f ?? 0, t ?? 1440);
     }
 
-    final tasks = candidates.where((i) => edits[i['id']]?.skip != true && edits[i['id']]?.start == null).toList()
+    int pri(Map<String, dynamic> i) {
+      final d = i['dayPri'];
+      if (d is Map && d['day'] == dayKey(today) && d['p'] is int) return d['p'] as int;
+      return (i['priority'] as int?) ?? 0;
+    }
+
+    bool pinnedAt(Map<String, dynamic> i) => i['_part'] == null && edits[i['id']]?.start != null;
+    final tasks = candidates.where((i) => edits[i['id']]?.skip != true && !pinnedAt(i)).toList()
       ..sort((a, b) {
         int rank(Map<String, dynamic> i) {
           final w = when(i);
@@ -185,10 +263,8 @@ class DayPlanner {
 
         final r = rank(a).compareTo(rank(b));
         if (r != 0) return r;
-        final p = ((b['priority'] as int?) ?? 0).compareTo((a['priority'] as int?) ?? 0);
+        final p = pri(b).compareTo(pri(a));
         if (p != 0) return p;
-        final v = (b['vital'] == true ? 1 : 0).compareTo(a['vital'] == true ? 1 : 0);
-        if (v != 0) return v;
         final wa = when(a);
         final wb = when(b);
         if (wa != null && wb != null) return wa.compareTo(wb);
@@ -203,12 +279,28 @@ class DayPlanner {
           if (c != 0) return c;
           final f = wa.$1.compareTo(wb.$1);
           if (f != 0) return f;
-          return ((b['priority'] as int?) ?? 0).compareTo((a['priority'] as int?) ?? 0);
+          return pri(b).compareTo(pri(a));
         })),
       ...tasks.where((i) => window(i) == null),
     ];
+    // A piece that follows others comes after them in the order too.
+    List<int> follows(Map<String, dynamic> i) => needs[i['id']]?.state == NeedState.after ? needs[i['id']]!.after : const [];
+    for (var guard = 0; guard < ordered.length * ordered.length; guard++) {
+      var moved = false;
+      for (var a = 0; a < ordered.length && !moved; a++) {
+        final pre = follows(ordered[a]);
+        if (pre.isEmpty) continue;
+        final last = ordered.lastIndexWhere((x) => pre.contains(pieceId(x)));
+        if (last > a) {
+          ordered.insert(last, ordered.removeAt(a));
+          moved = true;
+        }
+      }
+      if (!moved) break;
+    }
 
     int length(Map<String, dynamic> i) {
+      if (i['_part'] != null) return i['est'] as int;
       final own = edits[i['id']]?.minutes;
       if (own != null) return own;
       final est = (i['est'] as int?) ?? defaultMinutes;
@@ -218,6 +310,7 @@ class DayPlanner {
     }
 
     int longest(Map<String, dynamic> i) {
+      if (i['_part'] != null) return i['est'] as int;
       final m = edits[i['id']]?.max ?? (i['estMax'] as num?)?.toInt() ?? 0;
       final l = length(i);
       return m > l ? m : l;
@@ -233,9 +326,14 @@ class DayPlanner {
     // Tasks the person pinned to a time stay there; the rest flow around them like around events.
     final pinned = <PlanBlock>[
       for (final i in candidates)
-        if (edits[i['id']]?.skip != true && edits[i['id']]?.start != null)
+        if (edits[i['id']]?.skip != true && pinnedAt(i))
           PlanBlock(i['title'] as String, edits[i['id']]!.start!, length(i), itemId: i['id'] as int?),
     ];
+    // When each timed piece ends, for the pieces that follow it.
+    final ends = <int, DateTime>{
+      for (final i in candidates)
+        if (edits[i['id']]?.skip != true && pinnedAt(i)) pieceId(i): edits[i['id']]!.start!.add(Duration(minutes: length(i))),
+    };
     final skipped = <PlanBlock>[
       for (final i in candidates)
         if (edits[i['id']]?.skip == true) PlanBlock(i['title'] as String, today, length(i), itemId: i['id'] as int?),
@@ -254,19 +352,36 @@ class DayPlanner {
     final placed = <PlanBlock>[];
     final placedTasks = <Map<String, dynamic>>[];
     final overflow = <PlanBlock>[];
+    final unfit = <int, int>{}; // split task id -> minutes of blocks that found no room
     for (final t in ordered) {
       final m = length(t);
       final win = window(t);
-      final from = win == null ? null : today.add(Duration(minutes: win.$1));
+      var from = win == null ? null : today.add(Duration(minutes: win.$1));
       final to = win == null ? null : today.add(Duration(minutes: win.$2));
+      // After the pieces it follows.
+      String? blockedBy;
+      for (final pre in follows(t)) {
+        final timed = ordered.any((x) => pieceId(x) == pre) || ends.containsKey(pre);
+        if (!timed) continue; // a quick piece, or one with no time today: nothing to wait for
+        final end = ends[pre];
+        if (end == null) {
+          blockedBy = items.where((x) => pieceId(x) == pre).map((x) => '${x['title']}').firstOrNull ?? 'what it follows';
+          break;
+        }
+        final after = end.add(Duration(minutes: buffer));
+        if (from == null || after.isAfter(from)) from = after;
+      }
       var done = false;
-      for (var g = 0; g < gaps.length && !done; g++) {
+      for (var g = 0; g < gaps.length && !done && blockedBy == null; g++) {
         final (gs, ge) = gaps[g];
         final start = from != null && from.isAfter(gs) ? from : gs;
         final end = to != null && to.isBefore(ge) ? to : ge;
         if (start.add(Duration(minutes: m)).isAfter(end)) continue;
-        placed.add(PlanBlock(t['title'] as String, start, m, itemId: t['id'] as int?));
+        placed.add(PlanBlock(t['title'] as String, start, m, itemId: t['id'] as int?, part: t['_part'] as int?, parts: t['_parts'] as int?));
         placedTasks.add(t);
+        final was = ends[pieceId(t)];
+        final finish = start.add(Duration(minutes: m));
+        if (was == null || finish.isAfter(was)) ends[pieceId(t)] = finish;
         final keep = <(DateTime, DateTime)>[
           if (start.difference(gs).inMinutes > buffer) (gs, start.subtract(Duration(minutes: buffer))),
           if (ge.isAfter(start.add(Duration(minutes: m + buffer)))) (start.add(Duration(minutes: m + buffer)), ge),
@@ -274,21 +389,35 @@ class DayPlanner {
         gaps.replaceRange(g, g + 1, keep);
         done = true;
       }
-      if (!done) {
-        String reason;
-        if (win != null && win.$2 - win.$1 < m) {
-          reason = 'Its window, ${_hm(win.$1)} to ${_hm(win.$2)}, is shorter than ${fmtMinutes(m)}.';
-        } else if (win != null) {
-          reason = 'No free ${fmtMinutes(m)} inside its window, ${_hm(win.$1)} to ${_hm(win.$2)}.';
-        } else {
-          reason = 'No free ${fmtMinutes(m)} left in the day.';
-        }
-        overflow.add(PlanBlock(t['title'] as String, today, m, itemId: t['id'] as int?, reason: reason));
+      if (done) continue;
+      if (t['_part'] != null) {
+        unfit[t['id'] as int] = (unfit[t['id']] ?? 0) + m;
+        continue;
       }
+      String reason;
+      if (blockedBy != null) {
+        reason = '"$blockedBy" comes first, and it does not fit.';
+      } else if (win != null && win.$2 - win.$1 < m) {
+        reason = 'Its window, ${_hm(win.$1)} to ${_hm(win.$2)}, is shorter than ${fmtMinutes(m)}.';
+      } else if (win != null) {
+        reason = 'No free ${fmtMinutes(m)} inside its window, ${_hm(win.$1)} to ${_hm(win.$2)}.';
+      } else {
+        reason = 'No free ${fmtMinutes(m)} left in the day.';
+      }
+      overflow.add(PlanBlock(t['title'] as String, today, m, itemId: t['id'] as int?, reason: reason));
+    }
+    for (final e in unfit.entries) {
+      final t = candidates.firstWhere((c) => c['id'] == e.key);
+      final fit = placed.where((b) => b.itemId == e.key).length;
+      overflow.add(PlanBlock(t['title'] as String, today, e.value,
+          itemId: e.key, reason: '$fit of ${t['_parts']} blocks fit. ${fmtMinutes(e.value)} is left for another day.'));
+    }
+    for (final e in splitLeft.entries) {
+      final t = items.firstWhere((c) => c['id'] == e.key);
+      notes.add('${t['title']}: ${fmtMinutes(e.value)} is left for other days.');
     }
 
     // Spare time goes to tasks with a longest length, most urgent first, never into the next block's break.
-    final notes = <String>[];
     var stretched = 0;
     for (var k = 0; k < placed.length; k++) {
       final t = placedTasks[k];
@@ -309,7 +438,7 @@ class DayPlanner {
       }
       final m = limit.difference(b.start).inMinutes;
       if (m > b.minutes) {
-        placed[k] = PlanBlock(b.title, b.start, m, itemId: b.itemId);
+        placed[k] = PlanBlock(b.title, b.start, m, itemId: b.itemId, part: b.part, parts: b.parts);
         stretched += m - b.minutes;
       }
     }
@@ -319,15 +448,16 @@ class DayPlanner {
     if (overflow.isEmpty) {
       if (ordered.isNotEmpty) {
         final spare = freeMin - need;
-        notes.add('${fmtMinutes(need - buffer * ordered.length)} of tasks in ${fmtMinutes(freeMin)} free: about ${fmtMinutes(spare < 0 ? 0 : spare)} spare.');
+        notes.insert(0, '${fmtMinutes(need - buffer * ordered.length)} of tasks in ${fmtMinutes(freeMin)} free: about ${fmtMinutes(spare < 0 ? 0 : spare)} spare.');
       }
     } else {
       final lack = need - freeMin;
-      notes.add(lack > 0
+      notes.insert(0, lack > 0
           ? 'The day is short by about ${fmtMinutes(lack)}: ${overflow.length} task${overflow.length == 1 ? '' : 's'} left over.'
           : '${overflow.length} task${overflow.length == 1 ? '' : 's'} left over: they do not fit where their windows are.');
     }
     if (stretched > 0) notes.add('Gave ${fmtMinutes(stretched)} of spare time to tasks that can take longer.');
+    if (standby.isNotEmpty) notes.add('${standby.length} on standby: no time is kept for ${standby.length == 1 ? 'it' : 'them'} unless what ${standby.length == 1 ? 'it depends' : 'they depend'} on is missed.');
     for (final b in pinned) {
       final i = candidates.firstWhere((c) => c['id'] == b.itemId);
       final win = window(i);
@@ -338,6 +468,6 @@ class DayPlanner {
     }
 
     final blocks = [...fixed, ...pinned, ...placed]..sort((a, b) => a.start.compareTo(b.start));
-    return DayPlan(blocks, overflow, skipped, quick, notes);
+    return DayPlan(blocks, overflow, skipped, quick, notes, standby, off);
   }
 }
