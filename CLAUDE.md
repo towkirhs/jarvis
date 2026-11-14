@@ -108,6 +108,12 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    off nothing. Each firing is one Activity entry with Undo and a SnackBar (`ruleNotice`). Built-in links are rules with fixed ids
    -101.. (rent→Money, lend→expense, take→income, paying a bill ticks its task), off by default. The AI and ChatGPT write
    `type: rule` items (`Rules.aiSpec`, `docs/chatgpt-project.md`). More → Rules and links. Untested on a phone.
+   Voice and "About me" (`lib/about_me.dart` pure, `lib/about_me_page.dart`, collections `words` and `profile`): a mic in the Home
+   chat bar (`Native.hear` → the phone's speech screen via MainActivity) puts the transcript in the box to check before sending.
+   Your words ({from, to}) are fixed in every note before it is read (`Brain._understand`, original kept as `heard`) and sent to the
+   phone's recogniser as hints (`speech_hints`, EXTRA_BIASING_STRINGS, Android 13+). Hold a message → "Fix a word"; editing a message
+   that changes 1-3 words offers to add them. Profile files ({name, keys, always, text}) go into the AI prompt only when a key word is
+   in the note (`ProfileFiles.pick`, 2400 chars max); ChatGPT writes them as `profile` items; "Copy for ChatGPT to update". Untested on a phone.
 5. Groq web answers show no source links (response shape unconfirmed).
 6. Calendar, deferred: custom repeats, find free time, global search, weekly review, what-if planning.
 7. Known limits: imported times with a named time zone are read as
