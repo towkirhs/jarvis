@@ -14,6 +14,7 @@ import 'habits_screen.dart';
 import 'home_screen.dart';
 import 'items_screen.dart';
 import 'journal_screen.dart';
+import 'about_me_page.dart';
 import 'native.dart';
 import 'pages.dart';
 import 'phone_sync.dart';
@@ -156,6 +157,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
 
   Future<void> _boot() async {
     await Native.requestNotificationPermission();
+    unawaited(sendSpeechHints(s));
     await s.ensureDaily();
     final shared = await Native.takeSharedText();
     if (shared != null) await _onShared(shared);

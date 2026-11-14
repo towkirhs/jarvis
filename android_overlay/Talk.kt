@@ -11,6 +11,7 @@ import android.media.AudioAttributes
 import android.media.AudioDeviceInfo
 import android.media.AudioFocusRequest
 import android.media.AudioManager
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -375,6 +376,13 @@ class ListenActivity : Activity() {
                 .putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1800L)
             val lang = context.getSharedPreferences("jarcis_cmds", Context.MODE_PRIVATE).getString("speech_lang", "en-IN")
             if (!lang.isNullOrEmpty()) i.putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang)
+            // Your own words (names and the like) as hints, so the phone hears them right more often.
+            // Android 13+; recognisers that do not support hints ignore them.
+            val hints = context.getSharedPreferences("jarcis_cmds", Context.MODE_PRIVATE).getString("speech_hints", "")
+                ?.split('\n')?.map { it.trim() }?.filter { it.isNotEmpty() }.orEmpty()
+            if (hints.isNotEmpty() && Build.VERSION.SDK_INT >= 33) {
+                i.putStringArrayListExtra(RecognizerIntent.EXTRA_BIASING_STRINGS, ArrayList(hints))
+            }
             return i
         }
 

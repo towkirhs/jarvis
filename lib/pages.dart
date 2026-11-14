@@ -22,6 +22,7 @@ import 'decide_page.dart';
 import 'drive_page.dart';
 import 'voice_page.dart';
 import 'rent_page.dart';
+import 'about_me_page.dart';
 import 'rules_page.dart';
 import 'store.dart';
 import 'sync.dart';
@@ -81,6 +82,7 @@ class MoreScreen extends StatelessWidget {
                 tile(Icons.balance, 'Decide', 'Odds, not chat', DecidePage(store: store)),
                 tile(Icons.history_edu_outlined, 'Decisions', '${store.list('decisions').length} recorded', DecisionsPage(store: store)),
                 tile(Icons.insights, 'Insights', 'How your week went', InsightsPage(store: store)),
+                tile(Icons.record_voice_over, 'About me', '${store.list('words').length} words, ${store.list('profile').length} profile files', AboutMePage(store: store)),
                 tile(Icons.psychology_outlined, 'Memory', '${store.list('memories').length} remembered', MemoryPage(store: store)),
               ]),
               group('Home', [

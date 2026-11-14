@@ -11,6 +11,7 @@ class MainActivity : FlutterActivity() {
     private var channel: MethodChannel? = null
     private var pendingShared: String? = null
     private var pendingLaunch: String? = null
+    private var hearing: MethodChannel.Result? = null
     private var started = false
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -56,6 +57,17 @@ class MainActivity : FlutterActivity() {
                     )
                     result.success(null)
                 }
+                "hear" -> {
+                    // The mic in the chat bar: the phone's own speech screen, its text comes back to the box.
+                    hearing?.success(null)
+                    hearing = result
+                    try {
+                        startActivityForResult(ListenActivity.speechIntent(this), HEAR)
+                    } catch (e: Exception) {
+                        hearing = null
+                        result.success(null)
+                    }
+                }
                 "requestCalendar" -> {
                     requestPermissions(arrayOf(Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR), 5)
                     result.success(null)
@@ -73,6 +85,15 @@ class MainActivity : FlutterActivity() {
                 else -> if (!NativeChannel.handle(this, call, result)) result.notImplemented()
             }
         }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != HEAR) return
+        val text = data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.trim()
+        hearing?.success(if (resultCode == RESULT_OK) text else null)
+        hearing = null
     }
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
@@ -122,5 +143,6 @@ class MainActivity : FlutterActivity() {
     companion object {
         /** The open app's channel, or null when the app's screen isn't alive. */
         var live: MethodChannel? = null
+        private const val HEAR = 7
     }
 }

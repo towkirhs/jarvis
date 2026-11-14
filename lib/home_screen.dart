@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'native.dart';
+import 'about_me.dart';
+import 'about_me_page.dart';
 import 'ai.dart';
 
 import 'shapes.dart';
@@ -40,6 +42,17 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _ctrl.dispose();
     super.dispose();
+  }
+
+  /// The mic: listen, fix your own words, and put the text in the box to check before sending.
+  Future<void> _listen() async {
+    Haptics.tap();
+    final heard = await Native.hear();
+    if (heard == null || heard.trim().isEmpty || !mounted) return;
+    final text = Words.fix(heard.trim(), s.list('words'));
+    final cur = _ctrl.text.trim();
+    _ctrl.text = cur.isEmpty ? text : '$cur $text';
+    _ctrl.selection = TextSelection.collapsed(offset: _ctrl.text.length);
   }
 
   Future<void> _send() async {
@@ -465,6 +478,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 icon: Icon(Icons.add_a_photo_outlined, color: scheme.onSurfaceVariant),
                 onPressed: () => _open(context, CapturePage(store: s, startWithPhoto: true)),
               ),
+              if (!kIsWeb)
+                IconButton(
+                  tooltip: 'Speak',
+                  icon: Icon(Icons.mic_none, color: scheme.onSurfaceVariant),
+                  onPressed: _listen,
+                ),
               IconButton.filled(tooltip: 'Send', onPressed: _send, icon: const Icon(Icons.arrow_upward)),
             ],
           ),
@@ -649,6 +668,12 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (ctx) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           ListTile(leading: const Icon(Icons.edit_outlined), title: const Text('Edit and redo'), onTap: () => Navigator.pop(ctx, 'edit')),
+          ListTile(
+            leading: const Icon(Icons.spellcheck),
+            title: const Text('Fix a word'),
+            subtitle: const Text('Jarvis remembers it for next time'),
+            onTap: () => Navigator.pop(ctx, 'fix'),
+          ),
           ListTile(leading: const Icon(Icons.copy), title: const Text('Copy'), onTap: () => Navigator.pop(ctx, 'copy')),
           ListTile(leading: const Icon(Icons.delete_outline), title: const Text('Delete'), onTap: () => Navigator.pop(ctx, 'delete')),
         ]),
@@ -677,21 +702,82 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         );
         if (text == null || text.isEmpty || text == c['raw']) return;
-        // Take back what the old wording did, then let Jarvis read the new one.
-        if (action != null && action['undone'] != true) await s.undo(action['id'] as int);
-        c
-          ..['raw'] = text
-          ..['cleaned'] = text
-          ..['status'] = 'pending'
-          ..['edited'] = true
-          ..remove('msg')
-          ..remove('reply')
-          ..remove('sources')
-          ..remove('actionId')
-          ..remove('via');
-        s.save();
-        Haptics.tap();
-        await Brain.drain(s);
+        final change = Words.change('${c['raw']}', text);
+        await _redo(c, action, text);
+        if (change != null && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Add "${change.$1} → ${change.$2}" to your words?'),
+            action: SnackBarAction(label: 'Add', onPressed: () => addWord(s, change.$1, change.$2)),
+          ));
+        }
+      case 'fix':
+        final heard = await _pickWords(context, '${c['raw']}');
+        if (heard == null || !context.mounted) return;
+        final meant = await askWord(context, s, heard);
+        if (meant == null) return;
+        final text = Words.fix('${c['raw']}', [{'from': heard, 'to': meant}]);
+        if (text != c['raw']) await _redo(c, action, text);
+    }
+  }
+
+  /// The message's words as chips: tap the misheard one (or several in a row). Returns them, or null.
+  Future<String?> _pickWords(BuildContext context, String raw) async {
+    final words = raw.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    final picked = <int>{};
+    return showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Which word did the phone get wrong?', style: Theme.of(ctx).textTheme.titleMedium),
+              const SizedBox(height: 12),
+              Wrap(spacing: 6, runSpacing: 6, children: [
+                for (var k = 0; k < words.length; k++)
+                  FilterChip(
+                    label: Text(words[k]),
+                    selected: picked.contains(k),
+                    onSelected: (on) => setS(() => on ? picked.add(k) : picked.remove(k)),
+                  ),
+              ]),
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton(
+                  onPressed: picked.isEmpty
+                      ? null
+                      : () {
+                          final k = picked.toList()..sort();
+                          final run = words.sublist(k.first, k.last + 1).join(' ');
+                          Navigator.pop(ctx, run.replaceAll(RegExp(r'^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$', unicode: true), ''));
+                        },
+                  child: const Text('Next'),
+                ),
+              ),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Takes back what the old wording did, then lets Jarvis read [text] instead.
+  Future<void> _redo(Rec c, Rec? action, String text) async {
+    if (action != null && action['undone'] != true) await s.undo(action['id'] as int);
+    c
+      ..['raw'] = text
+      ..['cleaned'] = text
+      ..['status'] = 'pending'
+      ..['edited'] = true
+      ..remove('msg')
+      ..remove('reply')
+      ..remove('sources')
+      ..remove('actionId')
+      ..remove('via');
+    s.save();
+    Haptics.tap();
+    await Brain.drain(s);
     }
   }
 }

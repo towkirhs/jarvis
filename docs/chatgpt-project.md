@@ -29,7 +29,7 @@ Every item has `type` and `title`. Use only the fields that apply; leave the res
 
 | Field | Meaning |
 |---|---|
-| `type` | `task`, `event`, `alarm`, `delay`, `complete`, `cancel`, `habit_log`, `habit_new`, `countdown`, `money`, `promise`, `decision`, `rule`, `note` |
+| `type` | `task`, `event`, `alarm`, `delay`, `complete`, `cancel`, `habit_log`, `habit_new`, `countdown`, `money`, `promise`, `decision`, `rule`, `profile`, `note` |
 | `title` | Short plain English |
 | `date` | `YYYY-MM-DD`, local |
 | `time` | `HH:MM`, 24-hour, local. Leave out for an all-day thing |
@@ -68,6 +68,8 @@ Every item has `type` and `title`. Use only the fields that apply; leave the res
   - `if` (optional list): `{"check": "balance", "account": "Cash", "atLeast": 500}` (or `"below"`); `{"check": "spent", "category": "Food", "period": "month", "below": 5000}`; `{"check": "days", "days": [6, 7]}`; `{"check": "between", "from": "18:00", "to": "22:00"}`; `{"check": "habit_done", "habit": "Gym", "not": true}`; `{"check": "task_open", "text": "electricity bill"}`.
   - `then` (list): `{"do": "remind", "text": "..."}`; `{"do": "task", "title": "...", "day": 0, "time": "HH:MM"}`; `{"do": "done", "text": "words of the task"}`; `{"do": "habit", "habit": "Walk"}`; `{"do": "money", "moneyType": "income", "amount": null, "account": "Cash", "category": "Rent", "note": "..."}` (`amount: null` = the same amount as what set it off). Texts may use `{amount}`, `{title}`, `{person}`.
   - `once`: `true` for "next time" or a one-off purchase, `false` for "every time".
+
+- **profile**: one of my profile files, the short notes Jarvis's own (small) AI reads to understand me. Use it when I ask you to write or update my profile, or when I paste "My Jarvis profile files as they are now". `title` is the file's name (one file per subject: How I talk, Routines, Work and study, People, Money, Shortcuts), `text` is the file (short: under 150 words, plain facts and "when I say X I mean Y" lines), `keys` are the words that should bring it up (["exam", "class", "physics"]), and `always` is true only for a very short file needed with every note (How I talk). A file with the same name replaces the old one. Send only the files that changed.
 
 ## Example
 

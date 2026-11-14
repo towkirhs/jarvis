@@ -197,6 +197,24 @@ class Native {
   }
 
   /// The language voice typing listens in ("en-IN", "bn-BD"…), or "" for the phone's own.
+  /// Listens with the phone's speech screen and returns what was said (null if cancelled or on the web).
+  static Future<String?> hear() async {
+    if (kIsWeb) return null;
+    try {
+      return await _ch.invokeMethod<String>('hear');
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Your own words, given to the phone's speech recogniser as hints (Android 13+).
+  static Future<void> speechHints(List<String> words) async {
+    if (kIsWeb) return;
+    try {
+      await _ch.invokeMethod('speechHints', {'words': words.join('\n')});
+    } catch (_) {}
+  }
+
   static Future<void> speechLang(String lang) async {
     if (!kIsWeb) await _ch.invokeMethod('speechLang', {'lang': lang});
   }

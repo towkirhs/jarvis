@@ -145,6 +145,11 @@ object NativeChannel {
                 if (on) WakeService.start(context) else WakeService.stop(context)
                 result.success(null)
             }
+            "speechHints" -> {
+                context.getSharedPreferences("jarcis_cmds", Context.MODE_PRIVATE).edit()
+                    .putString("speech_hints", call.argument<String>("words") ?: "").apply()
+                result.success(null)
+            }
             "speechLang" -> {
                 context.getSharedPreferences("jarcis_cmds", Context.MODE_PRIVATE).edit()
                     .putString("speech_lang", call.argument<String>("lang") ?: "").apply()
