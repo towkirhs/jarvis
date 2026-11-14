@@ -73,10 +73,9 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    Countdown reminders (`CountdownAlert` in `lib/clash.dart`: days before, time, alarm or notification) are also untested on a phone.
    Loans and debts (`lib/loans_page.dart`, collections `loanPeople` and `loans`) are untested on a phone too; no photo attachment,
    and Jarvis chat/AI does not know about them yet.
-   Productivity engine (`lib/engine_page.dart`, rules in `lib/productivity.dart`): Eisenhower matrix (priority), Pareto (`vital`),
-   time blocking (Plan my day), deep work (Focus "Deep" mode, sessions with `deep: true`), active recall (`cards`, Leitner boxes),
-   GTD lists Inbox/Next/Waiting/Someday + weekly review (`settings.gtdReview`). Countdown groups (`group`), calendar 1-day and
-   30-day views. All untested on a phone.
+   Planning (build after 198): the engine page, 80/20 (`vital`) and GTD lists are gone (old `vital`, `gtdReview` data is ignored);
+   the Eisenhower matrix stays (Plan tab, and the grid icon in Plan my day). Focus "Deep" mode and flashcards (`cards`, Leitner
+   boxes, More → Flashcards) stay. Countdown groups (`group`), calendar 1-day and 30-day views. Untested on a phone.
    Money categories (`lib/categories.dart`, `lib/categories_page.dart`): one spelling per category, merge rules in `settings.catRules`
    (`expense:groceries` → `Food`), applied in `Store.addTx` and the edit sheet. Untested on a phone.
    Habits from the calendar (`lib/habit_link.dart`): a habit's `link` words match finished events and done tasks (last 14 days);
@@ -95,12 +94,19 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    does not work over it. Phone calendar two-way sync: More → Phone calendar (needs the calendar permission). Only timed events are
    mirrored; skipped dates are mirrored for timed repeats only; use one phone as the write-to device or events duplicate. Widget tests
    cover the grid in CI; untested on a real phone.
-   Plan any day (`lib/day_planner.dart`, `lib/plan_day_page.dart`): `DayPlanner.plan(day:, extra:)`; tasks may carry `winFrom`/`winTo`
-   (minutes after midnight, a window to stay inside) and `estMax` (longest length: spare time is given to it after every task has its
-   shortest). Window tasks are placed first, earliest end first. Applying stamps `planned: 'YYYY-MM-DD'`: such tasks keep their time when
-   the day is opened again ("Place everything again" re-flows). Repeating and phone events are fixed blocks. Overflow tasks say why and
-   can move to the next day they fit (up to 21 days ahead) or a picked day. Opened from Plan my day, or the calendar toolbar for the
-   day on show. Rules only (no AI); untested on a phone.
+   Plan my day (`lib/day_planner.dart`, `lib/plan_day_page.dart`) is the one place to plan any day. Pieces are tasks (id) and
+   habits (minus the id; `DayPlanner.habitTasks`, quick when they have no `planMin`). Tasks may carry `winFrom`/`winTo` (minutes
+   after midnight), `estMax` (longest length), `chunk` (done in blocks: Apply makes part items with `partOf`; the last done part
+   finishes the task, `Store.markDone`), `dayPri` ({day, p}: importance for one day), and `planned: 'YYYY-MM-DD'` (keeps its time).
+   Links (`lib/needs.dart` pure, `lib/piece_facts.dart`, `lib/needs_editor.dart`): `needs` and `doneIf` on a task or habit are
+   `{any, if: [check]}` with checks `done` (piece id, `not`), `balance`, `countdown`. States: met, after (placed after what it
+   follows), standby (fallback, no time), off. A linked item's reminder is scheduled only while its needs are met
+   (`Store.syncRecord`, `syncNeeds` on every save and minute tick); `doneIf` is applied in `Store._autoDone` (no undo entry).
+   The page: tray with Tasks / Habits / Conditions chips (tap adds to the day, hold-drag onto a piece links), piece cards, Now card,
+   sections Doesn't fit / Quick / On standby / Not today. Not built: place and timer conditions (no "where am I now" state yet).
+   Task form (`lib/task_sheet.dart`) is a full page: name + "takes time or quick", the rest under More options; Location's map
+   button picks a saved place (arrive/leave reminder optional). Map tiles come from CARTO (OSM's servers block apps).
+   Widget tests run the plan page and the form at 360x720 to catch overflow. Untested on a phone.
    Rules and links (`lib/rules.dart` pure, `lib/rule_runner.dart`, `lib/rules_page.dart`, collection `rules`): "when X, if Y, do Z".
    Every `Store.save` compares `Rules.seen` keys (new tx/rentPays/loans/items, done items, done habit days) with the last save and
    runs matching rules; `ruleTick` (every minute and on resume) does `time` rules and finished events, so time rules only run while

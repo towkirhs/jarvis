@@ -920,7 +920,7 @@ class _PlanDayPageState extends State<PlanDayPage> {
                           Text(now.title, style: tt.titleLarge),
                           const SizedBox(height: 12),
                           Wrap(spacing: 8, children: [
-                            FilledButton.icon(
+                            FilledButton.tonalIcon(
                               icon: const Icon(Icons.center_focus_strong),
                               label: const Text('Start focus'),
                               onPressed: () => startDeepWork(context, store, taskId: now.itemId! > 0 ? now.itemId : null),
