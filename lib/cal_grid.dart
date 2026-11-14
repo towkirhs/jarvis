@@ -101,8 +101,12 @@ class TimeGrid extends StatefulWidget {
     required this.count,
     required this.onVisible,
     required this.onDayTap,
+    this.stack = false,
   });
   final Store store;
+
+  /// Events at the same time lie on top of each other (each a step to the right) instead of side by side.
+  final bool stack;
 
   /// The first day of the page the grid opens on.
   final DateTime anchor;
@@ -221,6 +225,7 @@ class TimeGridState extends State<TimeGrid> {
                         start: _start(p),
                         count: count,
                         scheme: scheme,
+                        stack: widget.stack,
                       ),
                     ),
                   ),
@@ -310,7 +315,8 @@ class _Drag {
 
 /// One page of the grid: the hour lines, the blocks, the "now" line and a block being dragged.
 class _BodyPage extends StatefulWidget {
-  const _BodyPage({required this.store, required this.start, required this.count, required this.scheme});
+  const _BodyPage({required this.store, required this.start, required this.count, required this.scheme, this.stack = false});
+  final bool stack;
   final Store store;
   final DateTime start;
   final int count;
@@ -357,7 +363,8 @@ class _BodyPageState extends State<_BodyPage> {
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(
         content: Text(d.resize ? 'Length changed' : 'Moved'),
-        action: SnackBarAction(label: 'Undo', onPressed: () => s.undo(log)),
+        persist: false,
+      action: SnackBarAction(label: 'Undo', onPressed: () => s.undo(log)),
       ));
   }
 
@@ -391,10 +398,11 @@ class _BodyPageState extends State<_BodyPage> {
         final lanes = GridMath.lanes([
           for (final e in timed) (_minuteOf(e.start), min(_minuteOf(e.start) + CalEdit.minutes(e.item), 24 * 60)),
         ]);
-        for (var i = 0; i < timed.length; i++) {
-          final e = timed[i];
+        // Lower lanes first, so a later lane is drawn over them.
+        final order = [for (var i = 0; i < timed.length; i++) i]..sort((a, b) => lanes[a].$1.compareTo(lanes[b].$1));
+        for (final i in order) {
           final (lane, n) = lanes[i];
-          blocks.add(_block(context, e, k, lane, n, colW, scheme));
+          blocks.add(_block(context, timed[i], k, lane, n, colW, scheme));
         }
       }
       final drag = _drag;
@@ -493,7 +501,11 @@ class _BodyPageState extends State<_BodyPage> {
     final liveDur = mine && d.resize ? GridMath.resized(dur, d.dy, startMin) : dur;
     final top = startMin / 60 * _hourH;
     final height = min(max(liveDur / 60 * _hourH, 20.0), _hourH * 24 - top + 20) - 1;
-    final w = colW / lanes;
+    // Side by side: each lane gets an equal share. On top of each other: each lane starts a step to the
+    // right and runs to the edge, with a thin outline so the one underneath still shows.
+    final over = widget.stack && lanes > 1;
+    final step = over ? min(colW * 0.22, colW / lanes) : colW / lanes;
+    final w = over ? colW - lane * step : step;
     final c = eventColor(it, scheme);
     final fg = onEventColor(c);
     final done = it['status'] == 'done';
@@ -501,7 +513,7 @@ class _BodyPageState extends State<_BodyPage> {
     return Positioned(
       key: ValueKey('${it['id']}@${e.start.millisecondsSinceEpoch}'),
       top: top,
-      left: col * colW + lane * w + 1,
+      left: col * colW + lane * step + 1,
       width: w - 2,
       height: height,
       child: GestureDetector(
@@ -523,10 +535,11 @@ class _BodyPageState extends State<_BodyPage> {
         child: Opacity(
           opacity: mine && !d.resize ? 0.35 : 1,
           child: Container(
-            padding: const EdgeInsets.fromLTRB(4, 2, 4, 2),
+            padding: const EdgeInsets.fromLTRB(6, 3, 4, 2),
             decoration: BoxDecoration(
-              color: c.withValues(alpha: done ? 0.35 : 1),
-              borderRadius: BorderRadius.circular(6),
+              color: over && done ? Color.alphaBlend(c.withValues(alpha: 0.35), scheme.surface) : c.withValues(alpha: done ? 0.35 : 1),
+              borderRadius: BorderRadius.circular(8),
+              border: over && lane > 0 ? Border.all(color: scheme.surface, width: 1.5) : null,
             ),
             child: Stack(
               children: [

@@ -15,6 +15,7 @@ import 'home_screen.dart';
 import 'items_screen.dart';
 import 'journal_screen.dart';
 import 'about_me_page.dart';
+import 'main_nav.dart';
 import 'native.dart';
 import 'pages.dart';
 import 'phone_sync.dart';
@@ -113,6 +114,10 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     _timer = Timer.periodic(const Duration(minutes: 1), (_) => _tick());
     s.addListener(_soonSync);
     s.ruleNotice.addListener(_ruleDid);
+    MainNav.step = (d) {
+      if (!_pages.hasClients) return;
+      _pages.animateToPage((_tab + d).clamp(0, _destinations.length - 1), duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+    };
     PhoneSync.watch(s);
   }
 
@@ -123,6 +128,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(n.text),
       duration: const Duration(seconds: 6),
+      persist: false,
       action: SnackBarAction(label: 'Undo', onPressed: () => s.undo(n.actionId)),
     ));
   }

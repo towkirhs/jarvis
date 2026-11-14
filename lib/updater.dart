@@ -70,7 +70,8 @@ class Updater {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Jarvis build $n is ready.'),
         duration: const Duration(seconds: 10),
-        action: SnackBarAction(label: 'Update', onPressed: () => run(context, n)),
+        persist: false,
+      action: SnackBarAction(label: 'Update', onPressed: () => run(context, n)),
       ));
     } catch (_) {
       // Offline or GitHub is slow: try again next time.

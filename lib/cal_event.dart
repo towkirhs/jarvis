@@ -158,6 +158,7 @@ void _undo(BuildContext context, Store s, String message, int log) {
     ..hideCurrentSnackBar()
     ..showSnackBar(SnackBar(
       content: Text(message),
+      persist: false,
       action: SnackBarAction(label: 'Undo', onPressed: () => s.undo(log)),
     ));
 }

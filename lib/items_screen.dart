@@ -10,6 +10,8 @@ import 'clock.dart';
 import 'haptics.dart';
 import 'habits_screen.dart';
 import 'month_view.dart';
+import 'journal_screen.dart' show DayPage, openEntryEditor;
+import 'main_nav.dart';
 import 'plan_day_page.dart';
 import 'store.dart';
 import 'task_sheet.dart';
@@ -25,6 +27,33 @@ int _byWhen(Rec a, Rec b) {
   if (x == null) return 1;
   if (y == null) return -1;
   return x.compareTo(y);
+}
+
+/// Passes a sideways swipe that goes past the first or last of its child's pages on to the app's main tabs.
+class EdgeSwipe extends StatefulWidget {
+  const EdgeSwipe({super.key, required this.child});
+  final Widget child;
+
+  @override
+  State<EdgeSwipe> createState() => _EdgeSwipeState();
+}
+
+class _EdgeSwipeState extends State<EdgeSwipe> {
+  double _over = 0;
+
+  @override
+  Widget build(BuildContext context) => NotificationListener<ScrollNotification>(
+        onNotification: (n) {
+          if (n.depth != 0 || n.metrics.axis != Axis.horizontal) return false;
+          if (n is OverscrollNotification && n.dragDetails != null) _over += n.overscroll;
+          if (n is ScrollEndNotification) {
+            if (_over.abs() > 24) MainNav.step?.call(_over > 0 ? 1 : -1);
+            _over = 0;
+          }
+          return false;
+        },
+        child: widget.child,
+      );
 }
 
 /// The Plan tab: List, Calendar and Eisenhower Matrix views of the same items.
@@ -58,14 +87,17 @@ class ItemsScreen extends StatelessWidget {
             children: [
               const TabBar(tabs: [Tab(text: 'List'), Tab(text: 'Calendar'), Tab(text: 'Matrix')]),
               Expanded(
-                child: TabBarView(
-                  // Sideways swipes switch the app's main tabs; these tabs switch by tapping.
-                  physics: const NeverScrollableScrollPhysics(),
-                  children: [
-                    _ListView(store: store),
-                    _CalendarView(store: store),
-                    _MatrixView(store: store),
-                  ],
+                child: EdgeSwipe(
+                  // Swipe between List, Calendar and Matrix; past the first or last, on to the app's next tab.
+                  // Over the calendar's hour grid a swipe changes the days instead.
+                  child: TabBarView(
+                    physics: const ClampingScrollPhysics(),
+                    children: [
+                      _ListView(store: store),
+                      _CalendarView(store: store),
+                      _MatrixView(store: store),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -359,27 +391,45 @@ class _CalendarView extends StatefulWidget {
 class _CalendarViewState extends State<_CalendarView> {
   /// The first day on show. It drives the title; swiping the grid keeps it up to date.
   DateTime _day = DateTime.now();
-  String _view = '3day'; // month, 30day, week, 3day, 2day, 1day, timeline or list
+
+  /// How many days are on show: 1, 2, 3, 7 (a week), 15 or 30; 0 is the month.
+  int _n = 3;
+
+  /// Hours run across the screen (one row per day) instead of down it.
+  bool _across = false;
+
+  /// Events at the same time lie on top of each other instead of side by side.
+  bool _stack = false;
+
+  /// One day as a list, opened by tapping a day.
+  bool _list = false;
   final _grid = GlobalKey<TimeGridState>();
 
   /// Where the grid opens. It only changes when the view or the day is chosen, never by swiping.
   late DateTime _anchor = _startFor(_day);
   int _seq = 0;
 
-  bool get _isGrid => const {'3day', '2day', '1day', 'week'}.contains(_view);
+  @override
+  void initState() {
+    super.initState();
+    // Your default view: "days|across|stack", saved from the view sheet.
+    final p = (widget.store.local('calView') ?? '').split('|');
+    if (p.length == 3) {
+      _n = int.tryParse(p[0]) ?? 3;
+      _across = p[1] == '1';
+      _stack = p[2] == '1';
+    }
+  }
+
+  /// The hour grid with a column per day: up to a week, hours running down.
+  bool get _isGrid => !_list && !_across && _n >= 1 && _n <= 7;
 
   /// How many days one step moves.
-  int get _step => switch (_view) {
-        '3day' => 3,
-        '2day' => 2,
-        '1day' || 'list' => 1,
-        '30day' => 30,
-        _ => 7,
-      };
+  int get _step => _list ? 1 : (_n == 0 ? 30 : _n);
 
-  DateTime _startFor(DateTime d) => _view == 'week' ? widget.store.mondayOf(d) : DateTime(d.year, d.month, d.day);
+  DateTime _startFor(DateTime d) => _n == 7 ? widget.store.mondayOf(d) : DateTime(d.year, d.month, d.day);
 
-  /// Opens the grid on [d].
+  /// Opens the calendar on [d].
   void _jump(DateTime d) => setState(() {
         _day = d;
         _anchor = _startFor(d);
@@ -392,93 +442,169 @@ class _CalendarViewState extends State<_CalendarView> {
       _grid.currentState?.pageBy(dir);
       return;
     }
-    setState(() => _day = _view == 'month'
+    setState(() => _day = _n == 0 && !_list
         ? DateTime(_day.year, _day.month + dir, 1)
         : DateTime(_day.year, _day.month, _day.day + dir * _step));
   }
 
   void _openDay(DateTime d) => setState(() {
         _day = d;
-        _view = 'list';
+        _list = true;
       });
+
+  void _show({int? n, bool? across, bool? stack}) => setState(() {
+        _n = n ?? _n;
+        _across = across ?? _across;
+        _stack = stack ?? _stack;
+        _list = false;
+        _anchor = _startFor(_day);
+        _seq++;
+      });
+
+  static const _spans = [(1, '1 day'), (2, '2 days'), (3, '3 days'), (7, 'Week'), (15, '15 days'), (30, '30 days'), (0, 'Month')];
+
+  /// Today, another date, how many days to show, which way the hours run, and your default.
+  Future<void> _viewSheet() => showModalBottomSheet<void>(
+        context: context,
+        showDragHandle: true,
+        isScrollControlled: true,
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctx, setS) {
+            final tt = Theme.of(ctx).textTheme;
+            final scheme = Theme.of(ctx).colorScheme;
+            void show({int? n, bool? across, bool? stack}) {
+              Haptics.tap();
+              _show(n: n, across: across, stack: stack);
+              setS(() {});
+            }
+
+            Widget label(String text) => Padding(
+                  padding: const EdgeInsets.only(top: 20, bottom: 8),
+                  child: Text(text, style: tt.titleSmall?.copyWith(color: scheme.onSurfaceVariant)),
+                );
+            return SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Expanded(
+                      child: FilledButton.tonalIcon(
+                        icon: const Icon(Icons.today),
+                        label: const Text('Go to today'),
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _jump(DateTime.now());
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.event),
+                        label: const Text('Pick a date'),
+                        onPressed: () async {
+                          final d = await showDatePicker(context: ctx, initialDate: _day, firstDate: DateTime(_day.year - 5), lastDate: DateTime(_day.year + 5));
+                          if (d == null || !ctx.mounted) return;
+                          Navigator.pop(ctx);
+                          _jump(d);
+                        },
+                      ),
+                    ),
+                  ]),
+                  label('Show'),
+                  Wrap(spacing: 8, runSpacing: 8, children: [
+                    for (final (n, text) in _spans)
+                      ChoiceChip(label: Text(text), showCheckmark: false, selected: !_list && _n == n, onSelected: (_) => show(n: n)),
+                  ]),
+                  label('Layout'),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Hours across'),
+                    subtitle: Text(_n == 0 ? 'Not for the month' : (_across ? 'Each day is a row, hours run sideways' : 'Off: hours run down the screen')),
+                    value: _across && _n != 0,
+                    onChanged: _n == 0 ? null : (v) => show(across: v),
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Overlap events'),
+                    subtitle: Text(_stack ? 'Events at the same time lie on top of each other' : 'Off: events at the same time sit side by side'),
+                    value: _stack,
+                    onChanged: (v) => show(stack: v),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: () async {
+                        await widget.store.setLocal('calView', '$_n|${_across ? 1 : 0}|${_stack ? 1 : 0}');
+                        Haptics.success();
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('The calendar will open like this from now on.')));
+                        }
+                      },
+                      child: const Text('Use this as my default'),
+                    ),
+                  ),
+                ]),
+              ),
+            );
+          },
+        ),
+      );
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
         listenable: widget.store,
         builder: (context, _) {
           final s = widget.store;
+          final tt = Theme.of(context).textTheme;
+          final start = DateTime(_day.year, _day.month, _day.day);
           return Column(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(12, 4, 4, 0),
+                padding: const EdgeInsets.fromLTRB(16, 4, 4, 4),
                 child: Row(
                   children: [
-                    Text('${_months[_day.month - 1]} ${_day.year}', style: Theme.of(context).textTheme.titleLarge),
-                    const Spacer(),
-                    IconButton(tooltip: 'Previous',
-                      icon: const Icon(Icons.chevron_left),
-                      onPressed: () => _go(-1),
+                    Expanded(
+                      child: Text('${_months[_day.month - 1]} ${_day.year}', style: tt.titleLarge, maxLines: 1, overflow: TextOverflow.ellipsis),
                     ),
-                    TextButton(onPressed: () => _jump(DateTime.now()), child: const Text('Today')),
-                    IconButton(tooltip: 'Next',
-                      icon: const Icon(Icons.chevron_right),
-                      onPressed: () => _go(1),
+                    IconButton(tooltip: 'Previous', icon: const Icon(Icons.chevron_left), onPressed: () => _go(-1)),
+                    FilledButton.tonal(
+                      style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 12), visualDensity: VisualDensity.compact),
+                      onPressed: _viewSheet,
+                      child: const Row(mainAxisSize: MainAxisSize.min, children: [Text('Today'), Icon(Icons.arrow_drop_down, size: 20)]),
                     ),
+                    IconButton(tooltip: 'Next', icon: const Icon(Icons.chevron_right), onPressed: () => _go(1)),
                     IconButton(
                       tooltip: 'Plan this day',
                       icon: const Icon(Icons.auto_awesome_motion),
                       onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PlanDayPage(store: s, day: _day))),
                     ),
-                    PopupMenuButton<String>(
-                      tooltip: 'View',
-                      icon: Icon(switch (_view) {
-                        'month' => Icons.calendar_view_month,
-                        '30day' => Icons.date_range,
-                        '1day' => Icons.calendar_view_day,
-                        '3day' => Icons.view_column_outlined,
-                        '2day' => Icons.view_week_outlined,
-                        'timeline' => Icons.view_timeline_outlined,
-                        'list' => Icons.view_agenda_outlined,
-                        _ => Icons.calendar_view_week,
-                      }),
-                      initialValue: _view,
-                      onSelected: (v) => setState(() {
-                        _view = v;
-                        _anchor = _startFor(_day);
-                        _seq++;
-                      }),
-                      itemBuilder: (_) => const [
-                        PopupMenuItem(value: 'month', child: Text('Month')),
-                        PopupMenuItem(value: '30day', child: Text('Next 30 days')),
-                        PopupMenuItem(value: '1day', child: Text('1 day')),
-                        PopupMenuItem(value: '2day', child: Text('2 days')),
-                        PopupMenuItem(value: '3day', child: Text('3 days')),
-                        PopupMenuItem(value: 'week', child: Text('Week')),
-                        PopupMenuItem(value: 'timeline', child: Text('Timeline (hours across)')),
-                        PopupMenuItem(value: 'list', child: Text('Day list')),
-                      ],
-                    ),
                   ],
                 ),
               ),
               Expanded(
-                child: switch (_view) {
-                  'list' => _dayList(context, s),
-                  '30day' => _agenda(context, s),
-                  'month' => MonthView(store: s, month: _day, onDayTap: _openDay),
-                  'timeline' => TimelineGrid(store: s, start: s.mondayOf(_day), onDayTap: _openDay),
-                  _ => KeyedSubtree(
-                      key: ValueKey('$_view/$_seq'),
-                      child: TimeGrid(
-                        key: _grid,
-                        store: s,
-                        anchor: _anchor,
-                        count: _step,
-                        onVisible: (d) => setState(() => _day = d),
-                        onDayTap: _openDay,
-                      ),
-                    ),
-                },
+                child: _list
+                    ? _dayList(context, s)
+                    : _n == 0
+                        ? MonthView(store: s, month: _day, onDayTap: _openDay)
+                        : _across
+                            ? TimelineGrid(store: s, start: _n == 7 ? s.mondayOf(_day) : start, count: _n, onDayTap: _openDay)
+                            : _n > 7
+                                ? _agenda(context, s, _n)
+                                : KeyedSubtree(
+                                    key: ValueKey('$_n/$_stack/$_seq'),
+                                    child: TimeGrid(
+                                      key: _grid,
+                                      store: s,
+                                      anchor: _anchor,
+                                      count: _n,
+                                      stack: _stack,
+                                      onVisible: (d) => setState(() => _day = d),
+                                      onDayTap: _openDay,
+                                    ),
+                                  ),
               ),
             ],
           );
@@ -498,16 +624,16 @@ class _CalendarViewState extends State<_CalendarView> {
     );
   }
 
-  /// Thirty days from [_day], one heading per day that has something on it.
-  Widget _agenda(BuildContext context, Store s) {
+  /// [n] days from [_day] down the screen, one heading per day that has something on it.
+  Widget _agenda(BuildContext context, Store s, int n) {
     final from = DateTime(_day.year, _day.month, _day.day);
-    final index = CalIndex.build(s.calendarItems, from, DateTime(from.year, from.month, from.day + 29));
+    final index = CalIndex.build(s.calendarItems, from, DateTime(from.year, from.month, from.day + n - 1));
     final countdowns = CalIndex.countdowns(s);
     final tt = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
     final todayKey = dayKey(DateTime.now());
     final rows = <Widget>[];
-    for (var i = 0; i < 30; i++) {
+    for (var i = 0; i < n; i++) {
       final d = DateTime(from.year, from.month, from.day + i);
       final key = dayKey(d);
       final entries = index[key] ?? const <CalEntry>[];
@@ -532,7 +658,7 @@ class _CalendarViewState extends State<_CalendarView> {
     }
     return ListView(
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 80),
-      children: rows.isEmpty ? [const Padding(padding: EdgeInsets.all(16), child: Text('Nothing in these 30 days.'))] : rows,
+      children: rows.isEmpty ? [Padding(padding: const EdgeInsets.all(16), child: Text('Nothing in these $n days.'))] : rows,
     );
   }
 
@@ -595,6 +721,26 @@ class _CalendarViewState extends State<_CalendarView> {
             onPressed: () => showTaskSheet(context, s, day: _day),
           ),
         ),
+        const SizedBox(height: 8),
+        // The day's journal: what you wrote, or a way to write it.
+        Builder(builder: (context) {
+          final written = s.entriesOn(key);
+          return Card(
+            child: ListTile(
+              leading: const Icon(Icons.menu_book_outlined),
+              title: Text(written.isEmpty ? 'Journal' : 'Journal: ${written.length} entr${written.length == 1 ? 'y' : 'ies'}'),
+              subtitle: Text(
+                written.isEmpty ? 'Write about this day' : '${written.first['text']}',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => written.isEmpty
+                  ? openEntryEditor(context, s, day: _day)
+                  : Navigator.push(context, MaterialPageRoute(builder: (_) => DayPage(store: s, day: key))),
+            ),
+          );
+        }),
       ],
     );
   }
@@ -602,9 +748,12 @@ class _CalendarViewState extends State<_CalendarView> {
 
 /// A week with the hours running left to right: one row per day, scroll sideways through the day.
 class TimelineGrid extends StatefulWidget {
-  const TimelineGrid({super.key, required this.store, required this.start, required this.onDayTap});
+  const TimelineGrid({super.key, required this.store, required this.start, required this.onDayTap, this.count = 7});
   final Store store;
   final DateTime start;
+
+  /// How many days (rows) it shows.
+  final int count;
   final void Function(DateTime day) onDayTap;
 
   @override
@@ -651,7 +800,7 @@ class _TimelineGridState extends State<TimelineGrid> {
     final small = Theme.of(context).textTheme.labelSmall;
     final grid = scheme.outlineVariant.withValues(alpha: 0.4);
     final now = DateTime.now();
-    final days = [for (var i = 0; i < 7; i++) DateTime(widget.start.year, widget.start.month, widget.start.day + i)];
+    final days = [for (var i = 0; i < widget.count; i++) DateTime(widget.start.year, widget.start.month, widget.start.day + i)];
     final index = CalIndex.build(s.calendarItems, days.first, days.last);
     final perDay = [
       for (final d in days) [for (final e in index[dayKey(d)] ?? const <CalEntry>[]) if (e.item['allDay'] != true) e],
@@ -753,7 +902,7 @@ class _TimelineGridState extends State<TimelineGrid> {
             width: _labelW,
             child: Column(children: [
               const SizedBox(height: 24),
-              for (var k = 0; k < 7; k++)
+              for (var k = 0; k < widget.count; k++)
                 InkWell(
                   onTap: () => widget.onDayTap(days[k]),
                   child: SizedBox(
@@ -784,7 +933,7 @@ class _TimelineGridState extends State<TimelineGrid> {
               scrollDirection: Axis.horizontal,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [hourLabels(), for (var k = 0; k < 7; k++) dayRow(k)],
+                children: [hourLabels(), for (var k = 0; k < widget.count; k++) dayRow(k)],
               ),
             ),
           ),

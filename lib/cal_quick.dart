@@ -26,6 +26,7 @@ Future<void> showQuickAdd(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
+    showDragHandle: true,
     builder: (ctx) => StatefulBuilder(
       builder: (ctx, setS) {
         TimeOfDay? end() {
@@ -98,11 +99,30 @@ Future<void> showQuickAdd(
         final clash = what == 'event' && start != null
             ? Clash.sentence(Clash.find(s.list('items'), startMs()!, mins), clock)
             : '';
+        final scheme = Theme.of(ctx).colorScheme;
+        final tt = Theme.of(ctx).textTheme;
+        // One row of the "when" card: an icon, what it is, and its value on the right.
+        Widget row(IconData icon, String name, Widget trailing, {VoidCallback? onTap}) => InkWell(
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: SizedBox(
+                  height: 52,
+                  child: Row(children: [
+                    Icon(icon, size: 20, color: scheme.onSurfaceVariant),
+                    const SizedBox(width: 12),
+                    Expanded(child: Text(name, style: tt.bodyLarge)),
+                    trailing,
+                  ]),
+                ),
+              ),
+            );
+        Widget value(String text) => Text(text, style: tt.bodyLarge?.copyWith(color: scheme.primary, fontWeight: FontWeight.w600));
         return Padding(
-          padding: EdgeInsets.fromLTRB(16, 12, 16, MediaQuery.of(ctx).viewInsets.bottom + 16),
+          padding: EdgeInsets.fromLTRB(20, 0, 20, MediaQuery.of(ctx).viewInsets.bottom + 16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               TextField(
                 controller: title,
@@ -110,9 +130,10 @@ Future<void> showQuickAdd(
                 textInputAction: TextInputAction.done,
                 textCapitalization: TextCapitalization.sentences,
                 onSubmitted: (_) => save(),
-                style: Theme.of(ctx).textTheme.titleLarge,
-                decoration: const InputDecoration(hintText: 'Add title', border: InputBorder.none),
+                style: tt.titleMedium,
+                decoration: const InputDecoration(hintText: 'Add title'),
               ),
+              const SizedBox(height: 12),
               SegmentedButton<String>(
                 showSelectedIcon: false,
                 segments: const [
@@ -123,45 +144,59 @@ Future<void> showQuickAdd(
                 selected: {what},
                 onSelectionChanged: (v) => setS(() => what = v.first),
               ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                children: [
-                  ActionChip(
-                    avatar: const Icon(Icons.calendar_today, size: 18),
-                    label: Text(niceDay(date.millisecondsSinceEpoch)),
-                    onPressed: pickDate,
-                  ),
-                  InputChip(
-                    avatar: const Icon(Icons.schedule, size: 18),
-                    label: Text(start == null ? 'All day' : start!.format(ctx)),
-                    onPressed: pickStart,
-                    onDeleted: start == null ? null : () => setS(() => start = null),
-                  ),
-                  if (start != null && what != 'alarm')
-                    ActionChip(
-                      avatar: const Icon(Icons.schedule_outlined, size: 18),
-                      label: Text('Until ${end()!.format(ctx)}'),
-                      onPressed: pickEnd,
+              const SizedBox(height: 12),
+              Material(
+                color: scheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(14),
+                clipBehavior: Clip.antiAlias,
+                child: Column(children: [
+                  row(Icons.calendar_today, 'Date', value(niceDay(date.millisecondsSinceEpoch)), onTap: pickDate),
+                  const Divider(indent: 48),
+                  row(
+                    Icons.wb_sunny_outlined,
+                    'All day',
+                    Switch(
+                      value: start == null,
+                      onChanged: (v) => setS(() => start = v ? null : (at ?? TimeOfDay(hour: (TimeOfDay.now().hour + 1) % 24, minute: 0))),
                     ),
-                ],
+                  ),
+                  if (start != null) ...[
+                    const Divider(indent: 48),
+                    row(Icons.schedule, 'Starts', value(start!.format(ctx)), onTap: pickStart),
+                    if (what != 'alarm') ...[
+                      const Divider(indent: 48),
+                      row(Icons.schedule_outlined, 'Ends', value(end()!.format(ctx)), onTap: pickEnd),
+                    ],
+                  ],
+                ]),
               ),
               if (clash.isNotEmpty)
                 Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Row(children: [
-                    Icon(Icons.warning_amber_rounded, size: 18, color: Theme.of(ctx).colorScheme.tertiary),
-                    const SizedBox(width: 6),
-                    Expanded(child: Text(clash, style: TextStyle(color: Theme.of(ctx).colorScheme.tertiary, fontSize: 13))),
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Icon(Icons.warning_amber_rounded, size: 18, color: scheme.tertiary),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(clash, style: tt.bodySmall?.copyWith(color: scheme.tertiary))),
                   ]),
                 ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 16),
               Row(
                 children: [
-                  TextButton(onPressed: more, child: const Text('More options')),
-                  const Spacer(),
-                  FilledButton(onPressed: save, child: const Text('Save')),
+                  Expanded(
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+                      onPressed: more,
+                      child: const Text('More options'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+                      onPressed: save,
+                      child: const Text('Save'),
+                    ),
+                  ),
                 ],
               ),
             ],

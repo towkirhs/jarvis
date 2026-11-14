@@ -707,7 +707,8 @@ class _HomeScreenState extends State<HomeScreen> {
         if (change != null && context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text('Add "${change.$1} → ${change.$2}" to your words?'),
-            action: SnackBarAction(label: 'Add', onPressed: () => addWord(s, change.$1, change.$2)),
+            persist: false,
+      action: SnackBarAction(label: 'Add', onPressed: () => addWord(s, change.$1, change.$2)),
           ));
         }
       case 'fix':

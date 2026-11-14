@@ -99,7 +99,8 @@ void afterHabitChange(BuildContext context, Store s, Rec h, {bool wasDone = fals
     if (next != null && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Next: ${next['name']}'),
-        action: SnackBarAction(label: 'Open', onPressed: () => showHabitDay(context, s, next, now)),
+        persist: false,
+      action: SnackBarAction(label: 'Open', onPressed: () => showHabitDay(context, s, next, now)),
       ));
     }
   } else {

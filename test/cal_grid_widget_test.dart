@@ -88,6 +88,30 @@ void main() {
     expect(when.hour, 11);
     expect(when.minute, 0);
     expect(find.text('Undo'), findsOneWidget);
+    // The Undo pop-up goes away by itself.
+    await t.pump(const Duration(seconds: 5));
+    await t.pumpAndSettle();
+    expect(find.text('Undo'), findsNothing);
+  });
+
+  testWidgets('with Overlap on, an event at the same time lies over the first one instead of beside it', (t) async {
+    final s = await _store([_ev(1, 'Walk', 9, dur: 120), _ev(2, 'Call', 9)]);
+    Haptics.on = false;
+    t.view.physicalSize = const Size(900, 1800);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    Future<Size> callSize(bool stack) async {
+      await t.pumpWidget(MaterialApp(
+        home: Scaffold(body: TimeGrid(key: ValueKey(stack), store: s, anchor: _day, count: 3, stack: stack, onVisible: (_) {}, onDayTap: (_) {})),
+      ));
+      await t.pumpAndSettle();
+      return t.getSize(find.ancestor(of: find.text('Call'), matching: find.byType(Opacity)).first);
+    }
+
+    final beside = await callSize(false);
+    final over = await callSize(true);
+    expect(beside.width, closeTo(284 / 2 - 2, 1));
+    expect(over.width, closeTo(284 * 0.78 - 2, 1));
   });
 
   testWidgets('dragging the bottom handle makes the event longer, in quarter hours', (t) async {

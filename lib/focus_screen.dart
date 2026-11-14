@@ -74,7 +74,8 @@ class _FocusScreenState extends State<FocusScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Text('Pomodoro done.'),
-        action: SnackBarAction(
+        persist: false,
+      action: SnackBarAction(
           label: 'Take a $_breakMin min break',
           onPressed: () => s.startFocus(mode: 'pomo', minutes: _breakMin, label: 'Break', isBreak: true),
         ),

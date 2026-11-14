@@ -9,6 +9,9 @@ import 'package:path_provider/path_provider.dart';
 import 'ai.dart';
 import 'haptics.dart';
 import 'brain.dart';
+import 'cal_event.dart';
+import 'cal_grid.dart' show eventColor;
+import 'cal_index.dart';
 import 'habit_core.dart';
 import 'store.dart';
 
@@ -341,6 +344,8 @@ class DayPage extends StatelessWidget {
             final caps = store.capturesOn(day);
             final facts = store.dayFacts(day);
             final summary = store.summaries[day] as String?;
+            final date = DateTime.parse(day);
+            final onCalendar = CalIndex.build(store.calendarItems, date, date)[day] ?? const <CalEntry>[];
             return ListView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 90),
               children: [
@@ -377,6 +382,29 @@ class DayPage extends StatelessWidget {
                         ),
                       ),
                     ),
+                ],
+                // What was on the calendar that day, so the day's writing sits next to what happened.
+                if (onCalendar.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Card(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      const Padding(
+                        padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
+                        child: Text('On your calendar', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                      for (final e in onCalendar)
+                        ListTile(
+                          dense: true,
+                          leading: Icon(
+                            e.item['status'] == 'done' ? Icons.check_circle : (e.item['kind'] == 'task' ? Icons.radio_button_unchecked : Icons.event),
+                            color: eventColor(e.item, Theme.of(context).colorScheme),
+                          ),
+                          title: Text('${e.item['title']}'),
+                          subtitle: Text(eventWhen(e)),
+                          onTap: () => showEventView(context, store, e),
+                        ),
+                    ]),
+                  ),
                 ],
                 const SizedBox(height: 8),
                 Card(
