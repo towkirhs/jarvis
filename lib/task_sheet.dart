@@ -288,6 +288,7 @@ class _TaskFormPageState extends State<TaskFormPage> {
         SizedBox(
           width: 132,
           child: DropdownButtonFormField<String>(
+            isExpanded: true,
             initialValue: unit,
             decoration: const InputDecoration(labelText: 'In'),
             items: const [DropdownMenuItem(value: 'min', child: Text('minutes')), DropdownMenuItem(value: 'h', child: Text('hours'))],

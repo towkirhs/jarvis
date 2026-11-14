@@ -149,6 +149,8 @@ void main() {
     await t.pumpWidget(MaterialApp(home: PlanDayPage(store: s, day: _day)));
     await t.pumpAndSettle();
     await t.scrollUntilVisible(find.text('Buy shoes'), 100, scrollable: find.byType(Scrollable).first);
+    await t.drag(find.byType(Scrollable).first, const Offset(0, -160)); // clear of the Apply button
+    await t.pumpAndSettle();
     await t.tap(find.text('Buy shoes'));
     await t.pumpAndSettle();
     expect(find.text('Only if'), findsOneWidget);

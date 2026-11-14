@@ -84,6 +84,7 @@ Future<Map<String, dynamic>?> pickBalance(BuildContext context, Store s) {
         title: const Text('Only if there is money'),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           DropdownButtonFormField<String>(
+            isExpanded: true,
             initialValue: account,
             decoration: const InputDecoration(labelText: 'Account'),
             items: [for (final a in accounts.isEmpty ? ['Cash'] : accounts) DropdownMenuItem(value: a, child: Text(a))],
