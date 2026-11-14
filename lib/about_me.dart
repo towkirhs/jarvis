@@ -14,7 +14,7 @@ class Words {
     var out = text;
     for (final w in list) {
       final from = '${w['from']}'.trim();
-      final pattern = RegExp('(?<![\\p{L}\\p{N}])${RegExp.escape(from).replaceAll(' ', r'\s+')}(?![\p{L}\p{N}])',
+      final pattern = RegExp('(?<![\\p{L}\\p{N}])${RegExp.escape(from).replaceAll(' ', r'\s+')}(?![\\p{L}\\p{N}])',
           caseSensitive: false, unicode: true);
       out = out.replaceAll(pattern, '${w['to']}');
     }
