@@ -778,7 +778,6 @@ class _HomeScreenState extends State<HomeScreen> {
     s.save();
     Haptics.tap();
     await Brain.drain(s);
-    }
   }
 }
 
