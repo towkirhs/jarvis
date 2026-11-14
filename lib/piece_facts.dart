@@ -63,7 +63,10 @@ class PieceFacts implements NeedFacts {
       };
 
   /// The needs of an item: a habit's planned task carries its habit's.
-  Object? needsOf(Rec it) => it['planHabit'] is int ? s.byId('habits', it['planHabit'] as int)?['needs'] : it['needs'];
+  Object? needsOf(Rec it) {
+    if (it['planHabit'] is! int) return it['needs'];
+    return (s.byId('habits', it['planHabit'] as int) ?? const {})['needs'];
+  }
 
   NeedResult stateOf(Object? needs) => Needs.state(needs, this, name: name, money: s.money);
 }

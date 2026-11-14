@@ -85,7 +85,7 @@ class _PlanDayPageState extends State<PlanDayPage> {
   /// The record that holds a piece's links: the task, or the habit.
   Rec? _owner(int piece) => piece < 0 ? store.byId('habits', -piece) : store.byId('items', piece);
 
-  String _titleOf(int piece) => '${piece < 0 ? _owner(piece)?['name'] : _owner(piece)?['title']}';
+  String _titleOf(int piece) => '${(_owner(piece) ?? const {})[piece < 0 ? 'name' : 'title']}';
 
   /// The plan for [day] (this page's day when null), with [extra] added to it.
   DayPlan _plan({DateTime? day, Set<int>? extra}) {
@@ -130,7 +130,8 @@ class _PlanDayPageState extends State<PlanDayPage> {
     final linked = [...open, ...habits].where((i) => i['kind'] == 'task').toList();
     Object? needsOf(Map<String, dynamic> i) {
       final id = i['id'] as int;
-      return id < 0 ? store.byId('habits', -id)?['needs'] : PieceFacts(store).needsOf(i);
+      if (id < 0) return (store.byId('habits', -id) ?? const {})['needs'];
+      return PieceFacts(store).needsOf(i);
     }
 
     if (!linked.any((i) => Needs.has(needsOf(i)))) return run(const {});
@@ -238,7 +239,6 @@ class _PlanDayPageState extends State<PlanDayPage> {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Planned. It is on your calendar, with a reminder as each one starts.')));
     }
-  }
   }
 
   /// Moves tasks to another day (all-day there, so that day's plan picks them up). Undo restores them.
