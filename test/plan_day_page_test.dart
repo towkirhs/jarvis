@@ -148,15 +148,13 @@ void main() {
     ]);
     await t.pumpWidget(MaterialApp(home: PlanDayPage(store: s, day: _day)));
     await t.pumpAndSettle();
-    expect(t.takeException(), isNull);
+    await t.scrollUntilVisible(find.text('Buy shoes'), 100, scrollable: find.byType(Scrollable).first);
     await t.tap(find.text('Buy shoes'));
     await t.pumpAndSettle();
     expect(find.text('Only if'), findsOneWidget);
-    expect(t.takeException(), isNull);
     await t.tap(find.text('All options'), warnIfMissed: false);
     await t.pumpAndSettle();
     await t.scrollUntilVisible(find.text('Counts as done when'), 200, scrollable: find.byType(Scrollable).last);
-    expect(t.takeException(), isNull);
   });
 
   testWidgets('the task form on a phone-sized screen: only a name is needed, the rest is under More options', (t) async {
@@ -170,7 +168,6 @@ void main() {
     await t.tap(find.text('More options'));
     await t.pumpAndSettle();
     await t.scrollUntilVisible(find.text('Counts as done when'), 200, scrollable: find.byType(Scrollable).first);
-    expect(t.takeException(), isNull);
     await t.tap(find.text('Add'));
     await t.pumpAndSettle();
     expect(s.list('items').single['title'], 'Buy milk');
