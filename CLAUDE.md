@@ -90,10 +90,16 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    Calendar overhaul (`lib/cal_index.dart`, `cal_grid.dart`, `cal_quick.dart`, `cal_event.dart`, `cal_edit.dart`, `phone_calendar.dart`,
    `phone_sync.dart`): repeats show on every date (`CalIndex`); items gained `location`, `color`, `span` (all-day days) and `skip`
    (skipped repeat dates). Swipeable time grid with long-press drag, bottom-handle resize, tap an empty slot for quick add (the Calendar
-   tab's FAB opens it too), event view sheet (Edit this date / Skip this date). The grid captures sideways swipes, so main-tab swipe
-   does not work over it. Phone calendar two-way sync: More → Phone calendar (needs the calendar permission). Only timed events are
+   tab's FAB opens it too), event view sheet (Edit this date / Skip this date). Phone calendar two-way sync: More → Phone calendar (needs the calendar permission). Only timed events are
    mirrored; skipped dates are mirrored for timed repeats only; use one phone as the write-to device or events duplicate. Widget tests
    cover the grid in CI; untested on a real phone.
+   Calendar views (build after 205): the "Today" button opens a sheet (`_CalendarViewState._viewSheet`): go to today, pick a
+   date, span (1, 2, 3 days, week, 15, 30 days, month), "Hours across" (TimelineGrid, a row per day) or down (TimeGrid up to a week;
+   15 and 30 days down are a list of days), "Overlap events" (`TimeGrid.stack`), and "Use this as my default" (`local('calView')`,
+   "days|across|stack", per device). List / Calendar / Matrix swipe (`EdgeSwipe`); past the first or last tab the swipe moves the
+   main tabs (`MainNav.step`); over the hour grid a swipe changes days. A day's list shows its journal; the journal's day page
+   shows "On your calendar". Every SnackBar with an action has `persist: false`: Flutter now keeps those open until dismissed
+   otherwise, which was the "pop-ups do not close" bug. Untested on a phone.
    Plan my day (`lib/day_planner.dart`, `lib/plan_day_page.dart`) is the one place to plan any day. Pieces are tasks (id) and
    habits (minus the id; `DayPlanner.habitTasks`, quick when they have no `planMin`). Tasks may carry `winFrom`/`winTo` (minutes
    after midnight), `estMax` (longest length), `chunk` (done in blocks: Apply makes part items with `partOf`; the last done part
