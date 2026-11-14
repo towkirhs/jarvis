@@ -69,7 +69,7 @@ void main() {
     await t.pumpAndSettle();
     expect(find.textContaining('8:00 am – 9:00 am'), findsOneWidget);
 
-    await t.tap(find.text('Habits (1)'));
+    await t.tap(find.text('Habits 1'));
     await t.pumpAndSettle();
     await t.tap(find.text('Read'));
     await t.pumpAndSettle();
@@ -133,6 +133,30 @@ void main() {
     expect(s.byId('items', 1)!['status'], 'open');
     await s.markDone(parts[1]);
     expect(s.byId('items', 1)!['status'], 'done');
+  });
+
+  testWidgets('on a phone-sized screen nothing overflows: the plan, a piece\'s sheet, and every option of the task form', (t) async {
+    final s = await _store(t, size: const Size(360, 720));
+    s.list('places').add({'id': 40, 'name': 'Shwapno Dhanmondi', 'lat': 23.7, 'lng': 90.4, 'radius': 200});
+    s.list('habits').add({'id': 5, 'name': 'Read twenty pages', 'type': 'yesno', 'planMin': 30, 'start': '2026-01-01', 'sched': {'kind': 'daily'}, 'logs': <String, dynamic>{}});
+    s.list('items').addAll([
+      {..._task(1, 'A long task name that will need two lines to show fully', est: 240), 'chunk': 120, 'winFrom': 600, 'winTo': 1200},
+      {..._task(2, 'Buy shoes', est: 30), 'needs': {'any': true, 'if': [{'check': 'balance', 'account': 'Cash', 'atLeast': 500}, {'check': 'done', 'id': 1}]},
+        'place': 40, 'placeWhen': 'arrive', 'location': 'Shwapno Dhanmondi', 'priority': 3, 'color': 'rose', 'tags': ['errand']},
+      _task(3, 'Call the landlord about the water'),
+      for (var k = 10; k < 16; k++) _task(k, 'Extra task number $k', est: 45, dated: false),
+    ]);
+    await t.pumpWidget(MaterialApp(home: PlanDayPage(store: s, day: _day)));
+    await t.pumpAndSettle();
+    expect(t.takeException(), isNull);
+    await t.tap(find.text('Buy shoes'));
+    await t.pumpAndSettle();
+    expect(find.text('Only if'), findsOneWidget);
+    expect(t.takeException(), isNull);
+    await t.tap(find.text('All options'), warnIfMissed: false);
+    await t.pumpAndSettle();
+    await t.scrollUntilVisible(find.text('Counts as done when'), 200, scrollable: find.byType(Scrollable).last);
+    expect(t.takeException(), isNull);
   });
 
   testWidgets('the task form on a phone-sized screen: only a name is needed, the rest is under More options', (t) async {

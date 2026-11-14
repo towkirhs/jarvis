@@ -777,19 +777,10 @@ class _PlanDayPageState extends State<PlanDayPage> {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 0, 12),
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Padding(
-              padding: const EdgeInsets.only(right: 16),
-              child: SegmentedButton<int>(
-                showSelectedIcon: false,
-                segments: [
-                  ButtonSegment(value: 0, label: Text('Tasks (${tasks.length})')),
-                  ButtonSegment(value: 1, label: Text('Habits (${habits.length})')),
-                  const ButtonSegment(value: 2, label: Text('Conditions')),
-                ],
-                selected: {_tab},
-                onSelectionChanged: (v) => setState(() => _tab = v.first),
-              ),
-            ),
+            Wrap(spacing: 8, children: [
+              for (final (k, text) in [(0, 'Tasks ${tasks.length}'), (1, 'Habits ${habits.length}'), (2, 'Conditions')])
+                ChoiceChip(label: Text(text), showCheckmark: false, selected: _tab == k, onSelected: (_) => setState(() => _tab = k)),
+            ]),
             const SizedBox(height: 8),
             SizedBox(
               height: 48,

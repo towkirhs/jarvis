@@ -313,12 +313,13 @@ class _TaskFormPageState extends State<TaskFormPage> {
         ]),
         if (placeId != null) ...[
           const SizedBox(height: 8),
-          Text('Remind me there', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+          Text('Remind me there when I', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
           const SizedBox(height: 4),
           SegmentedButton<String>(
+            showSelectedIcon: false,
             segments: const [
-              ButtonSegment(value: 'arrive', label: Text('When I arrive')),
-              ButtonSegment(value: 'leave', label: Text('When I leave')),
+              ButtonSegment(value: 'arrive', label: Text('Arrive')),
+              ButtonSegment(value: 'leave', label: Text('Leave')),
               ButtonSegment(value: 'off', label: Text('Off')),
             ],
             selected: {placeWhen},
@@ -438,6 +439,7 @@ class _TaskFormPageState extends State<TaskFormPage> {
           ),
           const SizedBox(height: 16),
           SegmentedButton<String>(
+            showSelectedIcon: false,
             segments: const [
               ButtonSegment(value: 'task', label: Text('Task')),
               ButtonSegment(value: 'event', label: Text('Event')),
@@ -452,9 +454,10 @@ class _TaskFormPageState extends State<TaskFormPage> {
           if (kind == 'task') ...[
             _title('Does it take time?'),
             SegmentedButton<bool>(
+              showSelectedIcon: false,
               segments: const [
-                ButtonSegment(value: false, icon: Icon(Icons.hourglass_empty), label: Text('Takes time')),
-                ButtonSegment(value: true, icon: Icon(Icons.bolt), label: Text('Quick, no time')),
+                ButtonSegment(value: false, label: Text('Takes time')),
+                ButtonSegment(value: true, label: Text('Quick, no time')),
               ],
               selected: {_quick},
               onSelectionChanged: (v) => setState(() => quick = v.first),

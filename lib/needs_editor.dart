@@ -90,11 +90,10 @@ Future<Map<String, dynamic>?> pickBalance(BuildContext context, Store s) {
             onChanged: (v) => setS(() => account = v ?? account),
           ),
           const SizedBox(height: 12),
-          SegmentedButton<bool>(
-            segments: const [ButtonSegment(value: true, label: Text('Has at least')), ButtonSegment(value: false, label: Text('Has under'))],
-            selected: {atLeast},
-            onSelectionChanged: (v) => setS(() => atLeast = v.first),
-          ),
+          Wrap(spacing: 8, children: [
+            ChoiceChip(label: const Text('Has at least'), selected: atLeast, onSelected: (_) => setS(() => atLeast = true)),
+            ChoiceChip(label: const Text('Has under'), selected: !atLeast, onSelected: (_) => setS(() => atLeast = false)),
+          ]),
           const SizedBox(height: 12),
           TextField(
             controller: amount,
@@ -191,11 +190,10 @@ class NeedsEditor extends StatelessWidget {
       if (checks.length > 1)
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
-          child: SegmentedButton<bool>(
-            segments: const [ButtonSegment(value: false, label: Text('All of these')), ButtonSegment(value: true, label: Text('Any of these'))],
-            selected: {any},
-            onSelectionChanged: (v) => _set(checks, any: v.first),
-          ),
+          child: Wrap(spacing: 8, children: [
+            ChoiceChip(label: const Text('All of these'), selected: !any, onSelected: (_) => _set(checks, any: false)),
+            ChoiceChip(label: const Text('Any of these'), selected: any, onSelected: (_) => _set(checks, any: true)),
+          ]),
         ),
       Wrap(spacing: 8, runSpacing: 8, children: [
         for (final c in checks)

@@ -19,7 +19,7 @@ class PlanBlock {
   /// An event that was already at this time (not moved by the plan).
   final bool fixed;
 
-  /// For a task that did not fit: why.
+  /// For a task that did not fit: why. For a linked piece: where it stands ("Once Gym is done").
   final String? reason;
 
   DateTime get end => start.add(Duration(minutes: minutes));
@@ -377,7 +377,8 @@ class DayPlanner {
         final start = from != null && from.isAfter(gs) ? from : gs;
         final end = to != null && to.isBefore(ge) ? to : ge;
         if (start.add(Duration(minutes: m)).isAfter(end)) continue;
-        placed.add(PlanBlock(t['title'] as String, start, m, itemId: t['id'] as int?, part: t['_part'] as int?, parts: t['_parts'] as int?));
+        placed.add(PlanBlock(t['title'] as String, start, m,
+            itemId: t['id'] as int?, part: t['_part'] as int?, parts: t['_parts'] as int?, reason: needs[t['id']]?.why));
         placedTasks.add(t);
         final was = ends[pieceId(t)];
         final finish = start.add(Duration(minutes: m));
@@ -438,7 +439,7 @@ class DayPlanner {
       }
       final m = limit.difference(b.start).inMinutes;
       if (m > b.minutes) {
-        placed[k] = PlanBlock(b.title, b.start, m, itemId: b.itemId, part: b.part, parts: b.parts);
+        placed[k] = PlanBlock(b.title, b.start, m, itemId: b.itemId, part: b.part, parts: b.parts, reason: b.reason);
         stretched += m - b.minutes;
       }
     }
