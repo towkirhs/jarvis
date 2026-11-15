@@ -174,6 +174,33 @@ class Brain {
       c['via'] = 'phone';
       return _apply(s, c, {'items': <dynamic>[], 'cleaned': note});
     }
+    // "decided: take the job because it pays more": kept as written, no AI.
+    if (dest?.type == 'decision') {
+      final m = RegExp(r'^(.*?)\s+because\s+(.+)$', caseSensitive: false).firstMatch(note);
+      c['via'] = 'phone';
+      return _apply(s, c, {
+        'items': [
+          {'type': 'decision', 'title': (m?[1] ?? note).trim(), 'reason': m?[2]?.trim(), 'confidence': 1},
+        ],
+      });
+    }
+    // "decide: tea or coffee": the odds of each, here in the chat.
+    if (dest?.type == 'decide' && c['image'] == null) {
+      if (!AI.available(s)) {
+        c['via'] = 'phone';
+        return _apply(s, c, {'items': <dynamic>[], 'reply': 'To decide, add an AI in Settings, AI models.'});
+      }
+      try {
+        final answers = await decide(s, note, options: Decide.options(note), captureId: c['id'] as int);
+        c['via'] = 'ai';
+        c['decision'] = [for (final a in answers) a.toJson()];
+        return await _apply(s, c, {'items': <dynamic>[], 'reply': verdict(s, answers.first)});
+      } catch (e) {
+        c['msg'] = 'Waiting for the AI: $e';
+        s.save();
+        return false;
+      }
+    }
     // Your rule: only notes that start with "calendar" go on the calendar; anything else with a time is a task.
     // (A photo of a routine or exam schedule still makes events.)
     Rec forced(Rec data) =>
@@ -389,7 +416,7 @@ class Brain {
       if (((p['habit'] as String?) ?? '').trim().isEmpty) return 'no habit name';
       if (p['times'] == null) return 'how often?';
     }
-    if (type == 'promise' && date == null) return 'no deadline given';
+    if (type == 'promise' && date == null && p['asked'] != true) return 'no deadline given';
     if (type == 'rule') return Rules.fromAi(p['rule']).$2;
     return null;
   }

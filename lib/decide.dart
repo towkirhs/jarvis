@@ -128,6 +128,15 @@ $state''';
   }
 
   /// Is this note asking Jarvis to decide? ("should I…", "X or Y?", "decide…", "which one…")
+  /// The options in "tea or coffee", "A, B or C" (2 to 4 short ones), else none (the AI names them).
+  static List<String> options(String note) {
+    var t = note.trim().replaceAll(RegExp(r'[?.!]+$'), '');
+    t = t.replaceFirst(RegExp(r'^(should i|shall i|do i|which is better|which one|what should i do)[:,]?\s+', caseSensitive: false), '');
+    final parts = t.split(RegExp(r'\s*,\s*|\s+or\s+', caseSensitive: false)).map((p) => p.trim()).where((p) => p.isNotEmpty).toList();
+    if (parts.length < 2 || parts.length > 4 || parts.any((p) => p.split(' ').length > 6)) return const [];
+    return parts;
+  }
+
   static bool isDecisionRequest(String note) {
     final t = note.trim().toLowerCase();
     return RegExp(r'^(jarvis,?\s+)?(should i|shall i|do i|is it worth|which (one|should)|decide|help me decide|pick)\b').hasMatch(t) ||

@@ -41,6 +41,11 @@ class Destination {
   static final _leadRe = RegExp('^(${_alt(_lead.keys)})\\b\\s*[:,\\-–]?\\s*', caseSensitive: false);
   // "note:" only with a colon, since "note that …" is ordinary speech.
   static final _noteRe = RegExp(r'^note\s*:\s*', caseSensitive: false);
+
+  /// Words that need a colon after them: "decide: tea or coffee", "decided: take the job because …",
+  /// "promise: send Rahim the notes by Friday".
+  static const _colon = {'decide': 'decide', 'decided': 'decision', 'decision': 'decision', 'promise': 'promise', 'promised': 'promise'};
+  static final _colonRe = RegExp('^(${_alt(_colon.keys)})\\s*:\\s*', caseSensitive: false);
   static final _addRe = RegExp(
       '^(?:add|put|save|write)(?: (?:this|it))? (?:to|in|into|on) (?:my |the )?(${_alt(_place.keys)})\\b\\s*[:,\\-–]?\\s*',
       caseSensitive: false);
@@ -59,6 +64,8 @@ class Destination {
     if (m != null) return make(_place[m[1]!.toLowerCase()]!, t.substring(m.end));
     m = _noteRe.firstMatch(t);
     if (m != null) return make('note', t.substring(m.end));
+    m = _colonRe.firstMatch(t);
+    if (m != null) return make(_colon[m[1]!.toLowerCase()]!, t.substring(m.end));
     m = _leadRe.firstMatch(t);
     if (m != null) return make(_lead[m[1]!.toLowerCase()]!, t.substring(m.end));
     m = _tailRe.firstMatch(t);
@@ -75,7 +82,15 @@ class Destination {
         if (!const {'note', 'ignore'}.contains((raw as Map)['type']))
           timed.contains(raw['type']) ? {...Map<String, dynamic>.from(raw), 'type': d.type} : Map<String, dynamic>.from(raw),
     ];
-    if (!items.any((i) => i['type'] == d.type)) items.add({'type': d.type, 'title': d.rest, 'confidence': 1});
+    // You said "promise:", so it is a promise even without a date.
+    if (d.type == 'promise') {
+      for (final i in items) {
+        if (i['type'] == 'promise') i['asked'] = true;
+      }
+    }
+    if (!items.any((i) => i['type'] == d.type)) {
+      items.add({'type': d.type, 'title': d.rest, 'confidence': 1, if (d.type == 'promise') 'asked': true});
+    }
     return {...data, 'items': items};
   }
 

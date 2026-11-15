@@ -72,7 +72,7 @@ class Store extends ChangeNotifier {
 
   static const _collections = [
     'captures', 'items', 'habits', 'promises', 'decisions', 'inbox', 'actions', 'countdowns', 'focus', 'tx', 'entries',
-    'rooms', 'rentPays', 'roomBills', 'houseCosts', 'clocks', 'places', 'memories', 'loanPeople', 'loans', 'cards', 'rules', 'words', 'profile',
+    'rooms', 'rentPays', 'roomBills', 'houseCosts', 'clocks', 'places', 'memories', 'loanPeople', 'loans', 'cards', 'rules', 'words', 'profile', 'goals',
   ];
 
   Future<void> load() async {
@@ -120,7 +120,11 @@ class Store extends ChangeNotifier {
   Rec get settings => _s['settings'] as Rec;
   Rec get summaries => _s['summaries'] as Rec;
   Rec get boosts => _s['boosts'] as Rec;
-  int get cap => (settings['cap'] as int?) ?? 6;
+  /// Nudges a day at most; 0 in the setting means no limit.
+  int get cap {
+    final c = (settings['cap'] as int?) ?? 6;
+    return c <= 0 ? 1 << 30 : c;
+  }
 
   /// How sure Jarvis must be (0.5 to 0.95) to act or decide on its own; below it, you are asked.
   double get sureEnough => ((settings['sure'] as num?) ?? 0.7).toDouble();

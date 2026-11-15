@@ -15,7 +15,8 @@ import 'capture_page.dart';
 import 'countdown_screen.dart';
 import 'day_ribbon.dart';
 import 'decide.dart';
-import 'decide_page.dart';
+import 'clock.dart';
+import 'clock_screen.dart';
 import 'habits_screen.dart';
 import 'haptics.dart';
 import 'items_screen.dart';
@@ -168,6 +169,13 @@ class _HomeScreenState extends State<HomeScreen> {
     final now0 = Decide.whatNow(s.list('items'), now);
     final nowPick = now0.pick == 'nothing' ? null : s.byId('items', int.parse(now0.pick));
     final spentToday = _spentToday();
+    // The next alarm that is on, for the Clock card.
+    DateTime? nextAlarm;
+    for (final c in s.list('clocks')) {
+      if (c['on'] != true || c['time'] == null) continue;
+      final t = Clock.next(c['time'] as String, Clock.days(c), now);
+      if (nextAlarm == null || t.isBefore(nextAlarm)) nextAlarm = t;
+    }
     return [
       if (behind.isNotEmpty)
         _section(context, 'Behind schedule', [
@@ -194,16 +202,22 @@ class _HomeScreenState extends State<HomeScreen> {
           trailing: IconButton(
             tooltip: 'Decide something',
             icon: const Icon(Icons.balance),
-            onPressed: () => _open(context, DecidePage(store: s)),
+            onPressed: () {
+              Haptics.tap();
+              _ctrl.text = 'decide: ';
+              _ctrl.selection = TextSelection.collapsed(offset: _ctrl.text.length);
+            },
           ),
         ),
-      if (countdowns.isNotEmpty || s.list('tx').isNotEmpty)
-        Row(
+      Row(
           children: [
-            if (s.list('tx').isNotEmpty)
-              _stat(context, s.money(spentToday), 'spent today', Icons.account_balance_wallet_outlined,
-                  () => _open(context, MoneyPage(store: s))),
-            if (countdowns.isNotEmpty && s.list('tx').isNotEmpty) const SizedBox(width: 12),
+            _stat(context, nextAlarm == null ? 'Alarms' : clock(nextAlarm.millisecondsSinceEpoch),
+                nextAlarm == null ? 'Clock and focus' : 'next alarm, ${niceDay(nextAlarm.millisecondsSinceEpoch).toLowerCase()}',
+                Icons.alarm, () => _open(context, ClockScreen(store: s))),
+            const SizedBox(width: 12),
+            _stat(context, s.money(spentToday), 'spent today', Icons.account_balance_wallet_outlined,
+                () => _open(context, MoneyPage(store: s))),
+            if (countdowns.isNotEmpty) const SizedBox(width: 12),
             if (countdowns.isNotEmpty)
               _stat(
                 context,
@@ -533,6 +547,49 @@ class _HomeScreenState extends State<HomeScreen> {
     return Column(children: [mine, _answer(context, c, maxW, small)]);
   }
 
+  /// A decision's options as bars with their odds, the pick first.
+  List<Widget> _odds(BuildContext context, List decision) {
+    final tt = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    final first = decision.first as Map;
+    final probs = ((first['probs'] as Map?) ?? const {}).cast<String, num>();
+    final impact = decision.length > 1 ? decision[1] as Map : null;
+    num? matters;
+    if (impact != null) {
+      final p = ((impact['probs'] as Map?) ?? const {}).cast<String, num>();
+      matters = p.entries.fold<num>(0, (a, e) => a + (num.tryParse(e.key) ?? 0) * e.value);
+    }
+    var k = 0;
+    return [
+      const SizedBox(height: 10),
+      for (final e in probs.entries)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Expanded(child: Text(e.key, style: tt.bodyMedium?.copyWith(fontWeight: k == 0 ? FontWeight.w600 : null))),
+              Text('${(e.value * 100).round()}%', style: tt.bodyMedium?.copyWith(color: k++ == 0 ? scheme.primary : scheme.onSurfaceVariant)),
+            ]),
+            const SizedBox(height: 4),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: e.value.toDouble(),
+                minHeight: 6,
+                color: k == 1 ? scheme.primary : scheme.outline,
+                backgroundColor: scheme.surfaceContainerHighest,
+              ),
+            ),
+          ]),
+        ),
+      if (matters != null)
+        Text(
+          'How much it matters: ${matters.toStringAsFixed(1)} of 5${matters < 2.5 ? ', so decide fast and move on' : ''}.',
+          style: tt.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+        ),
+    ];
+  }
+
   Widget _answer(BuildContext context, Rec c, double maxW, TextStyle? small) {
     final scheme = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
@@ -594,6 +651,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                 ]),
               ],
+              if (c['decision'] is List && (c['decision'] as List).isNotEmpty) ..._odds(context, c['decision'] as List),
               for (final p in past) Padding(padding: const EdgeInsets.only(top: 4), child: Text(p, style: small?.copyWith(fontStyle: FontStyle.italic))),
               Row(mainAxisSize: MainAxisSize.min, children: [
                 if (via != null && status != 'pending')

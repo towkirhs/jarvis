@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'categories.dart';
 import 'categories_page.dart';
 import 'haptics.dart';
+import 'items_screen.dart' show EdgeSwipe;
+import 'money_stats.dart';
 import 'money_io.dart';
 import 'money_sms.dart';
 import 'native.dart';
@@ -279,7 +281,7 @@ class _MoneyPageState extends State<MoneyPage> {
 
   @override
   Widget build(BuildContext context) => DefaultTabController(
-        length: 5,
+        length: 6,
         child: Scaffold(
           appBar: AppBar(
             title: Row(
@@ -313,19 +315,25 @@ class _MoneyPageState extends State<MoneyPage> {
             bottom: const TabBar(
               isScrollable: true,
               tabAlignment: TabAlignment.start,
-              tabs: [Tab(text: 'Daily'), Tab(text: 'Calendar'), Tab(text: 'Monthly'), Tab(text: 'Stats'), Tab(text: 'Accounts')],
+              tabs: [Tab(text: 'Daily'), Tab(text: 'Calendar'), Tab(text: 'Monthly'), Tab(text: 'Stats'), Tab(text: 'Goals'), Tab(text: 'Accounts')],
             ),
           ),
           floatingActionButton: Builder(builder: (context) {
             final tabs = DefaultTabController.of(context);
             return ListenableBuilder(
               listenable: tabs,
-              builder: (context, _) => tabs.index == 4
+              builder: (context, _) => tabs.index == 5
                   ? FloatingActionButton.extended(
                       onPressed: () => _editAccount(context, null),
                       icon: const Icon(Icons.add),
                       label: const Text('Account'),
                     )
+                  : tabs.index == 4
+                      ? FloatingActionButton.extended(
+                          onPressed: () => _editGoal(context, null),
+                          icon: const Icon(Icons.flag_outlined),
+                          label: const Text('Goal'),
+                        )
                   : FloatingActionButton(
                       onPressed: () => showTxSheet(context, s, day: _calDay),
                       child: const Icon(Icons.add),
@@ -343,16 +351,19 @@ class _MoneyPageState extends State<MoneyPage> {
                   _summary(context, inc, exp),
                   const Divider(height: 1),
                   Expanded(
-                    child: TabBarView(
-                      // Sideways swipes switch the app's main tabs; these tabs switch by tapping.
-                      physics: const NeverScrollableScrollPhysics(),
-                      children: [
-                        _daily(context, monthTx),
-                        _calendar(context, monthTx),
-                        _monthly(context),
-                        _stats(context, monthTx),
-                        _accounts(context),
-                      ],
+                    // Swipe between Money's tabs; past the first or last, on to the app's next tab.
+                    child: EdgeSwipe(
+                      child: TabBarView(
+                        physics: const ClampingScrollPhysics(),
+                        children: [
+                          _daily(context, monthTx),
+                          _calendar(context, monthTx),
+                          _monthly(context),
+                          _stats(context, monthTx),
+                          _goals(context),
+                          _accounts(context),
+                        ],
+                      ),
                     ),
                   ),
                 ],
@@ -524,13 +535,15 @@ class _MoneyPageState extends State<MoneyPage> {
     for (final t in txs.where((t) => t['type'] == 'expense')) {
       byCat.update(shown[Cats.key(t['cat'] as String)]!, (v) => v + (t['amount'] as num), ifAbsent: () => t['amount'] as num);
     }
-    if (byCat.isEmpty) return _empty();
+    if (s.list('tx').isEmpty) return _empty();
     final entries = byCat.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
     final total = entries.fold<num>(0, (a, e) => a + e.value);
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
       children: [
-        const Center(child: Text('Expenses by category')),
+        ..._insights(context),
+        if (entries.isNotEmpty) _cardTitle(context, 'Spending by category'),
+        if (entries.isEmpty) const Padding(padding: EdgeInsets.all(16), child: Text('No spending this month yet.')),
         Align(
           alignment: Alignment.centerRight,
           child: TextButton.icon(
@@ -539,7 +552,7 @@ class _MoneyPageState extends State<MoneyPage> {
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => CategoriesPage(store: s))),
           ),
         ),
-        SizedBox(
+        if (entries.isNotEmpty) SizedBox(
           height: 200,
           child: CustomPaint(
             painter: _DonutPainter([for (final e in entries) e.value.toDouble()]),
@@ -564,6 +577,398 @@ class _MoneyPageState extends State<MoneyPage> {
     );
   }
 
+  Widget _cardTitle(BuildContext context, String text) => Padding(
+        padding: const EdgeInsets.only(top: 8, bottom: 8),
+        child: Text(text, style: Theme.of(context).textTheme.titleMedium),
+      );
+
+  /// One figure in a card: a small label over a value.
+  Widget _figure(BuildContext context, String label, String value, {Color? color}) {
+    final tt = Theme.of(context).textTheme;
+    return Expanded(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: tt.labelMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        const SizedBox(height: 2),
+        FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: Text(value, style: tt.titleMedium?.copyWith(color: color))),
+      ]),
+    );
+  }
+
+  Widget _card(List<Widget> children) => Card(
+        margin: const EdgeInsets.only(bottom: 12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
+        ),
+      );
+
+  /// The month at a glance, the last six months, what changed, how long the money lasts, and which days cost most.
+  List<Widget> _insights(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    final txs = s.list('tx');
+    final now = DateTime.now();
+    final isNow = _month == DateTime(now.year, now.month);
+    final six = MoneyStats.months(txs, _month);
+    final m = six.last;
+    final usual = MoneyStats.averageSpend(txs, _month);
+    final pace = MoneyStats.forecast(txs, _month, now);
+    final changes = MoneyStats.categoryChanges(txs, _month);
+    final accts = s.list('accounts');
+    final worth = MoneyStats.netWorth(txs, accts, _month);
+    final total = accts.fold<num>(0, (a, acc) => a + s.balance(acc));
+    final runway = MoneyStats.runway(total, usual > 0 ? usual : m.expense);
+    final week = MoneyStats.byWeekday(txs, _month);
+    final weekMax = week.fold<num>(0, max);
+    const days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    String pct(double v) => '${(v * 100).round()}%';
+    return [
+      _card([
+        Text(isNow ? 'This month' : '${_months[_month.month - 1]} ${_month.year}', style: tt.titleMedium),
+        const SizedBox(height: 12),
+        Row(children: [
+          _figure(context, 'Came in', s.money(m.income), color: _incomeColor),
+          _figure(context, 'Went out', s.money(m.expense), color: _expenseColor),
+          _figure(context, 'Kept', s.money(m.net)),
+        ]),
+        if (m.income > 0) ...[
+          const SizedBox(height: 12),
+          Text('You kept ${pct(m.savingsRate)} of what came in.', style: tt.bodyMedium),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(value: m.savingsRate.clamp(0.0, 1.0), minHeight: 8),
+          ),
+        ],
+        if (isNow && m.expense > 0) ...[
+          const SizedBox(height: 12),
+          Text(
+            'At this pace you will spend about ${s.money(pace.round())} this month'
+            '${usual > 0 ? ', ${pace > usual ? '${pct((pace - usual) / usual)} more' : '${pct((usual - pace) / usual)} less'} than usual (${s.money(usual.round())}).' : '.'}',
+            style: tt.bodyMedium?.copyWith(color: usual > 0 && pace > usual * 1.1 ? scheme.tertiary : null),
+          ),
+        ],
+      ]),
+      _card([
+        Text('Last 6 months', style: tt.titleMedium),
+        const SizedBox(height: 4),
+        Row(children: [
+          _dot(_incomeColor), const SizedBox(width: 4), Text('Came in', style: tt.bodySmall), const SizedBox(width: 12),
+          _dot(_expenseColor), const SizedBox(width: 4), Text('Went out', style: tt.bodySmall),
+        ]),
+        const SizedBox(height: 12),
+        SizedBox(height: 140, child: CustomPaint(size: Size.infinite, painter: _BarsPainter(six, scheme.outlineVariant))),
+        const SizedBox(height: 6),
+        Row(children: [
+          for (final x in six)
+            Expanded(child: Text(_months[x.month.month - 1].substring(0, 3), textAlign: TextAlign.center, style: tt.labelSmall)),
+        ]),
+      ]),
+      if (changes.isNotEmpty)
+        _card([
+          Text('What changed', style: tt.titleMedium),
+          Text('Against your average of the 3 months before', style: tt.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+          const SizedBox(height: 8),
+          for (final (cat, nowAmt, avg) in changes)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Row(children: [
+                Icon(nowAmt > avg ? Icons.trending_up : Icons.trending_down, size: 20, color: nowAmt > avg ? _expenseColor : _incomeColor),
+                const SizedBox(width: 12),
+                Expanded(child: Text(cat, style: tt.bodyLarge)),
+                Text('${s.money(nowAmt)}  ', style: tt.bodyLarge),
+                Text('usually ${s.money(avg.round())}', style: tt.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+              ]),
+            ),
+        ]),
+      _card([
+        Text('What you have', style: tt.titleMedium),
+        const SizedBox(height: 12),
+        Row(children: [
+          _figure(context, 'All accounts now', s.money(total)),
+          _figure(context, '6 months ago', s.money(worth.first)),
+        ]),
+        const SizedBox(height: 12),
+        SizedBox(height: 64, child: CustomPaint(size: Size.infinite, painter: _LinePainter(worth, scheme.primary))),
+        if (runway != null) ...[
+          const SizedBox(height: 12),
+          Text('At your usual spending this lasts about ${runway < 1 ? 'less than a month' : '${runway.toStringAsFixed(1)} months'}.',
+              style: tt.bodyMedium),
+        ],
+      ]),
+      if (weekMax > 0)
+        _card([
+          Text('Which days cost most', style: tt.titleMedium),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 90,
+            child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              for (var d = 0; d < 7; d++)
+                Expanded(
+                  child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
+                    Container(
+                      height: 64 * (week[d] / weekMax),
+                      margin: const EdgeInsets.symmetric(horizontal: 6),
+                      decoration: BoxDecoration(
+                        color: week[d] == weekMax ? _expenseColor : scheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(days[d], style: tt.labelSmall),
+                  ]),
+                ),
+            ]),
+          ),
+        ]),
+    ];
+  }
+
+  Widget _dot(Color c) => Container(width: 10, height: 10, decoration: BoxDecoration(color: c, shape: BoxShape.circle));
+
+  num _goalSaved(Rec g) => MoneyStats.goalSaved(g, (name) {
+        final a = s.list('accounts').where((x) => x['name'] == name).firstOrNull;
+        return a == null ? 0 : s.balance(a);
+      });
+
+  /// Goals you save toward, and your long-term savings accounts.
+  Widget _goals(BuildContext context) {
+    final tt = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    final goals = s.list('goals');
+    final savings = s.list('accounts').where((a) => a['savings'] == true).toList();
+    final savedNow = savings.fold<num>(0, (a, acc) => a + s.balance(acc));
+    final growth = MoneyStats.netWorth(s.list('tx'), s.list('accounts'), DateTime.now(), only: {for (final a in savings) '${a['name']}'});
+    final now = DateTime.now();
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+      children: [
+        if (goals.isEmpty)
+          _card([
+            Text('Save toward something', style: tt.titleMedium),
+            const SizedBox(height: 4),
+            Text('A laptop, a trip, an emergency fund. Tap Goal, give it an amount and a date, and Jarvis tells you '
+                'what to put aside each month and whether you are on track.', style: TextStyle(color: scheme.onSurfaceVariant)),
+          ]),
+        for (final g in goals)
+          Builder(builder: (context) {
+            final saved = _goalSaved(g);
+            final st = MoneyStats.goal(g, saved, now);
+            final due = g['due'] is int ? DateTime.fromMillisecondsSinceEpoch(g['due'] as int) : null;
+            final line = st.left <= 0
+                ? 'Reached. Well done.'
+                : st.perMonth != null
+                    ? 'Put aside ${s.money(st.perMonth!.round())} a month to make ${niceDay(due!.millisecondsSinceEpoch)}.'
+                    : (st.eta != null ? 'At your pace, reached around ${niceDay(st.eta!.millisecondsSinceEpoch)}.' : 'Add money to it to see when you will get there.');
+            return Card(
+              margin: const EdgeInsets.only(bottom: 12),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: () => _goalSheet(context, g),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(children: [
+                      Expanded(child: Text('${g['name']}', style: tt.titleMedium)),
+                      Text('${(st.done * 100).round()}%', style: tt.titleMedium?.copyWith(color: scheme.primary)),
+                    ]),
+                    const SizedBox(height: 8),
+                    ClipRRect(borderRadius: BorderRadius.circular(4), child: LinearProgressIndicator(value: st.done, minHeight: 10)),
+                    const SizedBox(height: 8),
+                    Text('${s.money(saved)} of ${s.money(g['target'] as num)}'
+                        '${g['account'] != null ? '  ·  in ${g['account']}' : ''}', style: tt.bodyMedium),
+                    const SizedBox(height: 4),
+                    Text(line, style: tt.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+                    if (st.onTrack != null && st.left > 0)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Row(children: [
+                          Icon(st.onTrack! ? Icons.check_circle_outline : Icons.warning_amber_rounded,
+                              size: 16, color: st.onTrack! ? scheme.primary : scheme.tertiary),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              st.onTrack!
+                                  ? 'On track: you are putting aside ${s.money(st.pace.round())} a month.'
+                                  : 'Behind: you are putting aside ${s.money(max(st.pace, 0).round())} a month.',
+                              style: tt.bodySmall?.copyWith(color: st.onTrack! ? scheme.primary : scheme.tertiary),
+                            ),
+                          ),
+                        ]),
+                      ),
+                  ]),
+                ),
+              ),
+            );
+          }),
+        const SizedBox(height: 8),
+        _card([
+          Text('Long-term savings', style: tt.titleMedium),
+          const SizedBox(height: 4),
+          if (savings.isEmpty)
+            Text('Mark an account as savings (Accounts, tap it, "Long-term savings") to follow how it grows here.',
+                style: TextStyle(color: scheme.onSurfaceVariant))
+          else ...[
+            Row(children: [
+              _figure(context, 'Saved now', s.money(savedNow)),
+              _figure(context, 'Last 6 months', '${growth.last - growth.first >= 0 ? '+' : ''}${s.money(growth.last - growth.first)}',
+                  color: growth.last >= growth.first ? _incomeColor : _expenseColor),
+            ]),
+            const SizedBox(height: 12),
+            SizedBox(height: 56, child: CustomPaint(size: Size.infinite, painter: _LinePainter(growth, scheme.primary))),
+            const SizedBox(height: 8),
+            for (final a in savings)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(children: [Expanded(child: Text('${a['name']}')), Text(s.money(s.balance(a)))]),
+              ),
+          ],
+        ]),
+      ],
+    );
+  }
+
+  Future<void> _goalSheet(BuildContext context, Rec g) => showModalBottomSheet<void>(
+        context: context,
+        showDragHandle: true,
+        builder: (ctx) => SafeArea(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            if (g['account'] == null)
+              ListTile(
+                leading: const Icon(Icons.add_circle_outline),
+                title: const Text('Add money to it'),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final amount = await _askAmount(context, 'Add to ${g['name']}');
+                  if (amount == null) return;
+                  await s.updateRec('goals', g, 'Added ${s.money(amount)} to ${g['name']}', (r) {
+                    r['adds'] = [...((r['adds'] as List?) ?? const []), {'ts': DateTime.now().millisecondsSinceEpoch, 'amount': amount}];
+                  });
+                },
+              ),
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('Edit'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _editGoal(context, g);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline),
+              title: const Text('Delete'),
+              onTap: () {
+                Navigator.pop(ctx);
+                Haptics.warn();
+                s.removeRec('goals', g, 'Deleted goal ${g['name']}');
+              },
+            ),
+            const SizedBox(height: 8),
+          ]),
+        ),
+      );
+
+  Future<num?> _askAmount(BuildContext context, String title) {
+    final c = TextEditingController();
+    return showDialog<num>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: TextField(
+          controller: c,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(labelText: 'Amount', prefixText: '${s.currency} '),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, num.tryParse(c.text.trim())), child: const Text('Add')),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _editGoal(BuildContext context, Rec? g) async {
+    final name = TextEditingController(text: '${g?['name'] ?? ''}');
+    final target = TextEditingController(text: g == null ? '' : '${g['target']}');
+    DateTime? due = g?['due'] is int ? DateTime.fromMillisecondsSinceEpoch(g!['due'] as int) : null;
+    String? account = g?['account'] as String?;
+    final accounts = [for (final a in s.list('accounts')) '${a['name']}'];
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
+          title: Text(g == null ? 'New goal' : 'Edit goal'),
+          content: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              TextField(
+                controller: name,
+                autofocus: g == null,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(labelText: 'What for, like Laptop'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: target,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: InputDecoration(labelText: 'Amount you need', prefixText: '${s.currency} '),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.event),
+                label: Text(due == null ? 'By when (optional)' : 'By ${niceDay(due!.millisecondsSinceEpoch)}'),
+                onPressed: () async {
+                  final now = DateTime.now();
+                  final d = await showDatePicker(context: ctx, initialDate: due ?? DateTime(now.year, now.month + 6, now.day), firstDate: now, lastDate: DateTime(now.year + 30));
+                  if (d != null) setD(() => due = d);
+                },
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String?>(
+                isExpanded: true,
+                initialValue: accounts.contains(account) ? account : null,
+                decoration: const InputDecoration(labelText: 'Count it from'),
+                items: [
+                  const DropdownMenuItem<String?>(value: null, child: Text('Money I add to it by hand')),
+                  for (final a in accounts) DropdownMenuItem<String?>(value: a, child: Text('The balance of $a')),
+                ],
+                onChanged: (v) => setD(() => account = v),
+              ),
+            ]),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () async {
+                final n = name.text.trim();
+                final t = num.tryParse(target.text.trim());
+                if (n.isEmpty || t == null || t <= 0) {
+                  Haptics.reject();
+                  return;
+                }
+                final fields = <String, dynamic>{'name': n, 'target': t, 'due': due?.millisecondsSinceEpoch, 'account': account};
+                if (g == null) {
+                  final now = DateTime.now().millisecondsSinceEpoch;
+                  final r = <String, dynamic>{'id': s.nextId(), ...fields, 'start': now, 'adds': <dynamic>[]};
+                  // Progress counts from today, so an account's earlier savings do not look like this month's pace.
+                  r['startSaved'] = _goalSaved(r);
+                  s.list('goals').add(r);
+                  s.logAction('New goal: $n', [{'op': 'rm', 'col': 'goals', 'id': r['id']}]);
+                  s.save();
+                } else {
+                  await s.updateRec('goals', g, 'Edited goal: $n', (r) => r.addAll(fields));
+                }
+                Haptics.success();
+                if (ctx.mounted) Navigator.pop(ctx);
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _accounts(BuildContext context) {
     final accts = s.list('accounts');
     final total = accts.fold<num>(0, (a, acc) => a + s.balance(acc));
@@ -584,7 +989,13 @@ class _MoneyPageState extends State<MoneyPage> {
           ListTile(
             title: Text(a['name'] as String),
             // Skip the type when it only repeats the name ("Cash / Cash").
-            subtitle: (a['group'] as String? ?? '').isEmpty || a['group'] == a['name'] ? null : Text(a['group'] as String),
+            subtitle: () {
+              final parts = [
+                if ((a['group'] as String? ?? '').isNotEmpty && a['group'] != a['name']) a['group'] as String,
+                if (a['savings'] == true) 'Long-term savings',
+              ];
+              return parts.isEmpty ? null : Text(parts.join('  ·  '));
+            }(),
             trailing: Text(
               s.money(s.balance(a)),
               style: Theme.of(context).textTheme.titleMedium?.copyWith(color: s.balance(a) < 0 ? _expenseColor : null),
@@ -607,6 +1018,7 @@ class _MoneyPageState extends State<MoneyPage> {
     final name = TextEditingController(text: a?['name'] as String? ?? '');
     final group = TextEditingController(text: a?['group'] as String? ?? 'Cash');
     final initial = TextEditingController(text: '${a?['initial'] ?? 0}');
+    var savings = a?['savings'] == true;
     String? nameError;
     await showDialog<void>(
       context: context,
@@ -628,6 +1040,13 @@ class _MoneyPageState extends State<MoneyPage> {
               controller: initial,
               keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
               decoration: InputDecoration(labelText: 'Starting balance', prefixText: '${s.currency} '),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Long-term savings'),
+              subtitle: const Text('Followed in Goals'),
+              value: savings,
+              onChanged: (v) => setD(() => savings = v),
             ),
           ],
         ),
@@ -651,7 +1070,7 @@ class _MoneyPageState extends State<MoneyPage> {
               }
               final start = num.tryParse(initial.text.trim()) ?? 0;
               if (a == null) {
-                final r = {'id': s.nextId(), 'name': n, 'group': group.text.trim(), 'initial': start};
+                final r = {'id': s.nextId(), 'name': n, 'group': group.text.trim(), 'initial': start, 'savings': savings};
                 s.list('accounts').add(r);
                 s.logAction('Added account $n', [
                   {'op': 'rm', 'col': 'accounts', 'id': r['id']},
@@ -663,11 +1082,15 @@ class _MoneyPageState extends State<MoneyPage> {
                   r['name'] = n;
                   r['group'] = group.text.trim();
                   r['initial'] = start;
+                  r['savings'] = savings;
                 });
                 // Keep transactions pointing at the renamed account.
                 for (final t in s.list('tx')) {
                   if (t['account'] == old) t['account'] = n;
                   if (t['toAccount'] == old) t['toAccount'] = n;
+                }
+                for (final g in s.list('goals')) {
+                  if (g['account'] == old) g['account'] = n;
                 }
                 s.save();
               }
@@ -679,6 +1102,70 @@ class _MoneyPageState extends State<MoneyPage> {
       )),
     );
   }
+}
+
+/// Income and spending side by side for each month.
+class _BarsPainter extends CustomPainter {
+  _BarsPainter(this.months, this.grid);
+  final List<MonthSum> months;
+  final Color grid;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final top = months.fold<num>(0, (a, m) => max(a, max(m.income, m.expense)));
+    canvas.drawLine(Offset(0, size.height), Offset(size.width, size.height), Paint()..color = grid);
+    if (top <= 0) return;
+    final slot = size.width / months.length;
+    final bar = min(14.0, slot / 3);
+    for (var k = 0; k < months.length; k++) {
+      final cx = slot * k + slot / 2;
+      for (final (v, c, dx) in [(months[k].income, _incomeColor, -bar - 1), (months[k].expense, _expenseColor, 1.0)]) {
+        final h = size.height * (v / top);
+        if (h <= 0) continue;
+        canvas.drawRRect(
+          RRect.fromRectAndCorners(Rect.fromLTWH(cx + dx, size.height - h, bar, h), topLeft: const Radius.circular(4), topRight: const Radius.circular(4)),
+          Paint()..color = c,
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_BarsPainter o) => true;
+}
+
+/// A soft line through [values], with the last one marked.
+class _LinePainter extends CustomPainter {
+  _LinePainter(this.values, this.color);
+  final List<num> values;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (values.length < 2) return;
+    final lo = values.fold<num>(values.first, min);
+    final hi = values.fold<num>(values.first, max);
+    final span = hi - lo == 0 ? 1 : hi - lo;
+    Offset at(int k) => Offset(size.width * k / (values.length - 1), size.height - 4 - (size.height - 8) * ((values[k] - lo) / span));
+    final path = Path()..moveTo(at(0).dx, at(0).dy);
+    for (var k = 1; k < values.length; k++) {
+      path.lineTo(at(k).dx, at(k).dy);
+    }
+    final fill = Path.from(path)
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+    canvas.drawPath(fill, Paint()..color = color.withValues(alpha: 0.12));
+    canvas.drawPath(path, Paint()
+      ..color = color
+      ..strokeWidth = 2.5
+      ..style = PaintingStyle.stroke
+      ..strokeJoin = StrokeJoin.round);
+    canvas.drawCircle(at(values.length - 1), 4, Paint()..color = color);
+  }
+
+  @override
+  bool shouldRepaint(_LinePainter o) => true;
 }
 
 class _DonutPainter extends CustomPainter {

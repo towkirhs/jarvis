@@ -19,7 +19,6 @@ import 'clock_screen.dart';
 import 'habit_core.dart';
 import 'habits_screen.dart';
 import 'native.dart';
-import 'decide_page.dart';
 import 'drive_page.dart';
 import 'voice_page.dart';
 import 'rent_page.dart';
@@ -81,8 +80,7 @@ class MoreScreen extends StatelessWidget {
                 tile(Icons.hourglass_bottom, 'Countdowns', '${store.list('countdowns').length} saved', CountdownPage(store: store)),
               ]),
               group('Think', [
-                tile(Icons.balance, 'Decide', 'Odds, not chat', DecidePage(store: store)),
-                tile(Icons.history_edu_outlined, 'Decisions', '${store.list('decisions').length} recorded', DecisionsPage(store: store)),
+                tile(Icons.history_edu_outlined, 'Decisions', 'Type "decide:" in the chat. ${store.list('decisions').length} recorded', DecisionsPage(store: store)),
                 tile(Icons.insights, 'Insights', 'How your week went', InsightsPage(store: store)),
                 tile(Icons.record_voice_over, 'About me', '${store.list('words').length} words, ${store.list('profile').length} profile files', AboutMePage(store: store)),
                 tile(Icons.psychology_outlined, 'Memory', '${store.list('memories').length} remembered', MemoryPage(store: store)),
@@ -638,11 +636,15 @@ class _SettingsPageState extends State<SettingsPage> {
             ListTile(
               leading: const Icon(Icons.notifications_active_outlined),
               title: const Text('Reminders a day'),
-              subtitle: const Text('At most this many nudges. Alarms you ask for are never limited.'),
+              subtitle: const Text('Nudges are Jarvis\'s own notifications (habit boosts, check-ins). Alarms and reminders you set are never limited.'),
               trailing: DropdownButton<int>(
-                value: s.cap,
+                value: (s.settings['cap'] as int?) ?? 6,
                 underline: const SizedBox.shrink(),
-                items: [for (var n = 3; n <= 12; n++) DropdownMenuItem(value: n, child: Text('$n'))],
+                items: [
+                  for (final n in {...[for (var n = 1; n <= 12; n++) n], 15, 20, 30, 50, (s.settings['cap'] as int?) ?? 6}.where((n) => n > 0).toList()..sort())
+                    DropdownMenuItem(value: n, child: Text('$n')),
+                  const DropdownMenuItem(value: 0, child: Text('No limit')),
+                ],
                 onChanged: (v) {
                   if (v == null) return;
                   s.settings['cap'] = v;
