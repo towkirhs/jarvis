@@ -44,6 +44,8 @@ void main() {
     await t.pumpAndSettle();
     await t.tap(find.text('Hours across'));
     await t.pumpAndSettle();
+    await t.ensureVisible(find.text('Use this as my default'));
+    await t.pumpAndSettle();
     await t.tap(find.text('Use this as my default'));
     await t.pumpAndSettle();
     expect(s.local('calView'), '15|1|0');

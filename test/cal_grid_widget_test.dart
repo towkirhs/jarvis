@@ -138,7 +138,8 @@ void main() {
     expect(find.text('2 am'), findsOneWidget);
 
     await s.setDayShift(false);
-    await t.pumpAndSettle();
+    await t.pumpWidget(const SizedBox());
+    await _pump(t, s);
     expect(t.getRect(find.text('Late study')).left, greaterThan(48 + 284.0)); // back on Tuesday the 17th
   });
 }

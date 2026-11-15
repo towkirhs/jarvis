@@ -607,7 +607,7 @@ class _CalendarViewState extends State<_CalendarView> {
                             : _n > 7
                                 ? _agenda(context, s, _n)
                                 : KeyedSubtree(
-                                    key: ValueKey('$_n/$_stack/$_seq'),
+                                    key: ValueKey('$_n/$_stack/${s.dayShift}/$_seq'),
                                     child: TimeGrid(
                                       key: _grid,
                                       store: s,
