@@ -77,12 +77,16 @@ void main() {
     s.list('accounts').add({'id': 77, 'name': 'DPS', 'group': 'Bank', 'initial': 50000, 'savings': true});
     await t.pumpWidget(MaterialApp(home: MoneyPage(store: s)));
     await t.pumpAndSettle();
+    await t.ensureVisible(find.text('Stats'));
+    await t.pumpAndSettle();
     await t.tap(find.text('Stats'));
     await t.pumpAndSettle();
     expect(find.text('This month'), findsOneWidget);
     expect(find.text('Last 6 months'), findsOneWidget);
     await t.scrollUntilVisible(find.text('What you have'), 200, scrollable: find.byType(Scrollable).at(1));
 
+    await t.ensureVisible(find.text('Goals'));
+    await t.pumpAndSettle();
     await t.tap(find.text('Goals'));
     await t.pumpAndSettle();
     expect(find.text('Long-term savings'), findsOneWidget);
