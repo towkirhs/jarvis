@@ -100,6 +100,11 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    main tabs (`MainNav.step`); over the hour grid a swipe changes days. A day's list shows its journal; the journal's day page
    shows "On your calendar". Every SnackBar with an action has `persist: false`: Flutter now keeps those open until dismissed
    otherwise, which was the "pop-ups do not close" bug. Untested on a phone.
+   "Day starts at 5 am" (build after 208): `Store.dayShift` (300 or 0, `local('dayStart5')`, per device), switched from the
+   calendar's view sheet or Plan my day's menu (same setting). Only grouping and drawing change, never stored times:
+   `CalIndex.build(shift:)` puts timed items before 5 am on the day before (all-day items keep their date), `CalIndex.dayOf`
+   says which day a moment belongs to, the grids draw 5 am → 4:59 am (`gridMinute`), and `DayPlanner.plan(dayShift:)` treats
+   5 am to 5 am as the day (late at night it may plan until 5 am). Habits, money, journal and rules keep midnight days.
    Plan my day (`lib/day_planner.dart`, `lib/plan_day_page.dart`) is the one place to plan any day. Pieces are tasks (id) and
    habits (minus the id; `DayPlanner.habitTasks`, quick when they have no `planMin`). Tasks may carry `winFrom`/`winTo` (minutes
    after midnight), `estMax` (longest length), `chunk` (done in blocks: Apply makes part items with `partOf`; the last done part
