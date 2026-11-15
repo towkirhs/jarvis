@@ -142,3 +142,6 @@ void main() {
     expect(t.getRect(find.text('Late study')).left, greaterThan(48 + 284.0)); // back on Tuesday the 17th
   });
 }
+
+/// Where the hour grid begins on screen (below the names row). The tall test window never scrolls it.
+double _bodyTop(WidgetTester t) => t.getTopLeft(find.byType(SingleChildScrollView).first).dy;
