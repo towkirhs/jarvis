@@ -105,6 +105,14 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    `CalIndex.build(shift:)` puts timed items before 5 am on the day before (all-day items keep their date), `CalIndex.dayOf`
    says which day a moment belongs to, the grids draw 5 am → 4:59 am (`gridMinute`), and `DayPlanner.plan(dayShift:)` treats
    5 am to 5 am as the day (late at night it may plan until 5 am). Habits, money, journal and rules keep midnight days.
+   Batch 5 (build after 213): nudge limit 1-50 or "No limit" (`settings.cap` 0 → `Store.cap` huge). Home's glance row has a Clock
+   card (next alarm → ClockScreen). Chat keywords with a colon (`Destination._colon`): `decide:` (odds via `Brain.decide`,
+   options from "A or B" by `Decide.options`, shown as bars in the chat from `c['decision']`), `decided: X because Y`
+   (decision log, no AI), `promise:` (a promise even without a date: `asked: true` skips the deadline review). The Decide page
+   is gone; More → Decisions keeps the log. Money: Stats is a dashboard (`lib/money_stats.dart` pure: month sums, savings rate,
+   month-end forecast vs 3-month average, 6-month bars, category changes, net worth line, runway, spend by weekday) above the
+   category donut; new Goals tab (collection `goals`: {name, target, due, account or hand `adds`, start, startSaved}, per-month
+   needed, pace, on track) and long-term savings (account `savings: true`); Money's tabs swipe (`EdgeSwipe`). Untested on a phone.
    Plan my day (`lib/day_planner.dart`, `lib/plan_day_page.dart`) is the one place to plan any day. Pieces are tasks (id) and
    habits (minus the id; `DayPlanner.habitTasks`, quick when they have no `planMin`). Tasks may carry `winFrom`/`winTo` (minutes
    after midnight), `estMax` (longest length), `chunk` (done in blocks: Apply makes part items with `partOf`; the last done part
