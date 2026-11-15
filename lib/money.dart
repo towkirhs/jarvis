@@ -284,11 +284,14 @@ class _MoneyPageState extends State<MoneyPage> {
         length: 6,
         child: Scaffold(
           appBar: AppBar(
+            titleSpacing: 4,
             title: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 IconButton(tooltip: 'Previous', icon: const Icon(Icons.chevron_left), onPressed: () => _shift(-1)),
-                Text('${_months[_month.month - 1]} ${_month.year}'),
+                Flexible(
+                  child: Text('${_months[_month.month - 1].substring(0, 3)} ${_month.year}', maxLines: 1, overflow: TextOverflow.ellipsis),
+                ),
                 IconButton(tooltip: 'Next', icon: const Icon(Icons.chevron_right), onPressed: () => _shift(1)),
               ],
             ),
