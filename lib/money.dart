@@ -678,9 +678,14 @@ class _MoneyPageState extends State<MoneyPage> {
               child: Row(children: [
                 Icon(nowAmt > avg ? Icons.trending_up : Icons.trending_down, size: 20, color: nowAmt > avg ? _expenseColor : _incomeColor),
                 const SizedBox(width: 12),
-                Expanded(child: Text(cat, style: tt.bodyLarge)),
-                Text('${s.money(nowAmt)}  ', style: tt.bodyLarge),
-                Text('usually ${s.money(avg.round())}', style: tt.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(cat, style: tt.bodyLarge, maxLines: 1, overflow: TextOverflow.ellipsis),
+                    Text('usually ${s.money(avg.round())}', style: tt.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+                  ]),
+                ),
+                const SizedBox(width: 8),
+                Text(s.money(nowAmt), style: tt.bodyLarge),
               ]),
             ),
         ]),
