@@ -390,7 +390,10 @@ class _CalendarView extends StatefulWidget {
 
 class _CalendarViewState extends State<_CalendarView> {
   /// The first day on show. It drives the title; swiping the grid keeps it up to date.
-  DateTime _day = DateTime.now();
+  late DateTime _day = _today;
+
+  /// Today: with the day starting at 5 am, before 5 am it is still yesterday.
+  DateTime get _today => CalIndex.dayOf(DateTime.now(), widget.store.dayShift);
 
   /// How many days are on show: 1, 2, 3, 7 (a week), 15 or 30; 0 is the month.
   int _n = 3;
@@ -493,7 +496,7 @@ class _CalendarViewState extends State<_CalendarView> {
                         label: const Text('Go to today'),
                         onPressed: () {
                           Navigator.pop(ctx);
-                          _jump(DateTime.now());
+                          _jump(_today);
                         },
                       ),
                     ),
@@ -523,6 +526,16 @@ class _CalendarViewState extends State<_CalendarView> {
                     subtitle: Text(_n == 0 ? 'Not for the month' : (_across ? 'Each day is a row, hours run sideways' : 'Off: hours run down the screen')),
                     value: _across && _n != 0,
                     onChanged: _n == 0 ? null : (v) => show(across: v),
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Day starts at 5 am'),
+                    subtitle: const Text('After midnight is still the same day, until 4:59 am. Plan my day follows it too.'),
+                    value: widget.store.dayShift > 0,
+                    onChanged: (v) async {
+                      await widget.store.setDayShift(v);
+                      show();
+                    },
                   ),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
@@ -627,7 +640,7 @@ class _CalendarViewState extends State<_CalendarView> {
   /// [n] days from [_day] down the screen, one heading per day that has something on it.
   Widget _agenda(BuildContext context, Store s, int n) {
     final from = DateTime(_day.year, _day.month, _day.day);
-    final index = CalIndex.build(s.calendarItems, from, DateTime(from.year, from.month, from.day + n - 1));
+    final index = CalIndex.build(s.calendarItems, from, DateTime(from.year, from.month, from.day + n - 1), shift: s.dayShift);
     final countdowns = CalIndex.countdowns(s);
     final tt = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
@@ -667,7 +680,7 @@ class _CalendarViewState extends State<_CalendarView> {
     final week = [for (var i = 0; i < 7; i++) DateTime(monday.year, monday.month, monday.day + i)];
     final key = dayKey(_day);
     final todayKey = dayKey(DateTime.now());
-    final entries = CalIndex.build(s.calendarItems, _day, _day)[key] ?? const <CalEntry>[];
+    final entries = CalIndex.build(s.calendarItems, _day, _day, shift: s.dayShift)[key] ?? const <CalEntry>[];
     final countdowns = CalIndex.countdowns(s)[key] ?? const <Rec>[];
     final scheme = Theme.of(context).colorScheme;
     return ListView(
@@ -801,7 +814,8 @@ class _TimelineGridState extends State<TimelineGrid> {
     final grid = scheme.outlineVariant.withValues(alpha: 0.4);
     final now = DateTime.now();
     final days = [for (var i = 0; i < widget.count; i++) DateTime(widget.start.year, widget.start.month, widget.start.day + i)];
-    final index = CalIndex.build(s.calendarItems, days.first, days.last);
+    final shift = s.dayShift;
+    final index = CalIndex.build(s.calendarItems, days.first, days.last, shift: shift);
     final perDay = [
       for (final d in days) [for (final e in index[dayKey(d)] ?? const <CalEntry>[]) if (e.item['allDay'] != true) e],
     ];
@@ -816,7 +830,10 @@ class _TimelineGridState extends State<TimelineGrid> {
                 width: _hourW,
                 child: Padding(
                   padding: const EdgeInsets.only(left: 4),
-                  child: Text(h == 0 ? '12 am' : (h == 12 ? '12 pm' : (h < 12 ? '$h am' : '${h - 12} pm')), style: small),
+                  child: Builder(builder: (_) {
+                    final hh = (h + shift ~/ 60) % 24;
+                    return Text(hh == 0 ? '12 am' : (hh == 12 ? '12 pm' : (hh < 12 ? '$hh am' : '${hh - 12} pm')), style: small);
+                  }),
                 ),
               ),
           ]),
@@ -830,7 +847,8 @@ class _TimelineGridState extends State<TimelineGrid> {
         behavior: HitTestBehavior.opaque,
         onTapUp: (e) {
           final halfHours = (e.localPosition.dx / (_hourW / 2)).floor().clamp(0, 47);
-          showQuickAdd(context, s, day: d, at: TimeOfDay(hour: halfHours ~/ 2, minute: (halfHours % 2) * 30), minutes: 60);
+          final real = DateTime(d.year, d.month, d.day, 0, shift + halfHours * 30);
+          showQuickAdd(context, s, day: real, at: TimeOfDay.fromDateTime(real), minutes: 60);
         },
         child: SizedBox(
           width: _hourW * 24,
@@ -850,7 +868,7 @@ class _TimelineGridState extends State<TimelineGrid> {
               Builder(builder: (context) {
                 final it = e.item;
                 final st = e.start;
-                final left = (st.hour * 60 + st.minute) / 60 * _hourW;
+                final left = gridMinute(st, shift) / 60 * _hourW;
                 final done = it['status'] == 'done';
                 return Positioned(
                   left: left + 1,

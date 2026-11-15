@@ -189,6 +189,15 @@ class Store extends ChangeNotifier {
     syncNeeds();
   }
 
+  /// Minutes after midnight a day starts in the calendar and Plan my day: 300 (5 am) when "Day starts at 5 am"
+  /// is on, else 0. Only how days are grouped and drawn; times are stored as they are. Kept on this device.
+  int get dayShift => local('dayStart5') == '1' ? 300 : 0;
+
+  Future<void> setDayShift(bool on) async {
+    await setLocal('dayStart5', on ? '1' : '0');
+    notifyListeners();
+  }
+
   // ---------- rules ----------
 
   /// What had happened at the last save (see [Rules.seen]); a save compares against it.

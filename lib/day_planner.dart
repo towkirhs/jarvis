@@ -140,6 +140,9 @@ class DayPlanner {
 
   static String _hm(int m) => '${(m ~/ 60).toString().padLeft(2, '0')}:${(m % 60).toString().padLeft(2, '0')}';
 
+  /// With [dayShift] (minutes after midnight, 300 for 5 am) a day runs from then to the same time the next
+  /// morning: after midnight it is still the day before, and its plan may run on until the day ends.
+  ///
   /// [items] are open items. [day] is the day to plan (today when null); [extra] are task ids added to
   /// that day by hand. [ratios] maps a category to how much longer the person usually takes than they
   /// estimate (from finished tasks).
@@ -165,19 +168,22 @@ class DayPlanner {
     Map<int, NeedResult> needs = const {},
     int dayStartHour = 8,
     int dayEndHour = 22,
+    int dayShift = 0,
     int buffer = 10,
     int defaultMinutes = 30,
   }) {
-    final d = day ?? now;
+    final d = day ?? CalIndex.dayOf(now, dayShift);
     final today = DateTime(d.year, d.month, d.day);
-    final tomorrow = DateTime(d.year, d.month, d.day + 1);
-    final isToday = dayKey(today) == dayKey(now);
+    // The day runs from dayFrom to dayTo: midnight to midnight, or 5 am to 5 am with a shift.
+    final dayFrom = today.add(Duration(minutes: dayShift));
+    final dayTo = DateTime(d.year, d.month, d.day + 1).add(Duration(minutes: dayShift));
+    final isToday = dayKey(today) == dayKey(CalIndex.dayOf(now, dayShift));
     DateTime? when(Map<String, dynamic> i) =>
         i['when'] == null ? null : DateTime.fromMillisecondsSinceEpoch(i['when'] as int);
 
     // Fixed: the day's timed events, repeats included.
     final fixed = <PlanBlock>[
-      for (final e in CalIndex.build([for (final i in items) if (i['kind'] == 'event') i], today, today)[dayKey(today)] ?? const <CalEntry>[])
+      for (final e in CalIndex.build([for (final i in items) if (i['kind'] == 'event') i], today, today, shift: dayShift)[dayKey(today)] ?? const <CalEntry>[])
         if (e.item['allDay'] != true)
           PlanBlock('${e.item['title']}', e.start, (e.item['dur'] as int?) ?? 60, itemId: e.item['ext'] == null ? e.item['id'] as int? : null, fixed: true),
     ]..sort((a, b) => a.start.compareTo(b.start));
@@ -185,8 +191,8 @@ class DayPlanner {
     bool wanted(Map<String, dynamic> i) {
       final w = when(i);
       if (extra.contains(i['id']) || i['habitId'] != null) return true;
-      if (w != null && !w.isBefore(today) && w.isBefore(tomorrow)) return true;
-      return isToday && (w == null || w.isBefore(tomorrow));
+      if (w != null && !w.isBefore(dayFrom) && w.isBefore(dayTo)) return true;
+      return isToday && (w == null || w.isBefore(dayTo));
     }
 
     // Pieces held back by a link or a condition get no time.
@@ -256,7 +262,7 @@ class DayPlanner {
       ..sort((a, b) {
         int rank(Map<String, dynamic> i) {
           final w = when(i);
-          if (w != null && w.isBefore(today)) return 0; // overdue
+          if (w != null && w.isBefore(dayFrom)) return 0; // overdue
           if (w != null) return 1; // due that day
           return 2; // no date
         }
@@ -321,7 +327,9 @@ class DayPlanner {
     var cursor = isToday && !now.isBefore(startOfDay)
         ? DateTime(now.year, now.month, now.day, now.hour, (now.minute ~/ 5 + 1) * 5)
         : startOfDay;
-    final dayEnd = today.add(Duration(hours: dayEndHour));
+    var dayEnd = today.add(Duration(hours: dayEndHour));
+    // Late at night on a day that starts at 5 am: there is time until the day ends.
+    if (dayShift > 0 && isToday && now.isAfter(dayEnd)) dayEnd = dayTo;
 
     // Tasks the person pinned to a time stay there; the rest flow around them like around events.
     final pinned = <PlanBlock>[

@@ -91,6 +91,9 @@ class GridMath {
 
 String _hourLabel(int h) => h == 0 ? '12 am' : (h == 12 ? '12 pm' : (h < 12 ? '$h am' : '${h - 12} pm'));
 
+/// Minutes from the start of the grid's day to [d]: from midnight, or from 5 am when the day starts then.
+int gridMinute(DateTime d, int shift) => ((d.hour * 60 + d.minute - shift) % 1440 + 1440) % 1440;
+
 /// Google Calendar style days: swipe sideways for the next days, hours run down, blocks can be dragged to
 /// move and pulled at the bottom to resize, and a tap on an empty hour opens a small sheet to add there.
 class TimeGrid extends StatefulWidget {
@@ -129,7 +132,7 @@ class TimeGridState extends State<TimeGrid> {
   late final PageController _body = PageController(initialPage: _home)..addListener(_follow);
   late final PageController _head = PageController(initialPage: _home);
   late final ScrollController _scroll =
-      ScrollController(initialScrollOffset: _hourH * ((DateTime.now().hour - 2).clamp(0, 16)));
+      ScrollController(initialScrollOffset: _hourH * ((gridMinute(DateTime.now(), widget.store.dayShift) ~/ 60 - 2).clamp(0, 16)));
   int _page = _home;
   Timer? _tick;
 
@@ -169,7 +172,7 @@ class TimeGridState extends State<TimeGrid> {
     final scheme = Theme.of(context).colorScheme;
     final small = Theme.of(context).textTheme.labelSmall;
     final start = _start(_page);
-    final headIndex = CalIndex.build(s.calendarItems, start, DateTime(start.year, start.month, start.day + count - 1));
+    final headIndex = CalIndex.build(s.calendarItems, start, DateTime(start.year, start.month, start.day + count - 1), shift: s.dayShift);
     final headCountdowns = CalIndex.countdowns(s);
     var rows = 0;
     for (var i = 0; i < count; i++) {
@@ -210,7 +213,7 @@ class TimeGridState extends State<TimeGrid> {
                     width: _gutter,
                     child: Stack(children: [
                       for (var h = 1; h < 24; h++)
-                        Positioned(top: h * _hourH - 7, right: 6, child: Text(_hourLabel(h), style: small)),
+                        Positioned(top: h * _hourH - 7, right: 6, child: Text(_hourLabel((h + s.dayShift ~/ 60) % 24), style: small)),
                     ]),
                   ),
                   Expanded(
@@ -250,9 +253,9 @@ class _Head extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final days = [for (var i = 0; i < count; i++) DateTime(start.year, start.month, start.day + i)];
-    final index = CalIndex.build(store.calendarItems, days.first, days.last);
+    final index = CalIndex.build(store.calendarItems, days.first, days.last, shift: store.dayShift);
     final cds = CalIndex.countdowns(store);
-    final today = dayKey(DateTime.now());
+    final today = dayKey(CalIndex.dayOf(DateTime.now(), store.dayShift));
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -331,7 +334,11 @@ class _BodyPageState extends State<_BodyPage> {
   _Drag? _drag;
   ({int col, int minute, int dur})? _ghost;
 
-  int _minuteOf(DateTime d) => d.hour * 60 + d.minute;
+  int get _shift => widget.store.dayShift;
+  int _minuteOf(DateTime d) => gridMinute(d, _shift);
+
+  /// The real time [minute] grid minutes into [day] (5 am + minute when the day starts at 5 am).
+  DateTime _at(DateTime day, int minute) => DateTime(day.year, day.month, day.day, 0, _shift + minute);
 
   /// Entries are rebuilt on every change, so the same block is found by item and time, not by identity.
   bool _same(CalEntry a, CalEntry b) => a.item['id'] == b.item['id'] && a.start == b.start;
@@ -355,8 +362,9 @@ class _BodyPageState extends State<_BodyPage> {
       final shift = (d.dx / colW).round();
       final minute = GridMath.movedStart(startMin, d.dy, dur);
       if (shift == 0 && minute == startMin) return;
-      final day = DateTime(e.start.year, e.start.month, e.start.day + shift);
-      log = await CalEdit.move(s, e, DateTime(day.year, day.month, day.day, minute ~/ 60, minute % 60).millisecondsSinceEpoch);
+      final from = CalIndex.dayOf(e.start, _shift);
+      final day = DateTime(from.year, from.month, from.day + shift);
+      log = await CalEdit.move(s, e, _at(day, minute).millisecondsSinceEpoch);
     }
     if (!mounted) return;
     ScaffoldMessenger.of(context)
@@ -374,8 +382,8 @@ class _BodyPageState extends State<_BodyPage> {
     final col = GridMath.columnAt(t.localPosition.dx, _colW, widget.count);
     final minute = GridMath.minuteAt(t.localPosition.dy);
     setState(() => _ghost = (col: col, minute: minute, dur: 60));
-    final day = DateTime(widget.start.year, widget.start.month, widget.start.day + col);
-    await showQuickAdd(context, widget.store, day: day, at: TimeOfDay(hour: minute ~/ 60, minute: minute % 60), minutes: 60);
+    final real = _at(DateTime(widget.start.year, widget.start.month, widget.start.day + col), minute);
+    await showQuickAdd(context, widget.store, day: real, at: TimeOfDay.fromDateTime(real), minutes: 60);
     if (mounted) setState(() => _ghost = null);
   }
 
@@ -385,9 +393,9 @@ class _BodyPageState extends State<_BodyPage> {
     final scheme = widget.scheme;
     final count = widget.count;
     final days = [for (var i = 0; i < count; i++) DateTime(widget.start.year, widget.start.month, widget.start.day + i)];
-    final index = CalIndex.build(s.calendarItems, days.first, days.last);
+    final index = CalIndex.build(s.calendarItems, days.first, days.last, shift: _shift);
     final now = DateTime.now();
-    final todayCol = days.indexWhere((d) => dayKey(d) == dayKey(now));
+    final todayCol = days.indexWhere((d) => dayKey(d) == dayKey(CalIndex.dayOf(now, _shift)));
 
     return LayoutBuilder(builder: (context, box) {
       final colW = box.maxWidth / count;
@@ -483,11 +491,11 @@ class _BodyPageState extends State<_BodyPage> {
 
   int _dayIndex(CalEntry e) {
     final s = DateTime(widget.start.year, widget.start.month, widget.start.day);
-    return DateTime(e.start.year, e.start.month, e.start.day).difference(s).inDays;
+    return CalIndex.dayOf(e.start, _shift).difference(s).inDays;
   }
 
   String _range(int minute, int dur) {
-    final base = DateTime(2000, 1, 1);
+    final base = DateTime(2000, 1, 1, 0, _shift);
     return '${clock(base.add(Duration(minutes: minute)).millisecondsSinceEpoch)} – '
         '${clock(base.add(Duration(minutes: minute + dur)).millisecondsSinceEpoch)}';
   }

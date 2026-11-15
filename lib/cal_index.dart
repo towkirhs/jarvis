@@ -22,9 +22,17 @@ class CalIndex {
   /// A repeat is drawn at most this many times inside one window.
   static const maxPerItem = 400;
 
+  /// The day a moment belongs to when days start [shift] minutes after midnight (0: at midnight).
+  /// With a 5 am start, 2 am on the 16th is still the 15th.
+  static DateTime dayOf(DateTime t, int shift) {
+    final d = t.subtract(Duration(minutes: shift));
+    return DateTime(d.year, d.month, d.day);
+  }
+
   /// Entries for the days from [from] to [to] (both included), by [dayKey]. Each day is sorted:
-  /// all-day first, then by start time.
-  static Map<String, List<CalEntry>> build(List<Rec> items, DateTime from, DateTime to) {
+  /// all-day first, then by start time. With [shift] (minutes), a day runs from that time to the same time
+  /// the next morning: a timed item before it belongs to the day before. All-day items keep their date.
+  static Map<String, List<CalEntry>> build(List<Rec> items, DateTime from, DateTime to, {int shift = 0}) {
     final first = DateTime(from.year, from.month, from.day);
     final last = DateTime(to.year, to.month, to.day);
     final out = <String, List<CalEntry>>{};
@@ -40,9 +48,9 @@ class CalIndex {
       var n = repeat == null ? 0 : _firstWorth(start, repeat, first, span);
       for (var guard = 0; guard < maxPerItem * 5 && landed < maxPerItem; guard++, n++) {
         final at = _nth(start, repeat, n);
-        final day = DateTime(at.year, at.month, at.day);
+        final day = allDay ? DateTime(at.year, at.month, at.day) : dayOf(at, shift);
         if (day.isAfter(last)) break;
-        if (skip.contains(dayKey(day))) {
+        if (skip.contains(dayKey(DateTime(at.year, at.month, at.day)))) {
           if (repeat == null) break;
           continue;
         }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'cal_index.dart';
 import 'day_planner.dart';
 import 'focus_screen.dart';
 import 'habit_core.dart';
@@ -58,7 +59,9 @@ class _Drag {
 class _PlanDayPageState extends State<PlanDayPage> {
   Store get store => widget.store;
 
-  late DateTime _day = DateTime(widget.day?.year ?? DateTime.now().year, widget.day?.month ?? DateTime.now().month, widget.day?.day ?? DateTime.now().day);
+  late DateTime _day = widget.day == null
+      ? CalIndex.dayOf(DateTime.now(), store.dayShift)
+      : DateTime(widget.day!.year, widget.day!.month, widget.day!.day);
 
   /// Changes made on this page; they are written to the tasks only on Apply.
   final _edits = <int, PlanEdit>{};
@@ -73,7 +76,7 @@ class _PlanDayPageState extends State<PlanDayPage> {
   /// The tray's tab: 0 tasks, 1 habits, 2 conditions.
   int _tab = 0;
 
-  bool get _isToday => dayKey(_day) == dayKey(DateTime.now());
+  bool get _isToday => dayKey(_day) == dayKey(CalIndex.dayOf(DateTime.now(), store.dayShift));
 
   /// The piece an item id on the plan stands for (a habit's planned task is that habit).
   int _piece(int id) {
@@ -125,6 +128,7 @@ class _PlanDayPageState extends State<PlanDayPage> {
           ratios: ratios,
           edits: edits,
           needs: needs,
+          dayShift: store.dayShift,
         );
     // Links: first see which pieces the day holds, then where each linked piece stands among them.
     final linked = [...open, ...habits].where((i) => i['kind'] == 'task').toList();
@@ -852,6 +856,13 @@ class _PlanDayPageState extends State<PlanDayPage> {
                       _replan = false;
                     }),
                   ),
+                PopupMenuButton<String>(
+                  tooltip: 'Options',
+                  onSelected: (v) => store.setDayShift(store.dayShift == 0),
+                  itemBuilder: (_) => [
+                    CheckedPopupMenuItem(value: 'dayStart', checked: store.dayShift > 0, child: const Text('Day starts at 5 am')),
+                  ],
+                ),
                 IconButton(
                   tooltip: 'Importance matrix',
                   icon: const Icon(Icons.grid_view),

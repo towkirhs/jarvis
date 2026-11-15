@@ -125,7 +125,20 @@ void main() {
     expect(dur, greaterThan(60));
     expect(dur % 15, 0);
   });
-}
 
-/// Where the hour grid begins on screen (below the names row). The tall test window never scrolls it.
-double _bodyTop(WidgetTester t) => t.getTopLeft(find.byType(SingleChildScrollView).first).dy;
+  testWidgets('with the day starting at 5 am, 1:30 am sits at the bottom of the day before', (t) async {
+    final s = await _store([
+      {..._ev(1, 'Late study', 0), 'when': DateTime(2026, 11, 17, 1, 30).millisecondsSinceEpoch},
+    ]);
+    await s.setDayShift(true);
+    await _pump(t, s);
+    final box = t.getRect(find.text('Late study'));
+    expect(box.left, lessThan(48 + 284.0 * 1 + 10)); // the first column: Monday the 16th
+    expect(find.text('6 am'), findsOneWidget); // hour labels start at 5 am
+    expect(find.text('2 am'), findsOneWidget);
+
+    await s.setDayShift(false);
+    await t.pumpAndSettle();
+    expect(t.getRect(find.text('Late study')).left, greaterThan(48 + 284.0)); // back on Tuesday the 17th
+  });
+}
