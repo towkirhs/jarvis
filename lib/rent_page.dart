@@ -102,7 +102,10 @@ class RentPage extends StatelessWidget {
                         ],
                         child: Chip(
                           avatar: const Icon(Icons.event, size: 18),
-                          label: Row(mainAxisSize: MainAxisSize.min, children: [Text('Up to ${Rent.name(upTo)}'), const Icon(Icons.arrow_drop_down, size: 20)]),
+                          label: Row(mainAxisSize: MainAxisSize.min, children: [
+                            Flexible(child: Text('Up to ${Rent.name(upTo)}', maxLines: 1, overflow: TextOverflow.ellipsis)),
+                            const Icon(Icons.arrow_drop_down, size: 20),
+                          ]),
                         ),
                       ),
                     ),

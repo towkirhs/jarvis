@@ -371,7 +371,7 @@ class _MoneyPageState extends State<MoneyPage> {
                           Column(children: [
                             Padding(
                               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                              child: Row(children: [
+                              child: Wrap(runSpacing: 4, children: [
                                 for (final (k, text) in [(0, 'Overview'), (1, 'Calendar'), (2, 'Month by month')])
                                   Padding(
                                     padding: const EdgeInsets.only(right: 8),
