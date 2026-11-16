@@ -48,7 +48,9 @@ void main() {
     expect(find.text('What comes in'), findsOneWidget);
     expect(find.text('Rooms and rent'), findsOneWidget);
     expect(find.text('Loans and debts'), findsOneWidget);
-    expect(find.textContaining('not received yet (2 months)'), findsOneWidget);
+    await t.scrollUntilVisible(find.textContaining('not received yet (2 months)'), 150, scrollable: find.byType(Scrollable).last);
+    await t.drag(find.byType(Scrollable).last, const Offset(0, -80));
+    await t.pumpAndSettle();
 
     await t.tap(find.text('Received'));
     await t.pumpAndSettle();
