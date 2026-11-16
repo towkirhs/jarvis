@@ -41,7 +41,7 @@ void main() {
     await t.tap(find.text('Month by month'));
     await t.pumpAndSettle();
 
-    await t.tap(find.text('Income'));
+    await t.tap(find.widgetWithText(Tab, 'Income'));
     await t.pumpAndSettle();
     expect(find.text('What comes in'), findsOneWidget);
     expect(find.text('Rooms and rent'), findsOneWidget);

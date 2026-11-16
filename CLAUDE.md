@@ -113,6 +113,15 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    month-end forecast vs 3-month average, 6-month bars, category changes, net worth line, runway, spend by weekday) above the
    category donut; new Goals tab (collection `goals`: {name, target, due, account or hand `adds`, start, startSaved}, per-month
    needed, pace, on track) and long-term savings (account `savings: true`); Money's tabs swipe (`EdgeSwipe`). Untested on a phone.
+   Income (build after 219): Money's tabs are Daily, Stats (chips: Overview, Calendar, Month by month), Goals, Income, Accounts.
+   The Income tab (`lib/income_tab.dart`) sums rent, salaries and loans ("Each month", "People owe you", "You owe") and opens
+   RentPage and LoansPage (their More tiles are gone). Income sources (`lib/income.dart` pure; `incomes` {name, kind, amount,
+   start, end}, `incomePays`): a month is owed once it has ended; "Received" adds the payment and an income transaction. One
+   switch turns the rent and loan money rules on or off together. Rent: dues counted up to this month or 1-2 back
+   (`Rent.dueThrough`, `local('rentBack')`); bills may carry meter readings {from, to, rate} (`Rent.meter`, `lastReading`,
+   unit prices in `settings.rentRates`), kinds now include water and gas; a house expense "the tenant paid" adds a rentPays
+   record with method 'Maintenance' and `cost` (no rent rule event). The receipt (`_ReceiptPaper` in `rent_more.dart`) follows
+   a printed rent receipt form and prints through `printing` (the paper as an image on an A4 PDF page). Untested on a phone.
    Plan my day (`lib/day_planner.dart`, `lib/plan_day_page.dart`) is the one place to plan any day. Pieces are tasks (id) and
    habits (minus the id; `DayPlanner.habitTasks`, quick when they have no `planMin`). Tasks may carry `winFrom`/`winTo` (minutes
    after midnight), `estMax` (longest length), `chunk` (done in blocks: Apply makes part items with `partOf`; the last done part
