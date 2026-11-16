@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jarcis/haptics.dart';
+import 'package:jarcis/income_tab.dart';
 import 'package:jarcis/money.dart';
 import 'package:jarcis/rent.dart';
 import 'package:jarcis/rent_more.dart';
@@ -48,8 +49,9 @@ void main() {
     expect(find.text('What comes in'), findsOneWidget);
     expect(find.text('Rooms and rent'), findsOneWidget);
     expect(find.text('Loans and debts'), findsOneWidget);
-    await t.scrollUntilVisible(find.textContaining('not received yet (2 months)'), 150, scrollable: find.byType(Scrollable).last);
-    await t.drag(find.byType(Scrollable).last, const Offset(0, -80));
+    final list = find.descendant(of: find.byType(IncomeTab), matching: find.byType(Scrollable)).first;
+    await t.scrollUntilVisible(find.textContaining('not received yet (2 months)'), 150, scrollable: list);
+    await t.drag(list, const Offset(0, -80));
     await t.pumpAndSettle();
 
     await t.tap(find.text('Received'));
