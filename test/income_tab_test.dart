@@ -41,6 +41,8 @@ void main() {
     await t.tap(find.text('Month by month'));
     await t.pumpAndSettle();
 
+    await t.ensureVisible(find.widgetWithText(Tab, 'Income'));
+    await t.pumpAndSettle();
     await t.tap(find.widgetWithText(Tab, 'Income'));
     await t.pumpAndSettle();
     expect(find.text('What comes in'), findsOneWidget);
