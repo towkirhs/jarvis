@@ -14,14 +14,12 @@ import 'brain.dart';
 import 'countdown_screen.dart';
 import 'plan_day_page.dart';
 import 'recall_page.dart';
-import 'loans_page.dart';
 import 'clock_screen.dart';
 import 'habit_core.dart';
 import 'habits_screen.dart';
 import 'native.dart';
 import 'drive_page.dart';
 import 'voice_page.dart';
-import 'rent_page.dart';
 import 'about_me_page.dart';
 import 'rules_page.dart';
 import 'store.dart';
@@ -86,8 +84,6 @@ class MoreScreen extends StatelessWidget {
                 tile(Icons.psychology_outlined, 'Memory', '${store.list('memories').length} remembered', MemoryPage(store: store)),
               ]),
               group('Home', [
-                tile(Icons.swap_horiz, 'Loans and debts', '${store.list('loanPeople').length} people', LoansPage(store: store)),
-                tile(Icons.meeting_room_outlined, 'Rooms and rent', '${store.list('rooms').length} rooms', RentPage(store: store)),
               ]),
               group('Connections', [
                 tile(Icons.account_tree_outlined, 'Rules and links', '${store.list('rules').where((r) => r['on'] == true).length} on', RulesPage(store: store)),

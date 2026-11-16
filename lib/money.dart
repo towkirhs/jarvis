@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'categories.dart';
 import 'categories_page.dart';
 import 'haptics.dart';
+import 'income_tab.dart';
 import 'items_screen.dart' show EdgeSwipe;
 import 'money_stats.dart';
 import 'money_io.dart';
@@ -281,7 +282,7 @@ class _MoneyPageState extends State<MoneyPage> {
 
   @override
   Widget build(BuildContext context) => DefaultTabController(
-        length: 6,
+        length: 5,
         child: Scaffold(
           appBar: AppBar(
             titleSpacing: 4,
@@ -318,20 +319,26 @@ class _MoneyPageState extends State<MoneyPage> {
             bottom: const TabBar(
               isScrollable: true,
               tabAlignment: TabAlignment.start,
-              tabs: [Tab(text: 'Daily'), Tab(text: 'Calendar'), Tab(text: 'Monthly'), Tab(text: 'Stats'), Tab(text: 'Goals'), Tab(text: 'Accounts')],
+              tabs: [Tab(text: 'Daily'), Tab(text: 'Stats'), Tab(text: 'Goals'), Tab(text: 'Income'), Tab(text: 'Accounts')],
             ),
           ),
           floatingActionButton: Builder(builder: (context) {
             final tabs = DefaultTabController.of(context);
             return ListenableBuilder(
               listenable: tabs,
-              builder: (context, _) => tabs.index == 5
+              builder: (context, _) => tabs.index == 4
                   ? FloatingActionButton.extended(
                       onPressed: () => _editAccount(context, null),
                       icon: const Icon(Icons.add),
                       label: const Text('Account'),
                     )
-                  : tabs.index == 4
+                  : tabs.index == 3
+                      ? FloatingActionButton.extended(
+                          onPressed: () => editIncome(context, s, null),
+                          icon: const Icon(Icons.add),
+                          label: const Text('Income'),
+                        )
+                  : tabs.index == 2
                       ? FloatingActionButton.extended(
                           onPressed: () => _editGoal(context, null),
                           icon: const Icon(Icons.flag_outlined),
@@ -360,10 +367,24 @@ class _MoneyPageState extends State<MoneyPage> {
                         physics: const ClampingScrollPhysics(),
                         children: [
                           _daily(context, monthTx),
-                          _calendar(context, monthTx),
-                          _monthly(context),
-                          _stats(context, monthTx),
+                          // Stats holds three views: the overview, the month as a calendar, and month by month.
+                          Column(children: [
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                              child: Row(children: [
+                                for (final (k, text) in [(0, 'Overview'), (1, 'Calendar'), (2, 'Month by month')])
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 8),
+                                    child: ChoiceChip(label: Text(text), showCheckmark: false, selected: _statsView == k, onSelected: (_) => setState(() => _statsView = k)),
+                                  ),
+                              ]),
+                            ),
+                            Expanded(
+                              child: switch (_statsView) { 1 => _calendar(context, monthTx), 2 => _monthly(context), _ => _stats(context, monthTx) },
+                            ),
+                          ]),
                           _goals(context),
+                          IncomeTab(store: s),
                           _accounts(context),
                         ],
                       ),
@@ -530,6 +551,9 @@ class _MoneyPageState extends State<MoneyPage> {
       ],
     );
   }
+
+  /// Which view of Stats is showing: 0 overview, 1 calendar, 2 month by month.
+  int _statsView = 0;
 
   Widget _stats(BuildContext context, List<Rec> txs) {
     // Spellings that differ only by case count as one category, shown in the spelling used most.

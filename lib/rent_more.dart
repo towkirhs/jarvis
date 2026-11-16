@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:file_picker/file_picker.dart';
@@ -5,6 +6,10 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/services.dart';
+
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
 import 'haptics.dart';
 import 'rent.dart';
@@ -220,28 +225,54 @@ class _ReceiptPageState extends State<ReceiptPage> {
 
   String get _landlord => ((s.settings['landlordName'] as String?) ?? '').trim();
 
+  String get _address => ((s.settings['landlordAddress'] as String?) ?? '').trim();
+
   Future<void> _setLandlord() async {
     final c = TextEditingController(text: _landlord);
-    final name = await showDialog<String>(
+    final a = TextEditingController(text: _address);
+    final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Your name on receipts'),
-        content: TextField(
-          controller: c,
-          autofocus: true,
-          textCapitalization: TextCapitalization.words,
-          decoration: const InputDecoration(labelText: 'Name'),
-          onSubmitted: (v) => Navigator.pop(ctx, v),
-        ),
+        title: const Text('You, on receipts'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: c, autofocus: true, textCapitalization: TextCapitalization.words, decoration: const InputDecoration(labelText: 'Your name')),
+          const SizedBox(height: 12),
+          TextField(controller: a, textCapitalization: TextCapitalization.words, decoration: const InputDecoration(labelText: 'Address of the house')),
+        ]),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, c.text), child: const Text('Save')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Save')),
         ],
       ),
     );
-    if (name == null) return;
-    s.settings['landlordName'] = name.trim();
+    if (ok != true) return;
+    s.settings['landlordName'] = c.text.trim();
+    s.settings['landlordAddress'] = a.text.trim();
     s.save();
+  }
+
+  /// The receipt as a picture, sharp enough to print.
+  Future<Uint8List> _png() async {
+    final boundary = _paper.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+    final image = await boundary.toImage(pixelRatio: 4);
+    final png = await image.toByteData(format: ui.ImageByteFormat.png);
+    return png!.buffer.asUint8List();
+  }
+
+  /// Opens the phone's print screen with the receipt on an A4 page (it can also save a PDF).
+  Future<void> _print(Rec r) async {
+    try {
+      final picture = pw.MemoryImage(await _png());
+      final doc = pw.Document()
+        ..addPage(pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(36),
+          build: (_) => pw.Align(alignment: pw.Alignment.topCenter, child: pw.Image(picture, fit: pw.BoxFit.contain)),
+        ));
+      await Printing.layoutPdf(name: 'receipt-room-${r['number']}-${widget.month}', onLayout: (_) => doc.save());
+    } catch (e) {
+      if (mounted) _say('Could not print: $e');
+    }
   }
 
   String _text(Rec r, MonthLine x) {
@@ -265,13 +296,10 @@ class _ReceiptPageState extends State<ReceiptPage> {
 
   Future<void> _saveImage(Rec r) async {
     try {
-      final boundary = _paper.currentContext!.findRenderObject()! as RenderRepaintBoundary;
-      final image = await boundary.toImage(pixelRatio: 3);
-      final png = await image.toByteData(format: ui.ImageByteFormat.png);
       final path = await FilePicker.platform.saveFile(
         dialogTitle: 'Save receipt',
         fileName: 'receipt-room-${r['number']}-${widget.month}.png',
-        bytes: png!.buffer.asUint8List(),
+        bytes: await _png(),
       );
       if (mounted && (kIsWeb || path != null)) _say('Receipt saved.');
     } catch (e) {
@@ -286,8 +314,6 @@ class _ReceiptPageState extends State<ReceiptPage> {
       builder: (context, _) {
         final r = s.byId('rooms', widget.roomId);
         if (r == null) return const Scaffold(body: Center(child: Text('This room was deleted.')));
-        final scheme = Theme.of(context).colorScheme;
-        final tt = Theme.of(context).textTheme;
         final x = Rent.month(r, widget.month, s.list('rentPays'), s.list('roomBills'));
         final status = Rent.status(x);
         return Scaffold(
@@ -306,82 +332,49 @@ class _ReceiptPageState extends State<ReceiptPage> {
             children: [
               RepaintBoundary(
                 key: _paper,
-                child: Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(color: scheme.surfaceContainerLow, borderRadius: BorderRadius.circular(20)),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Row(children: [
-                      Icon(Icons.home_work_outlined, color: scheme.primary),
-                      const SizedBox(width: 8),
-                      Expanded(child: Text('Room ${r['number']}', style: tt.titleLarge)),
-                      statusPill(context, _statusNames[status]!, _statusColor(scheme, status)),
-                    ]),
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(color: scheme.primaryContainer, borderRadius: BorderRadius.circular(14)),
-                      child: Row(children: [
-                        Expanded(
-                          child: InkWell(
-                            onTap: _setLandlord,
-                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Text('From', style: tt.labelSmall?.copyWith(color: scheme.onSurfaceVariant)),
-                              Text(_landlord.isEmpty ? 'Tap to add your name' : _landlord,
-                                  style: tt.titleSmall?.copyWith(color: _landlord.isEmpty ? scheme.primary : null)),
-                              Text('Owner', style: tt.labelSmall?.copyWith(color: scheme.onSurfaceVariant)),
-                            ]),
-                          ),
-                        ),
-                        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                          Text('To', style: tt.labelSmall?.copyWith(color: scheme.onSurfaceVariant)),
-                          Text('${r['tenant']}', style: tt.titleSmall),
-                          Text('Tenant', style: tt.labelSmall?.copyWith(color: scheme.onSurfaceVariant)),
-                        ]),
-                      ]),
-                    ),
-                    const SizedBox(height: 12),
-                    _row(context, 'Month', Rent.name(x.month)),
-                    _row(context, 'Rent', s.money(x.rent)),
+                child: _ReceiptPaper(
+                  landlord: _landlord,
+                  address: _address,
+                  tenant: '${r['tenant']}',
+                  room: 'Room ${r['number']}',
+                  number: 'R${r['number']}-${x.month.replaceAll('-', '')}',
+                  paidAt: x.payments.isEmpty ? null : DateTime.fromMillisecondsSinceEpoch(x.payments.last['paidAt'] as int),
+                  methods: {for (final p in x.payments) '${p['method'] ?? 'Cash'}'},
+                  period: Rent.name(x.month),
+                  amount: s.money(x.paid),
+                  notes: [
+                    ('Rent', s.money(x.rent)),
                     for (final b in x.bills)
-                      _row(context, '${Rent.billKinds[b['kind']] ?? 'Bill'} (${Rent.name(Rent.shift(x.month, -1), short: true)})',
-                          s.money(b['amount'] as num)),
-                    if (x.carried != 0)
-                      _row(context, x.carried > 0 ? 'Owed from before' : 'Paid ahead before', s.money(x.carried.abs())),
-                    const Divider(height: 16),
-                    _row(context, 'Total due', s.money(x.toPay), strong: true),
-                    const SizedBox(height: 12),
-                    Text('Payment history', style: tt.titleSmall),
-                    const SizedBox(height: 4),
-                    if (x.payments.isEmpty)
-                      Text('No payments yet.', style: tt.bodyMedium?.copyWith(color: scheme.onSurfaceVariant)),
-                    for (final p in x.payments)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: Row(children: [
-                          Icon(Icons.check_circle, size: 18, color: scheme.primary),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              '${_day(p['paidAt'] as int)}${p['method'] == null ? '' : ', ${p['method']}'}',
-                              style: tt.bodyMedium,
-                            ),
-                          ),
-                          Text(s.money(p['amount'] as num), style: tt.titleSmall),
-                        ]),
+                      (
+                        '${Rent.billKinds[b['kind']] ?? 'Bill'}, ${Rent.name(Rent.shift(x.month, -1), short: true)}'
+                            '${b['to'] != null ? ' (${b['from']} to ${b['to']}, ${s.money(b['rate'] as num)} a unit)' : ''}',
+                        s.money(b['amount'] as num),
                       ),
-                    const Divider(height: 16),
-                    _row(
-                      context,
-                      x.left > 0 ? 'Left to pay' : (x.left < 0 ? 'Paid ahead' : 'Fully paid'),
-                      s.money(x.left.abs()),
-                      strong: true,
-                      color: x.left > 0 ? scheme.error : scheme.primary,
-                    ),
-                  ]),
+                    if (x.carried != 0) (x.carried > 0 ? 'Owed from before' : 'Paid ahead before', s.money(x.carried.abs())),
+                    ('Total due', s.money(x.toPay)),
+                    (x.left > 0 ? 'Left to pay' : (x.left < 0 ? 'Paid ahead' : 'Fully paid'), s.money(x.left.abs())),
+                  ],
+                  payments: [
+                    for (final p in x.payments) ('${_day(p['paidAt'] as int)}, ${p['method'] ?? 'Cash'}', s.money(p['amount'] as num)),
+                  ],
+                  status: _statusNames[status]!,
                 ),
               ),
-              const SizedBox(height: 16),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: _setLandlord,
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  label: Text(_landlord.isEmpty ? 'Add your name and address' : 'Change your name and address'),
+                ),
+              ),
               FilledButton.icon(
+                onPressed: () => _print(r),
+                icon: const Icon(Icons.print_outlined),
+                label: const Text('Print or save as PDF'),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
                 onPressed: () => _saveImage(r),
                 icon: const Icon(Icons.download_outlined),
                 label: const Text('Save as image'),
@@ -400,6 +393,190 @@ class _ReceiptPageState extends State<ReceiptPage> {
           ),
         );
       },
+    );
+  }
+}
+
+/// The receipt as a sheet of paper, laid out like a printed rent receipt form: who is paid, who pays,
+/// the payment, and notes with a signature line. Always black on white, whatever the app's theme, since it is printed.
+class _ReceiptPaper extends StatelessWidget {
+  const _ReceiptPaper({
+    required this.landlord, required this.address, required this.tenant, required this.room, required this.number,
+    required this.paidAt, required this.methods, required this.period, required this.amount, required this.notes,
+    required this.payments, required this.status,
+  });
+  final String landlord, address, tenant, room, number, period, amount, status;
+  final DateTime? paidAt;
+  final Set<String> methods;
+  final List<(String, String)> notes;
+  final List<(String, String)> payments;
+
+  static const _ink = Color(0xFF1B1B1B);
+  static const _band = Color(0xFF0B7285); // the app's kingfisher teal
+  static const _fill = Color(0xFFF2F6FC);
+  static const _line = BorderSide(color: _ink, width: 0.8);
+
+  Widget _head(String text) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+        decoration: const BoxDecoration(border: Border(bottom: _line)),
+        child: Text(text, style: const TextStyle(color: _ink, fontSize: 13, letterSpacing: 0.4)),
+      );
+
+  Widget _field(String label, String value, {bool last = false}) => Container(
+        decoration: BoxDecoration(border: last ? null : const Border(bottom: _line)),
+        child: IntrinsicHeight(
+          child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Container(
+              width: 84,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              decoration: const BoxDecoration(border: Border(right: _line)),
+              child: Text(label, style: const TextStyle(color: _ink, fontSize: 10.5, fontWeight: FontWeight.w700)),
+            ),
+            Expanded(
+              child: Container(
+                color: _fill,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                child: Text(value, style: const TextStyle(color: _ink, fontSize: 11.5)),
+              ),
+            ),
+          ]),
+        ),
+      );
+
+  Widget _box(List<Widget> children) => Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(border: Border.all(color: _ink, width: 0.8)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
+      );
+
+  Widget _tick(String label) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: Row(children: [
+          Container(
+            width: 13,
+            height: 13,
+            decoration: BoxDecoration(border: Border.all(color: _ink, width: 0.8)),
+            child: methods.contains(label) ? const Icon(Icons.check, size: 11, color: _ink) : null,
+          ),
+          const SizedBox(width: 6),
+          Text(label, style: const TextStyle(color: _ink, fontSize: 10.5)),
+        ]),
+      );
+
+  Widget _pair((String, String) p, {bool strong = false}) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(child: Text(p.$1, style: TextStyle(color: _ink, fontSize: 10.5, fontWeight: strong ? FontWeight.w700 : null))),
+          const SizedBox(width: 6),
+          Text(p.$2, style: TextStyle(color: _ink, fontSize: 10.5, fontWeight: strong ? FontWeight.w700 : null)),
+        ]),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final at = paidAt;
+    String two(int v) => v.toString().padLeft(2, '0');
+    return Container(
+      color: Colors.white,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Container(
+          color: _band,
+          padding: const EdgeInsets.fromLTRB(14, 16, 14, 16),
+          child: Row(children: [
+            const Expanded(child: Text('Rent Receipt', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w700))),
+            Text(status, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+          ]),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 14, 14, 6),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            _box([_head('PAYEE INFORMATION'), _field('NAME:', landlord), _field('ADDRESS:', address, last: true)]),
+            _box([_head('PAYER INFORMATION'), _field('NAME:', tenant), _field('ADDRESS:', address.isEmpty ? room : '$room, $address', last: true)]),
+            _box([
+              _head('PAYMENT DETAILS'),
+              _field('RECEIPT #:', number),
+              _field('DATE:', at == null ? '' : '${at.day} ${Rent.monthNames[at.month - 1]} ${at.year}'),
+              _field('TIME:', at == null || (at.hour == 0 && at.minute == 0) ? '' : '${two(at.hour)}:${two(at.minute)}'),
+              IntrinsicHeight(
+                child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  Expanded(
+                    flex: 4,
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: const BoxDecoration(border: Border(right: _line)),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        for (final m in {...Rent.payMethods, ...methods}) _tick(m),
+                      ]),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 6,
+                    child: Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        _pair(('RENT FOR THE PERIOD:', period), strong: true),
+                        _pair(('AMOUNT:', amount), strong: true),
+                        _pair(('PROPERTY TYPE:', 'Room')),
+                        _pair(('LOCATION:', room)),
+                      ]),
+                    ),
+                  ),
+                ]),
+              ),
+            ]),
+            _box([
+              IntrinsicHeight(
+                child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  Expanded(
+                    child: Container(
+                      decoration: const BoxDecoration(border: Border(right: _line)),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        _head('IMPORTANT NOTES'),
+                        Container(
+                          width: double.infinity,
+                          color: _fill,
+                          padding: const EdgeInsets.all(8),
+                          child: Column(children: [
+                            for (var k = 0; k < notes.length; k++) _pair(notes[k], strong: k >= notes.length - 2),
+                          ]),
+                        ),
+                      ]),
+                    ),
+                  ),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      _head('DESCRIPTION'),
+                      Container(
+                        width: double.infinity,
+                        color: _fill,
+                        padding: const EdgeInsets.all(8),
+                        constraints: const BoxConstraints(minHeight: 44),
+                        child: Column(children: [
+                          if (payments.isEmpty) const Align(alignment: Alignment.centerLeft, child: Text('No payment yet.', style: TextStyle(color: _ink, fontSize: 10.5))),
+                          for (final p in payments) _pair(p),
+                        ]),
+                      ),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                        decoration: const BoxDecoration(border: Border(top: _line, bottom: _line)),
+                        child: Text('PERSON RESPONSIBLE${landlord.isEmpty ? '' : ': $landlord'}',
+                            style: const TextStyle(color: _ink, fontSize: 10.5, fontWeight: FontWeight.w700)),
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.fromLTRB(8, 6, 8, 0),
+                        child: Text('SIGNATURE:', style: TextStyle(color: _ink, fontSize: 10.5, fontWeight: FontWeight.w700)),
+                      ),
+                      Container(margin: const EdgeInsets.fromLTRB(16, 34, 16, 12), height: 1.2, color: _ink),
+                    ]),
+                  ),
+                ]),
+              ),
+            ]),
+          ]),
+        ),
+      ]),
     );
   }
 }

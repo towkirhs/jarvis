@@ -22,6 +22,10 @@ num? _amount(TextEditingController c) => num.tryParse(c.text.trim().replaceAll('
   );
 }
 
+/// The month dues are counted through: this month, or one or two back for tenants who pay behind.
+/// Kept on this device as how many months back.
+String rentUpTo(Store s, DateTime now) => Rent.shift(Rent.key(now), -(int.tryParse(s.local('rentBack') ?? '') ?? 0));
+
 /// All rooms: who lives there, what they owe, and the house's month.
 class RentPage extends StatelessWidget {
   const RentPage({super.key, required this.store});
@@ -39,7 +43,8 @@ class RentPage extends StatelessWidget {
         final rooms = s.list('rooms').toList()..sort((a, b) => '${a['number']}'.compareTo('${b['number']}'));
         final pays = s.list('rentPays');
         final bills = s.list('roomBills');
-        final dues = {for (final r in rooms) r['id']: Rent.due(r, pays, bills, now)};
+        final upTo = rentUpTo(s, now);
+        final dues = {for (final r in rooms) r['id']: Rent.dueThrough(r, pays, bills, now, upTo)};
         final owed = dues.values.where((d) => d > 0).fold<num>(0, (a, b) => a + b);
         final month = _thisMonth(s, now);
         final upcomingMeetings =
@@ -77,8 +82,29 @@ class RentPage extends StatelessWidget {
                   children: [
                     Text(owed > 0 ? '${s.money(owed)} due' : 'Everyone is paid up', style: tt.headlineSmall),
                     Text(
-                      'From ${rooms.length} ${rooms.length == 1 ? 'room' : 'rooms'}, rent and bills up to ${Rent.name(Rent.key(now))}',
+                      'From ${rooms.length} ${rooms.length == 1 ? 'room' : 'rooms'}, rent and bills',
                       style: tt.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+                    ),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: PopupMenuButton<int>(
+                        tooltip: 'Count dues up to',
+                        onSelected: (back) async {
+                          await s.setLocal('rentBack', '$back');
+                          s.save();
+                        },
+                        itemBuilder: (_) => [
+                          for (var back = 0; back <= 2; back++)
+                            PopupMenuItem(
+                              value: back,
+                              child: Text('${Rent.name(Rent.shift(Rent.key(now), -back))}${back == 0 ? ' (this month)' : (back == 1 ? ' (last month)' : '')}'),
+                            ),
+                        ],
+                        child: Chip(
+                          avatar: const Icon(Icons.event, size: 18),
+                          label: Row(mainAxisSize: MainAxisSize.min, children: [Text('Up to ${Rent.name(upTo)}'), const Icon(Icons.arrow_drop_down, size: 20)]),
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 12),
                     Row(children: [
@@ -123,7 +149,7 @@ class RentPage extends StatelessWidget {
                     for (final r in rooms)
                       Builder(builder: (context) {
                         final due = dues[r['id']]!;
-                        final since = Rent.unpaidSince(r, pays, bills, now);
+                        final since = due > 0 ? Rent.unpaidSince(r, pays, bills, now) : null;
                         return Card(
                           child: ListTile(
                             contentPadding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
@@ -427,10 +453,20 @@ class RoomPage extends StatelessWidget {
     final choices = Rent.months(Rent.shift(r['start'] as String, -1), now).reversed.toList();
     if (!choices.contains(month)) month = choices.first;
     final fields = {for (final k in Rent.billKinds.keys) k: TextEditingController()};
+    // For bills read off a meter: last reading, this reading, and the price of a unit.
+    final from = {for (final k in Rent.metered) k: TextEditingController()};
+    final to = {for (final k in Rent.metered) k: TextEditingController()};
+    final rate = {for (final k in Rent.metered) k: TextEditingController()};
+    final rates = (s.settings['rentRates'] as Map?) ?? const {};
+    String show(Object? v) => v == null ? '' : '$v'.replaceAll(RegExp(r'\.0$'), '');
     void fill() {
       for (final e in fields.entries) {
-        final b = Rent.billsOf(r['id'] as int, month, s.list('roomBills')).where((b) => (b['kind'] ?? 'electricity') == e.key);
-        e.value.text = b.isEmpty ? '' : '${b.first['amount']}';
+        final b = Rent.billsOf(r['id'] as int, month, s.list('roomBills')).where((b) => (b['kind'] ?? 'electricity') == e.key).firstOrNull;
+        e.value.text = show(b?['amount']);
+        if (!Rent.metered.contains(e.key)) continue;
+        from[e.key]!.text = show(b?['from'] ?? Rent.lastReading(r['id'] as int, e.key, month, s.list('roomBills')));
+        to[e.key]!.text = show(b?['to']);
+        rate[e.key]!.text = show(b?['rate'] ?? rates[e.key]);
       }
     }
 
@@ -438,54 +474,95 @@ class RoomPage extends StatelessWidget {
     await showDialog<void>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setD) => AlertDialog(
-          title: Text('Bills, room ${r['number']}'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                DropdownButtonFormField<String>(
-                  initialValue: month,
-                  decoration: const InputDecoration(labelText: 'Used in'),
-                  items: [for (final m in choices) DropdownMenuItem(value: m, child: Text(Rent.name(m)))],
-                  onChanged: (v) => setD(() {
-                    month = v!;
-                    fill();
-                  }),
+        builder: (ctx, setD) {
+          // Typing readings works the amount out; the amount can still be typed by hand.
+          void work(String k) {
+            final a = _amount(from[k]!), b = _amount(to[k]!), p = _amount(rate[k]!);
+            if (a != null && b != null && p != null && b > a) setD(() => fields[k]!.text = show(Rent.meter(a, b, p)));
+          }
+
+          Widget small(TextEditingController c, String label, String k) => Expanded(
+                child: TextField(
+                  controller: c,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: InputDecoration(labelText: label, isDense: true),
+                  onChanged: (_) => work(k),
                 ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Text('Paid with ${Rent.name(Rent.shift(month, 1))} rent.', style: Theme.of(ctx).textTheme.bodySmall),
-                ),
-                for (final e in fields.entries) ...[
-                  TextField(
-                    controller: e.value,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: InputDecoration(labelText: Rent.billKinds[e.key]),
+              );
+          return AlertDialog(
+            title: Text('Bills, room ${r['number']}'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  DropdownButtonFormField<String>(
+                    isExpanded: true,
+                    initialValue: month,
+                    decoration: const InputDecoration(labelText: 'Used in'),
+                    items: [for (final m in choices) DropdownMenuItem(value: m, child: Text(Rent.name(m)))],
+                    onChanged: (v) => setD(() {
+                      month = v!;
+                      fill();
+                    }),
                   ),
-                  const SizedBox(height: 12),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Text('Paid with ${Rent.name(Rent.shift(month, 1))} rent. For a meter, enter the readings and the price of a unit.',
+                        style: Theme.of(ctx).textTheme.bodySmall),
+                  ),
+                  for (final e in fields.entries) ...[
+                    if (Rent.metered.contains(e.key)) ...[
+                      Text('${Rent.billKinds[e.key]} meter', style: Theme.of(ctx).textTheme.labelLarge),
+                      const SizedBox(height: 6),
+                      Row(children: [
+                        small(from[e.key]!, 'From', e.key),
+                        const SizedBox(width: 8),
+                        small(to[e.key]!, 'To', e.key),
+                        const SizedBox(width: 8),
+                        small(rate[e.key]!, 'A unit', e.key),
+                      ]),
+                      const SizedBox(height: 8),
+                    ],
+                    TextField(
+                      controller: e.value,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: InputDecoration(labelText: '${Rent.billKinds[e.key]} amount'),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-            FilledButton(
-              onPressed: () {
-                saveBills(s, r, month, {for (final e in fields.entries) e.key: _amount(e.value)});
-                Navigator.pop(ctx);
-              },
-              child: const Text('Save bills'),
-            ),
-          ],
-        ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+              FilledButton(
+                onPressed: () {
+                  final meters = <String, Map<String, num>>{};
+                  for (final k in Rent.metered) {
+                    final a = _amount(from[k]!), b = _amount(to[k]!), p = _amount(rate[k]!);
+                    if (a != null && b != null && p != null && b > a) meters[k] = {'from': a, 'to': b, 'rate': p};
+                  }
+                  if (meters.isNotEmpty) {
+                    s.settings['rentRates'] = {...rates, for (final e in meters.entries) e.key: e.value['rate']};
+                  }
+                  saveBills(s, r, month, {for (final e in fields.entries) e.key: _amount(e.value)}, meters: meters);
+                  Navigator.pop(ctx);
+                },
+                child: const Text('Save bills'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 }
 
 /// Replaces a room's bills for a month with [amounts] (empty or 0 removes that kind). Undoable.
-void saveBills(Store s, Rec r, String month, Map<String, num?> amounts) {
+/// [meters] gives the readings and unit price of bills read off a meter; a bill saved without them keeps
+/// the ones it had when its amount is unchanged.
+void saveBills(Store s, Rec r, String month, Map<String, num?> amounts, {Map<String, Map<String, num>> meters = const {}}) {
   final old = Rent.billsOf(r['id'] as int, month, s.list('roomBills'));
   final undo = <Map<String, dynamic>>[];
   for (final b in old) {
@@ -495,7 +572,9 @@ void saveBills(Store s, Rec r, String month, Map<String, num?> amounts) {
   for (final e in amounts.entries) {
     final v = e.value;
     if (v == null || v <= 0) continue;
-    final rec = {'id': s.nextId(), 'room': r['id'], 'month': month, 'kind': e.key, 'amount': v};
+    final was = old.where((b) => b['kind'] == e.key && b['amount'] == v && b['to'] != null).firstOrNull;
+    final meter = meters[e.key] ?? (was == null ? null : {'from': was['from'], 'to': was['to'], 'rate': was['rate']});
+    final rec = {'id': s.nextId(), 'room': r['id'], 'month': month, 'kind': e.key, 'amount': v, ...?meter};
     s.list('roomBills').add(rec);
     undo.add({'op': 'rm', 'col': 'roomBills', 'id': rec['id']});
   }
@@ -695,6 +774,7 @@ Future<void> addHouseCost(BuildContext context, Store s) async {
   final now = DateTime.now();
   var day = DateTime(now.year, now.month, now.day);
   int? room;
+  var byTenant = false;
   String? error;
   final rooms = s.list('rooms').toList()..sort((a, b) => '${a['number']}'.compareTo('${b['number']}'));
   await showDialog<void>(
@@ -726,6 +806,14 @@ Future<void> addHouseCost(BuildContext context, Store s) async {
               ],
               onChanged: (v) => setD(() => room = v),
             ),
+            if (room != null)
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('The tenant paid for it'),
+                subtitle: const Text('Taken off what they owe'),
+                value: byTenant,
+                onChanged: (v) => setD(() => byTenant = v),
+              ),
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.event_outlined),
@@ -746,9 +834,17 @@ Future<void> addHouseCost(BuildContext context, Store s) async {
               if (v == null || v <= 0) return setD(() => error = Haptics.rejected() ?? 'Enter the amount');
               final rec = {'id': s.nextId(), 'ts': day.millisecondsSinceEpoch, 'amount': v, 'what': what.text.trim(), 'room': room};
               s.list('houseCosts').add(rec);
-              s.logAction('House expense: ${what.text.trim()} ${s.money(v)}', [
+              final undo = <Map<String, dynamic>>[
                 {'op': 'rm', 'col': 'houseCosts', 'id': rec['id']},
-              ]);
+              ];
+              if (room != null && byTenant) {
+                // The tenant's money went into the house: it counts as a payment toward their rent.
+                rec['byTenant'] = true;
+                final pay = {'id': s.nextId(), 'room': room, 'amount': v, 'paidAt': day.millisecondsSinceEpoch, 'method': 'Maintenance', 'cost': rec['id']};
+                s.list('rentPays').add(pay);
+                undo.add({'op': 'rm', 'col': 'rentPays', 'id': pay['id']});
+              }
+              s.logAction('House expense: ${what.text.trim()} ${s.money(v)}', undo);
               s.save();
               Haptics.tap();
               Navigator.pop(ctx);

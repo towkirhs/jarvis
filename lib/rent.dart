@@ -6,15 +6,32 @@
 /// A payment ('rentPays'): {id, room, amount, paidAt: ms, method: 'Cash' / 'bKash' / … or absent}.
 /// A meeting with tenants is a calendar event ('items') with meeting: true, rooms: [room ids] (empty = all),
 /// where: text, desc: notes.
-/// A bill ('roomBills'): {id, room, month: 'YYYY-MM' it was used in, kind, amount}.
-/// A house expense ('houseCosts'): {id, ts, amount, what, room: id or null}.
+/// A bill ('roomBills'): {id, room, month: 'YYYY-MM' it was used in, kind, amount}; one read off a meter also has
+/// {from, to, rate}: the readings and the price of a unit, amount = (to - from) x rate.
+/// A house expense ('houseCosts'): {id, ts, amount, what, room: id or null}. When the tenant paid it for you,
+/// a payment with method 'Maintenance' and cost: that expense's id takes it off their rent.
 class Rent {
   static const monthNames = [
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December',
   ];
 
-  static const billKinds = {'electricity': 'Electricity', 'waste': 'Waste', 'wifi': 'Wi-Fi', 'other': 'Other bill'};
+  static const billKinds = {
+    'electricity': 'Electricity', 'water': 'Water', 'gas': 'Gas', 'waste': 'Waste', 'wifi': 'Wi-Fi', 'other': 'Other bill',
+  };
+
+  /// Bills that can be read off a meter.
+  static const metered = {'electricity', 'water', 'gas'};
+
+  /// A metered bill: the units used times the price of one.
+  static num meter(num from, num to, num rate) => to <= from ? 0 : (to - from) * rate;
+
+  /// The room's last meter reading for [kind] before [month], to start the next one from.
+  static num? lastReading(int room, String kind, String month, List<Map<String, dynamic>> bills) {
+    final before = bills.where((b) => b['room'] == room && b['kind'] == kind && b['to'] is num && (b['month'] as String).compareTo(month) < 0).toList()
+      ..sort((a, b) => (a['month'] as String).compareTo(b['month'] as String));
+    return before.isEmpty ? null : before.last['to'] as num;
+  }
 
   static const payMethods = ['Cash', 'bKash', 'Nagad', 'Bank', 'Card'];
 
@@ -91,6 +108,16 @@ class Rent {
   /// What a room owes right now (negative means paid ahead).
   static num due(Map<String, dynamic> room, List<Map<String, dynamic>> pays, List<Map<String, dynamic>> bills, DateTime now) =>
       month(room, key(now), pays, bills).left;
+
+  /// What a room owes for the months through [upTo] ('YYYY-MM'), counting every payment made so far.
+  /// For tenants who pay a month behind: in November, "through October" leaves November's rent out.
+  static num dueThrough(Map<String, dynamic> room, List<Map<String, dynamic>> pays, List<Map<String, dynamic>> bills, DateTime now, String upTo) {
+    var left = due(room, pays, bills, now);
+    for (final m in months(room['start'] as String, now)) {
+      if (m.compareTo(upTo) > 0) left -= month(room, m, pays, bills).charge;
+    }
+    return left;
+  }
 
   /// The oldest month that is still not fully paid, for "unpaid since October".
   static String? unpaidSince(Map<String, dynamic> room, List<Map<String, dynamic>> pays, List<Map<String, dynamic>> bills, DateTime now) {

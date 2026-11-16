@@ -110,7 +110,8 @@ class Rules {
           }));
         case 'rent':
           final r = find('rentPays', p[1]);
-          if (r == null) break;
+          // A repair the tenant paid for is not money received.
+          if (r == null || r['cost'] != null) break;
           final room = find('rooms', r['room'] ?? -1);
           out.add(RuleEvent('rent', {'amount': r['amount'], 'room': room?['number'] ?? '', 'method': r['method'], 'title': 'Rent room ${room?['number'] ?? ''}'}));
         case 'loan':
