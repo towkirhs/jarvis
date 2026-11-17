@@ -45,7 +45,7 @@ Every item has `type` and `title`. Use only the fields that apply; leave the res
 | `habit`, `times`, `per` | For `habit_new`: name, and a target like 3 per `week` |
 | `amount`, `moneyType`, `category`, `account`, `toAccount` | For `money`: number, `expense`/`income`/`transfer`, one word like Food, Transport, Bills; accounts only if named |
 | `leaves` | For money: when I say how much is LEFT and the rest was spent, put the left-over number in both `leaves` and `amount` |
-| `person` | For `promise`: who it was made to (`date` is the deadline) |
+| `person`, `asked` | For `promise`: who it was made to (`date` is the deadline). No deadline given: leave `date` out and set `asked: true` |
 | `reason` | For `decision`: why I decided |
 | `rule` | For `rule`: `{"when": {...}, "if": [...], "then": [...], "once": true/false}` (see Rules below) |
 | `category` | For `countdown`: `birthday`, `anniversary`, `holiday` or `countdown` (needs `date`) |
