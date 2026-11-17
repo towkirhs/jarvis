@@ -178,7 +178,7 @@ void main() {
       await t.pumpAndSettle();
       expect(s.byId('items', 1)!['skipped'], dayKey(now));
     }
-    await t.scrollUntilVisible(find.text('Ask when a planned block ends'), 200);
+    await t.scrollUntilVisible(find.text('Ask when a planned block ends'), 200, scrollable: find.byType(Scrollable).first);
     await t.pumpAndSettle();
     expect(find.text('YouTube'), findsWidgets);
   });
