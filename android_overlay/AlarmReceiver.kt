@@ -22,14 +22,15 @@ class AlarmReceiver : BroadcastReceiver() {
         if (kind == "clock") {
             val days = entry.optInt("days", 0)
             val sound = entry.optString("sound", "").ifEmpty { null }
+            val style = entry.optString("style", "").ifEmpty { null }
             if (days != 0) {
                 AlarmScheduler.schedule(
-                    context, id, AlarmScheduler.nextOnDays(entry.getLong("millis"), days), kind, label, false, days, sound
+                    context, id, AlarmScheduler.nextOnDays(entry.getLong("millis"), days), kind, label, false, days, sound, style
                 )
             } else {
                 AlarmScheduler.remove(context, id)
             }
-            RingService.start(context, id, label, sound)
+            RingService.start(context, id, label, sound, "clock", style)
             return
         }
 

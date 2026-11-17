@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import 'ai.dart';
+import 'alarm_sound.dart';
 import 'clock.dart';
 import 'haptics.dart';
 import 'brain.dart';
@@ -164,6 +165,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
   Future<void> _boot() async {
     await Native.requestNotificationPermission();
     unawaited(sendSpeechHints(s));
+    unawaited(AlarmSounds.ensureDefault(s));
     await s.ensureDaily();
     final shared = await Native.takeSharedText();
     if (shared != null) await _onShared(shared);

@@ -28,8 +28,9 @@ class Native {
 
   /// An alarm from the Clock page at [millis], repeating on the weekdays in [days] (Monday = bit 0; 0 = once),
   /// ringing with the music file at [sound] (or the phone's alarm sound).
-  static Future<void> clock({required int id, required int millis, required String label, int days = 0, String? sound}) async {
-    if (!kIsWeb) await _ch.invokeMethod('clock', {'id': id, 'millis': millis, 'label': label, 'days': days, 'sound': sound});
+  /// [style]: how loud it rings ({vol, rise, vib} as JSON, see `AlarmStyle`), or null for your usual.
+  static Future<void> clock({required int id, required int millis, required String label, int days = 0, String? sound, String? style}) async {
+    if (!kIsWeb) await _ch.invokeMethod('clock', {'id': id, 'millis': millis, 'label': label, 'days': days, 'sound': sound, 'style': style});
   }
 
   /// How alarms show on this phone: {sound, soundName, fullAlarm, fullNotice, canFullScreen, overlay}.
@@ -51,8 +52,8 @@ class Native {
   }
 
   /// Rings straight away, to try an alarm's sound.
-  static Future<void> ringNow(String label, String? sound) async {
-    if (!kIsWeb) await _ch.invokeMethod('ringNow', {'label': label, 'sound': sound});
+  static Future<void> ringNow(String label, String? sound, {String? style}) async {
+    if (!kIsWeb) await _ch.invokeMethod('ringNow', {'label': label, 'sound': sound, 'style': style});
   }
 
   /// Replaces the place triggers the phone watches.

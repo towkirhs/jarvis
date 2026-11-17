@@ -34,12 +34,16 @@ object NativeChannel {
                     call.argument<String>("label") ?: "Alarm",
                     false,
                     call.argument<Number>("days")?.toInt() ?: 0,
-                    call.argument<String>("sound")
+                    call.argument<String>("sound"),
+                    call.argument<String>("style")
                 )
                 result.success(null)
             }
             "ringNow" -> {
-                RingService.start(context, 0, call.argument<String>("label") ?: "Test alarm", call.argument<String>("sound"))
+                RingService.start(
+                    context, 0, call.argument<String>("label") ?: "Test alarm", call.argument<String>("sound"), "clock",
+                    call.argument<String>("style")
+                )
                 result.success(null)
             }
             "alarmPrefs" -> result.success(mapOf(
@@ -47,6 +51,7 @@ object NativeChannel {
                 "soundName" to AlarmPrefs.soundName(context),
                 "fullAlarm" to AlarmPrefs.fullAlarm(context),
                 "fullNotice" to AlarmPrefs.fullNotice(context),
+                "style" to AlarmPrefs.style(context),
                 "canFullScreen" to AlarmPrefs.canFullScreen(context),
                 "overlay" to Overlay.allowed(context),
             ))

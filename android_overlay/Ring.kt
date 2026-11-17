@@ -11,6 +11,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.Color
 import android.media.AudioAttributes
+import android.media.AudioManager
 import android.media.MediaPlayer
 import android.media.RingtoneManager
 import android.net.Uri
@@ -24,6 +25,7 @@ import android.view.Gravity
 import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.TextView
+import org.json.JSONObject
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -38,6 +40,9 @@ object AlarmPrefs {
     fun soundName(context: Context): String? = p(context).getString("soundName", null)?.takeIf { it.isNotEmpty() }
     fun fullAlarm(context: Context) = p(context).getBoolean("fullAlarm", true)
     fun fullNotice(context: Context) = p(context).getBoolean("fullNotice", false)
+
+    /** How every alarm without its own rings: {vol: 10-100 (% of the phone's alarm volume), rise, vib}, or null. */
+    fun style(context: Context): String? = p(context).getString("style", null)?.takeIf { it.isNotEmpty() }
 
     fun set(context: Context, key: String, value: Any?) {
         val e = p(context).edit()
@@ -65,6 +70,10 @@ class RingService : Service() {
     private var id = 0
     private var label = "Alarm"
     private var sound: String? = null
+    private var style: String? = null
+
+    /** The phone's alarm volume before this alarm changed it, put back when it stops. */
+    private var oldVolume: Int? = null
 
     /** "clock" for an alarm from the Clock tab, "alarm" for one set on a task or event (it can be marked done). */
     private var kind = "clock"
@@ -88,7 +97,7 @@ class RingService : Service() {
                 val base = if (id >= ActionReceiver.SNOOZE_OFFSET) id - ActionReceiver.SNOOZE_OFFSET else id
                 AlarmScheduler.schedule(
                     this, base + ActionReceiver.SNOOZE_OFFSET, System.currentTimeMillis() + 10 * 60 * 1000L,
-                    kind, label, false, 0, sound
+                    kind, label, false, 0, sound, style
                 )
                 stopSelf()
                 return START_NOT_STICKY
@@ -98,6 +107,7 @@ class RingService : Service() {
         label = intent?.getStringExtra("label") ?: "Alarm"
         sound = intent?.getStringExtra("sound") ?: AlarmPrefs.sound(this)
         kind = intent?.getStringExtra("kind") ?: "clock"
+        style = intent?.getStringExtra("style") ?: AlarmPrefs.style(this)
         startForeground(NOTE_ID, notification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
         ringing = true
         // Open the alarm's screen straight away. The notification's full-screen request only works while the
@@ -125,14 +135,42 @@ class RingService : Service() {
             prepare()
             start()
         }
+        val st = try { JSONObject(style ?: "{}") } catch (_: Exception) { JSONObject() }
+        // Loudness: the phone's alarm volume set to the chosen share while it rings, put back afterwards.
+        if (st.has("vol")) {
+            val audio = getSystemService(AudioManager::class.java)
+            try {
+                val max = audio.getStreamMaxVolume(AudioManager.STREAM_ALARM)
+                if (oldVolume == null) oldVolume = audio.getStreamVolume(AudioManager.STREAM_ALARM)
+                val target = Math.round(max * st.optInt("vol", 100).coerceIn(10, 100) / 100f).coerceAtLeast(1)
+                audio.setStreamVolume(AudioManager.STREAM_ALARM, target, 0)
+            } catch (_: Exception) {
+                // Do Not Disturb can refuse the change: it rings at the phone's own alarm volume.
+            }
+        }
         player = try {
             playing(chosen ?: fallback)
         } catch (e: Exception) {
             // The music file is gone or cannot be played: ring with the phone's own alarm sound.
             try { playing(fallback) } catch (_: Exception) { null }
         }
-        vibrator = getSystemService(Vibrator::class.java)?.also {
-            it.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 800, 800), 0), attrs)
+        // Gets louder slowly: from very soft to full over about a minute.
+        if (st.optBoolean("rise", false)) {
+            var level = 0.05f
+            player?.setVolume(level, level)
+            val step = object : Runnable {
+                override fun run() {
+                    level = (level + 0.05f).coerceAtMost(1f)
+                    try { player?.setVolume(level, level) } catch (_: Exception) {}
+                    if (level < 1f) main.postDelayed(this, 3000L)
+                }
+            }
+            main.postDelayed(step, 3000L)
+        }
+        if (st.optBoolean("vib", true)) {
+            vibrator = getSystemService(Vibrator::class.java)?.also {
+                it.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 800, 800), 0), attrs)
+            }
         }
     }
 
@@ -173,6 +211,10 @@ class RingService : Service() {
         player?.release()
         player = null
         vibrator?.cancel()
+        oldVolume?.let {
+            try { getSystemService(AudioManager::class.java).setStreamVolume(AudioManager.STREAM_ALARM, it, 0) } catch (_: Exception) {}
+        }
+        oldVolume = null
         RingActivity.current?.finish()
         super.onDestroy()
     }
@@ -186,10 +228,10 @@ class RingService : Service() {
         var ringing = false
             private set
 
-        fun start(context: Context, id: Int, label: String, sound: String?, kind: String = "clock") {
+        fun start(context: Context, id: Int, label: String, sound: String?, kind: String = "clock", style: String? = null) {
             context.startForegroundService(
                 Intent(context, RingService::class.java).putExtra("id", id).putExtra("label", label)
-                    .putExtra("sound", sound).putExtra("kind", kind)
+                    .putExtra("sound", sound).putExtra("kind", kind).putExtra("style", style)
             )
         }
     }

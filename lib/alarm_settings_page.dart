@@ -1,9 +1,8 @@
-import 'dart:io';
+import 'dart:convert';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
 
+import 'alarm_sound.dart';
 import 'haptics.dart';
 import 'native.dart';
 
@@ -49,16 +48,24 @@ class _AlarmSettingsPageState extends State<AlarmSettingsPage> with WidgetsBindi
   }
 
   Future<void> _pickSound() async {
-    final r = await FilePicker.platform.pickFiles(type: FileType.audio);
-    final f = r?.files.single;
-    if (f?.path == null) return;
-    // A copy in the app's own folder, so alarms still ring if the original is moved.
-    final dir = Directory('${(await getApplicationDocumentsDirectory()).path}/alarm_sounds');
-    await dir.create(recursive: true);
-    final copy = await File(f!.path!).copy('${dir.path}/global_${DateTime.now().millisecondsSinceEpoch}_${f.name}');
-    await Native.setAlarmPref('soundName', f.name.replaceAll(RegExp(r'\.[^.]+$'), ''));
-    await _set('sound', copy.path);
+    final picked = await pickAlarmSound(context, noneLabel: "The phone's alarm sound", current: _p['soundName'] as String?);
+    if (picked == null) return;
+    await Native.setAlarmPref('soundName', picked.name);
+    await _set('sound', picked.path);
     Haptics.success();
+  }
+
+  Map? get _style {
+    try {
+      return _p['style'] == null ? null : jsonDecode(_p['style'] as String) as Map;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _pickStyle() async {
+    final picked = await pickAlarmStyle(context, _style, allowUsual: false, sound: _p['sound'] as String?);
+    if (picked != null) await _set('style', jsonEncode(picked));
   }
 
   @override
@@ -112,24 +119,19 @@ class _AlarmSettingsPageState extends State<AlarmSettingsPage> with WidgetsBindi
             leading: const Icon(Icons.music_note_outlined),
             title: Text('${_p['soundName'] ?? "The phone's alarm sound"}'),
             subtitle: const Text('The ringtone of every alarm that has no music of its own'),
-            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-              if (_p['sound'] != null)
-                IconButton(
-                  tooltip: "Use the phone's alarm sound",
-                  icon: const Icon(Icons.close),
-                  onPressed: () async {
-                    await Native.setAlarmPref('soundName', null);
-                    await _set('sound', null);
-                  },
-                ),
-              TextButton(onPressed: _pickSound, child: const Text('Choose')),
-            ]),
+            trailing: TextButton(onPressed: _pickSound, child: const Text('Choose')),
+          ),
+          ListTile(
+            leading: const Icon(Icons.volume_up_outlined),
+            title: const Text('Intensity'),
+            subtitle: Text(AlarmStyle.describe(_style, none: "Phone's alarm volume · vibrates")),
+            trailing: TextButton(onPressed: _pickStyle, child: const Text('Change')),
           ),
           title('Try it'),
           ListTile(
             leading: const Icon(Icons.alarm_on_outlined),
             title: const Text('Ring a test alarm now'),
-            onTap: () => Native.ringNow('Test alarm', null),
+            onTap: () => Native.ringNow('Test alarm', null, style: _p['style'] as String?),
           ),
           ListTile(
             leading: const Icon(Icons.lock_clock_outlined),

@@ -1,10 +1,9 @@
-import 'dart:io';
+import 'dart:convert';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
 
+import 'alarm_sound.dart';
 import 'app_alarms.dart';
 import 'clock.dart';
 import 'focus_screen.dart';
@@ -200,6 +199,7 @@ Future<void> showAlarmEditor(BuildContext context, Store s, {Rec? clock, bool at
   var once = clock?['once'] != false;
   String? sound = clock?['sound'] as String?;
   String? soundName = clock?['soundName'] as String?;
+  Map? style = clock?['style'] as Map?;
   String? note;
 
   return showModalBottomSheet<void>(
@@ -221,19 +221,13 @@ Future<void> showAlarmEditor(BuildContext context, Store s, {Rec? clock, bool at
       }
 
       Future<void> pickMusic() async {
-        if (kIsWeb) return;
-        final r = await FilePicker.platform.pickFiles(type: FileType.audio);
-        final f = r?.files.single;
-        if (f?.path == null) return;
-        // A copy in the app's own folder, so the alarm still rings if the original is moved.
-        final dir = Directory('${(await getApplicationDocumentsDirectory()).path}/alarm_sounds');
-        await dir.create(recursive: true);
-        final copy = await File(f!.path!).copy('${dir.path}/${DateTime.now().millisecondsSinceEpoch}_${f.name}');
-        Haptics.success();
-        setS(() {
-          sound = copy.path;
-          soundName = f.name.replaceAll(RegExp(r'\.[^.]+$'), '');
-        });
+        final picked = await pickAlarmSound(ctx, noneLabel: 'Your usual alarm sound', current: soundName);
+        if (picked != null) setS(() => (sound, soundName) = (picked.path, picked.name));
+      }
+
+      Future<void> pickStyle() async {
+        final picked = await pickAlarmStyle(ctx, style, sound: sound);
+        if (picked != null) setS(() => style = picked.isEmpty ? null : picked);
       }
 
       Future<void> save() async {
@@ -246,6 +240,7 @@ Future<void> showAlarmEditor(BuildContext context, Store s, {Rec? clock, bool at
           'on': true,
           'sound': sound,
           'soundName': soundName,
+          'style': style,
           'at': null,
           if (atPlace) ...{'place': placeId, 'when': when, 'once': once} else ...{'time': time, 'days': days.toList()..sort()},
         };
@@ -345,18 +340,14 @@ Future<void> showAlarmEditor(BuildContext context, Store s, {Rec? clock, bool at
               leading: const Icon(Icons.music_note_outlined),
               title: Text(soundName ?? 'Your usual alarm sound'),
               subtitle: const Text('Plays on repeat until you stop it'),
-              trailing: Wrap(children: [
-                if (sound != null)
-                  IconButton(
-                    tooltip: "Use the phone's alarm sound",
-                    icon: const Icon(Icons.close),
-                    onPressed: () => setS(() {
-                      sound = null;
-                      soundName = null;
-                    }),
-                  ),
-                TextButton(onPressed: kIsWeb ? null : pickMusic, child: const Text('Choose music')),
-              ]),
+              trailing: TextButton(onPressed: kIsWeb ? null : pickMusic, child: const Text('Choose')),
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.volume_up_outlined),
+              title: const Text('Intensity'),
+              subtitle: Text(AlarmStyle.describe(style)),
+              trailing: TextButton(onPressed: kIsWeb ? null : pickStyle, child: const Text('Change')),
             ),
             if (note != null) Text(note!, style: TextStyle(color: scheme.error)),
             const SizedBox(height: 8),
@@ -376,7 +367,8 @@ Future<void> showAlarmEditor(BuildContext context, Store s, {Rec? clock, bool at
                 ),
               const Spacer(),
               OutlinedButton(
-                onPressed: () => Native.ringNow(label.text.trim().isEmpty ? 'Test alarm' : label.text.trim(), sound),
+                onPressed: () => Native.ringNow(label.text.trim().isEmpty ? 'Test alarm' : label.text.trim(), sound,
+                    style: style == null ? null : jsonEncode(style)),
                 child: const Text('Test'),
               ),
               const SizedBox(width: 8),

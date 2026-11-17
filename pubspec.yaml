@@ -33,6 +33,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/wakeword/
+    - assets/sounds/
   fonts:
     - family: Bricolage
       fonts:

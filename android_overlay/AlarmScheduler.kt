@@ -48,13 +48,13 @@ object AlarmScheduler {
 
     fun schedule(
         context: Context, id: Int, millis: Long, kind: String, label: String, repeatDaily: Boolean,
-        days: Int = 0, sound: String? = null
+        days: Int = 0, sound: String? = null, style: String? = null
     ) {
         val all = load(context)
         all.put(
             id.toString(),
             JSONObject().put("millis", millis).put("kind", kind).put("label", label).put("repeat", repeatDaily)
-                .put("days", days).put("sound", sound ?: "")
+                .put("days", days).put("sound", sound ?: "").put("style", style ?: "")
         )
         save(context, all)
         arm(context, id, millis, kind)

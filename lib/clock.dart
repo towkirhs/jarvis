@@ -115,6 +115,7 @@ class Clock {
         'label': (c['label'] as String?)?.isNotEmpty == true ? c['label'] : 'Alarm',
         'days': mask(days),
         'sound': c['sound'],
+        if (c['style'] is Map) 'style': jsonEncode(c['style']),
       });
     }
     if (changed) s.save();
@@ -136,6 +137,7 @@ class Clock {
           label: t['label'] as String,
           days: t['days'] as int,
           sound: t['sound'] as String?,
+          style: t['style'] as String?,
         );
       }
     }
