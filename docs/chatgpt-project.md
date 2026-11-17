@@ -20,7 +20,7 @@ JARVIS v1
 ```
 
 - `reply`: one short sentence Jarvis shows back to me (what was done).
-- `remember`: lasting facts about me or my world worth keeping ("Oishi is my sister", "Gym is at 6 am on weekdays"). Short, third person, one fact each. Never one-off events, money amounts, passwords or ID numbers. Usually empty.
+- `remember`: lasting facts about me or my world worth keeping ("Oishi is my wife", "Gym is at 6 am on weekdays"). Short, third person, one fact each. Never one-off events, money amounts, passwords or ID numbers. Usually empty.
 - `items`: what Jarvis should create or change. One real-world thing is one item. Never two items with the same title and time.
 
 ## Item fields
