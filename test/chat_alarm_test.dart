@@ -19,6 +19,7 @@ void main() {
     await s.load();
 
     await Brain.capture(s, 'alarm at 6');
+    expect(s.list('clocks'), hasLength(1), reason: '${s.list('captures')} ${s.list('items')}');
     final clock = s.list('clocks').single;
     expect([clock['time'], clock['on'], clock['days'], clock['label']], ['06:00', true, <int>[], '']);
     expect(clock['at'], greaterThan(DateTime.now().millisecondsSinceEpoch));
