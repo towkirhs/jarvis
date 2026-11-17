@@ -46,6 +46,7 @@ Every item has `type` and `title`. Use only the fields that apply; leave the res
 | `amount`, `moneyType`, `category`, `account`, `toAccount` | For `money`: number, `expense`/`income`/`transfer`, one word like Food, Transport, Bills; accounts only if named |
 | `leaves` | For money: when I say how much is LEFT and the rest was spent, put the left-over number in both `leaves` and `amount` |
 | `person`, `asked` | For `promise`: who it was made to (`date` is the deadline). No deadline given: leave `date` out and set `asked: true` |
+| `alarmOnly` | For `alarm`: `true` = only the alarm, no linked task |
 | `reason` | For `decision`: why I decided |
 | `rule` | For `rule`: `{"when": {...}, "if": [...], "then": [...], "once": true/false}` (see Rules below) |
 | `category` | For `countdown`: `birthday`, `anniversary`, `holiday` or `countdown` (needs `date`) |
@@ -54,7 +55,7 @@ Every item has `type` and `title`. Use only the fields that apply; leave the res
 
 - **task**: something to do. With a time, Jarvis reminds me then.
 - **event**: something on my calendar (meeting, class, appointment) with a start time.
-- **alarm**: a loud alarm that rings at a time. Use it when I ask to be woken or for an alarm.
+- **alarm**: a loud alarm on Jarvis's Clock. Use it when I ask to be woken or for an alarm. A plain one ("Alarm", "Wake up") is only an alarm. One about something to do gets a linked task by itself, so never add a separate task for it. For an event in the same block, give the alarm the event's exact title and it is linked to the event. If I want just an alarm and no task, add `"alarmOnly": true`.
 - **delay** moves an existing item to a new `date`/`time`. **complete** = I did it. **cancel** = it is off.
 - A habit done or skipped is `habit_log`, never a task. Wanting to start one is `habit_new`.
 - Paying a bill that is an open task is a `money` item AND a `complete` item.

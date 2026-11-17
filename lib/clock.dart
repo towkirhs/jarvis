@@ -25,6 +25,12 @@ class Clock {
     return t;
   }
 
+  /// An alarm that is only an alarm ("alarm", "wake up", "9 am alarm"), not about something to do.
+  static bool plainAlarm(String title) => RegExp(
+        r'^(?:(?:my|an?|the|morning|early)\s+)*(?:alarm|wake(?:\s*(?:me\s*)?up)?|wake me|\d{1,2}(?:[:.]\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.)?\s*alarm|alarm\s+(?:at|for)\s+\d.*)$',
+        caseSensitive: false,
+      ).hasMatch(title.trim());
+
   /// Weekdays as bits for the phone: Monday = bit 0 … Sunday = bit 6.
   static int mask(List<int> days) => days.fold(0, (m, d) => m | (1 << (d - 1)));
 

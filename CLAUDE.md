@@ -135,7 +135,11 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    Built-in sounds in `assets/sounds/` (Digital alarm 1 and 2, Universfield via Pixabay) are copied to `alarm_sounds/` when picked;
    `AlarmSounds.ensureDefault` makes Digital alarm the global sound once per phone (`local('defaultSound')`). Untested on a phone.
    Chat alarms (build after 238): an `alarm` from the chat, the local parser or ChatGPT becomes a Clock alarm (`clocks`,
-   one-time with `at`, or daily/weekly `days`) in `Brain`; it stays an item only with `untilDone`, a place, or a monthly/yearly repeat.
+   one-time `at` or daily/weekly `days`). A plain one (`Clock.plainAlarm`: "Alarm", "Wake up") is only that; otherwise it
+   links (`clocks.item`, `items.clock`, `clocks.off` = ms before/after the item) to an open item with the same title or a new
+   task, unless `alarmOnly`. `Store._syncLinkedClock` turns it off when the item is finished and moves it with the item; when it
+   rings at the item's own time the item's notice is skipped. Deleting the item removes its alarm. Alarms in a note are applied
+   last. `untilDone`, place and monthly/yearly alarms stay items.
    Your day (build after 228; `lib/day_log.dart` pure, `lib/day_page.dart`, `lib/app_alarms.dart`, `android_overlay/AppWatch.kt`):
    collection `log` ({at, kind: now|check|apps, verb, text, item, from}). Chat notes like "started gym", "back home", "woke up"
    or `now: …` are logged on the phone (`NowLog.parse`, no AI; a note with a time is a plan, not a log); "finished X" marks a

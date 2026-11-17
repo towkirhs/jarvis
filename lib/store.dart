@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'categories.dart';
 import 'clash.dart';
+import 'clock.dart';
 import 'day_log.dart';
 import 'habit_core.dart';
 import 'habit_link.dart';
@@ -335,6 +336,11 @@ class Store extends ChangeNotifier {
     var at = col == 'items' ? r['when'] as int? : r['remindAt'] as int?;
     if (col == 'items') await _syncLead(r, nid, at);
     if (col == 'items') await _syncCheck(r, nid);
+    // A task with its own Clock alarm: the alarm follows the task, and rings instead of the task's reminder.
+    if (col == 'items' && r['clock'] != null && await _syncLinkedClock(r)) {
+      await Native.cancel(nid);
+      return;
+    }
     // "Until done": it comes back at the same time every day until the item is finished.
     final untilDone = col == 'items' && r['untilDone'] == true && at != null;
     if (untilDone) at = nextDaily(at, DateTime.now());
@@ -571,10 +577,15 @@ class Store extends ChangeNotifier {
     if (rid != null && col == 'items') Native.cancel(Lead.id(rid));
     if (rid != null && col == 'items') Native.cancel(CheckIn.id(rid));
     if (rid != null && col == 'countdowns') _cancelCountdown(rid);
+    // A task's own alarm goes with it.
+    final linked = col == 'items' && r['clock'] != null ? byId('clocks', r['clock'] as int) : null;
+    if (linked != null) list('clocks').removeWhere((x) => x['id'] == linked['id']);
     logAction(desc, [
       {'op': 'put', 'col': col, 'rec': old},
+      if (linked != null) {'op': 'put', 'col': 'clocks', 'rec': copyRec(linked)},
     ]);
     save();
+    if (linked != null) Clock.sync(this);
   }
 
   // ---------- items, promises, decisions, inbox ----------
@@ -733,6 +744,37 @@ class Store extends ChangeNotifier {
       await syncRecord('items', i);
     }
     notifyListeners();
+  }
+
+  /// Keeps an item's linked Clock alarm in step: off once the item is finished, moved when the item moves
+  /// (keeping how long before it it rings). True when the alarm rings at the item's own time.
+  Future<bool> _syncLinkedClock(Rec r) async {
+    final c = byId('clocks', r['clock'] as int?);
+    if (c == null) return false;
+    final off = (c['off'] as int?) ?? 0;
+    final w = r['when'];
+    final days = Clock.days(c);
+    var changed = false;
+    if (r['status'] != 'open') {
+      if (days.isEmpty && c['on'] == true) {
+        c['on'] = false;
+        changed = true;
+      }
+    } else if (w is int) {
+      final at = DateTime.fromMillisecondsSinceEpoch(w + off);
+      final time = '${two(at.hour)}:${two(at.minute)}';
+      if (days.isEmpty && c['at'] != w + off) {
+        c['at'] = w + off;
+        c['time'] = time;
+        c['on'] = at.isAfter(DateTime.now());
+        changed = true;
+      } else if (days.isNotEmpty && c['time'] != time) {
+        c['time'] = time;
+        changed = true;
+      }
+    }
+    if (changed) await Clock.sync(this);
+    return off == 0 && c['on'] == true;
   }
 
   /// The "Finished?" question at the end of a planned block.

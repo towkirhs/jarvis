@@ -359,7 +359,10 @@ class Brain {
     final msgs = <String>[];
     try {
       final topics = ((data['topics'] as List?) ?? []).map((e) => e.toString().toLowerCase()).toList();
-      for (final raw in ((data['items'] as List?) ?? [])) {
+      // Alarms come last, so an alarm for an event or task in the same note can join it.
+      final parsed = [...((data['items'] as List?) ?? [])]..sort((a, b) =>
+          ((a as Map)['type'] == 'alarm' ? 1 : 0).compareTo((b as Map)['type'] == 'alarm' ? 1 : 0));
+      for (final raw in parsed) {
         final p = Map<String, dynamic>.from(raw as Map);
         final type = (p['type'] ?? 'note').toString();
         if (type == 'ignore') continue;
@@ -592,7 +595,9 @@ class Brain {
           : '. You usually take ${sug.ratio.toStringAsFixed(1)}x longer; try ${sug.est} min';
       return 'Task: $title${when == null ? '' : ' (${niceWhen(when)}$nag)'}$at$tail';
     }
-    // "set alarm 5 am": a real alarm on the Clock page (its sound, intensity, Snooze), not an item in the list.
+    // An alarm is a real alarm on the Clock page (its sound, intensity, Snooze). A plain one ("set alarm 5 am",
+    // "wake me at 6") is only that. One about something ("alarm 7:45 for the match") is linked to that thing:
+    // an open item with the same title, or a new task, unless the person asked for just an alarm (`alarmOnly`).
     // Alarms that must be marked done, ring at a place, or repeat monthly or yearly stay items.
     if (type == 'alarm' && when != null && extra['untilDone'] != true && place == null &&
         const [null, 'daily', 'weekly'].contains(extra['repeat'])) {
@@ -601,17 +606,36 @@ class Brain {
       final time = '${two(t.hour)}:${two(t.minute)}';
       final days = switch (extra['repeat']) { 'daily' => [1, 2, 3, 4, 5, 6, 7], 'weekly' => [t.weekday], _ => <int>[] };
       final ring = days.isNotEmpty ? null : (t.isAfter(now) ? when : Clock.next(time, days, now).millisecondsSinceEpoch);
-      final label = title.trim().toLowerCase() == 'alarm' ? '' : title;
+      final label = Clock.plainAlarm(title) ? '' : title;
       final every = days.length == 7 ? ', every day' : (days.length == 1 ? ', every ${Clock.dayNames[days.first - 1]}' : '');
       final shown = ring == null ? '${clock(when)}$every' : niceWhen(ring);
       if (s.list('clocks').any((c) => c['on'] == true && c['time'] == time && (ring == null ? Clock.days(c).join() == days.join() : c['at'] == ring))) {
         return 'Already have an alarm at $shown';
       }
-      final alarm = {'id': s.nextId(), 'label': label, 'on': true, 'time': time, 'days': days, 'at': ring};
+      final alarm = <String, dynamic>{'id': s.nextId(), 'label': label, 'on': true, 'time': time, 'days': days, 'at': ring};
       s.list('clocks').add(alarm);
       undo.add({'op': 'rm', 'col': 'clocks', 'id': alarm['id']});
+      var tail = '';
+      if (label.isNotEmpty && p['alarmOnly'] != true) {
+        final key = title.trim().toLowerCase();
+        final same = s.list('items').where((i) =>
+            i['status'] == 'open' && i['clock'] == null && (i['title'] as String).trim().toLowerCase() == key).firstOrNull;
+        if (same != null) {
+          undo.add({'op': 'put', 'col': 'items', 'rec': copyRec(same)});
+          same['clock'] = alarm['id'];
+          alarm['item'] = same['id'];
+          // How long before (or after) the item it rings, kept when the item moves.
+          if (same['when'] is int) alarm['off'] = (ring ?? when) - (same['when'] as int);
+          await s.syncRecord('items', same);
+          tail = ', linked to the ${same['kind'] == 'event' ? 'event' : 'task'}';
+        } else {
+          final task = await s.addItem(kind: 'task', title: title, when: ring ?? when, captureId: capId, undo: undo, extra: {...extra, 'clock': alarm['id']});
+          alarm['item'] = task['id'];
+          tail = ', with a linked task';
+        }
+      }
       await Clock.sync(s);
-      return 'Alarm: ${label.isEmpty ? '' : '$label, '}$shown';
+      return 'Alarm: ${label.isEmpty ? '' : '$label, '}$shown$tail';
     }
     if (type == 'event' || type == 'alarm') {
       // Warn about an overlap, but still add it: the person decides.
@@ -1074,7 +1098,7 @@ Return ONLY JSON in this shape:
 
 Rules:
 - Never invent a date or time that was not said. If it is unclear ("later", "soon"), set time to null and lower the confidence.
-${events ? '- A meeting or appointment at a time is "event".' : '- Never use "event": the person puts things on their calendar by starting with the word "calendar". A meeting or appointment at a time is a "task" with that date and time.'} Use "alarm" only when the person asks to be woken or reminded at a time.
+${events ? '- A meeting or appointment at a time is "event".' : '- Never use "event": the person puts things on their calendar by starting with the word "calendar". A meeting or appointment at a time is a "task" with that date and time.'} Use "alarm" only when the person asks to be woken or for an alarm. Jarvis sets it on the Clock and, when it is about something to do, adds a linked task by itself: never add a separate task for the same thing. If the alarm is for an event or task in the same note, give it the same title as that item. If they want just an alarm and no task, set "alarmOnly": true.
 - A habit is something repeated over weeks (gym, reading, praying, studying). Reporting that it was done or skipped is "habit_log" with the day it happened, never a task. Saying they want to start doing something regularly is "habit_new". A one-off thing to do is a task.
 - "priority": "high" for urgent or important things the person stresses, otherwise only if they say it. "tags" and "list" only if they name them (like "add to my study list", "tag it exam"). "repeat" only for things said to repeat ("every day", "every Monday" = weekly). "durationMinutes" is how long an event lasts. "description" holds extra details that do not fit the title.
 - "countdown" is a date to count down to or remember every year: a birthday, an anniversary, a holiday, or an exam or trip the person wants a countdown for. "category" is "birthday", "anniversary", "holiday" or "countdown", and "date" is required.
