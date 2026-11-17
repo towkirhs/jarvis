@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'app_alarms.dart';
 import 'clock.dart';
 import 'focus_screen.dart';
 import 'haptics.dart';
@@ -35,7 +36,7 @@ class AlarmsTab extends StatelessWidget {
   final Store store;
 
   Future<void> _add(BuildContext context) async {
-    final atPlace = await showModalBottomSheet<bool>(
+    final kind = await showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
       builder: (ctx) => SafeArea(
@@ -44,18 +45,27 @@ class AlarmsTab extends StatelessWidget {
             leading: const Icon(Icons.alarm),
             title: const Text('At a time'),
             subtitle: const Text('Wake up, once or on chosen days'),
-            onTap: () => Navigator.pop(ctx, false),
+            onTap: () => Navigator.pop(ctx, 'time'),
           ),
           ListTile(
             leading: const Icon(Icons.place_outlined),
             title: const Text('At a place'),
             subtitle: const Text('Rings when you arrive or leave, like your bus stop'),
-            onTap: () => Navigator.pop(ctx, true),
+            onTap: () => Navigator.pop(ctx, 'place'),
           ),
+          if (!kIsWeb)
+            ListTile(
+              leading: const Icon(Icons.apps),
+              title: const Text('About an app'),
+              subtitle: const Text('When you open it, or after too long in it'),
+              onTap: () => Navigator.pop(ctx, 'app'),
+            ),
         ]),
       ),
     );
-    if (atPlace != null && context.mounted) await showAlarmEditor(context, store, atPlace: atPlace);
+    if (kind == null || !context.mounted) return;
+    if (kind == 'app') return showAppAlarmEditor(context, store);
+    await showAlarmEditor(context, store, atPlace: kind == 'place');
   }
 
   @override
@@ -81,13 +91,14 @@ class AlarmsTab extends StatelessWidget {
             final t = Clock.next(c['time'] as String, Clock.days(c), now);
             if (soonest == null || t.isBefore(soonest)) soonest = t;
           }
-          if (clocks.isEmpty) {
+          final apps = store.list('appAlarms');
+          if (clocks.isEmpty && apps.isEmpty) {
             return Center(
               child: Padding(
                 padding: const EdgeInsets.all(32),
                 child: Text(
-                  'No alarms yet. Add one at a time, with your own music, or at a place: '
-                  'it rings when you get there.',
+                  'No alarms yet. Add one at a time, with your own music, at a place: it rings when you get there, '
+                  'or about an app: when you open it or after too long in it.',
                   textAlign: TextAlign.center,
                   style: tt.bodyLarge?.copyWith(color: scheme.onSurfaceVariant),
                 ),
@@ -103,6 +114,12 @@ class AlarmsTab extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               for (final c in clocks) _tile(context, c, places),
+              if (apps.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Text('App alarms', style: tt.titleMedium),
+                const SizedBox(height: 8),
+                for (final a in apps) AppAlarmTile(store: store, alarm: a),
+              ],
             ],
           );
         },

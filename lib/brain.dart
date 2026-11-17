@@ -9,6 +9,7 @@ import 'ai.dart';
 import 'categories.dart';
 import 'chatgpt_block.dart';
 import 'clash.dart';
+import 'day_log.dart';
 import 'decide.dart';
 import 'destination.dart';
 import 'habit_core.dart';
@@ -42,7 +43,10 @@ class Brain {
         !ChatGptBlock.has(raw) &&
         s.settings['prefilter'] == true &&
         !looksLikeUpdate(raw) &&
-        Web.asked(raw) == null;
+        Web.asked(raw) == null &&
+        // "started gym" is logged on the phone; it never goes to the AI anyway.
+        NowLog.parse(raw) == null &&
+        Destination.of(raw)?.type != 'now';
     s.list('captures').add({
       'id': s.nextId(),
       'ts': DateTime.now().millisecondsSinceEpoch,
@@ -183,6 +187,14 @@ class Brain {
           {'type': 'decision', 'title': (m?[1] ?? note).trim(), 'reason': m?[2]?.trim(), 'confidence': 1},
         ],
       });
+    }
+    // "started gym", "back home", "now: reading": a line in today's log, read on the phone.
+    if (c['image'] == null && (dest == null || dest.type == 'now')) {
+      final act = NowLog.parse(note, forced: dest?.type == 'now');
+      if (act != null) {
+        c['via'] = 'phone';
+        return _apply(s, c, {'items': <dynamic>[], 'reply': await s.logNow(act), 'cleaned': note});
+      }
     }
     // "decide: tea or coffee": the odds of each, here in the chat.
     if (dest?.type == 'decide' && c['image'] == null) {

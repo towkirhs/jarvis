@@ -68,6 +68,22 @@ object NativeChannel {
                 result.success(null)
             }
             "takeGeoFired" -> result.success(GeoQueue.take(context))
+            "takeChecks" -> result.success(CheckQueue.take(context))
+            "usageAccess" -> result.success(AppUsage.allowed(context))
+            "openUsageAccess" -> {
+                context.startActivity(
+                    Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+                result.success(null)
+            }
+            "appSessions" -> result.success(
+                AppUsage.sessions(context, call.argument<Number>("from")!!.toLong(), call.argument<Number>("to")!!.toLong())
+            )
+            "apps" -> result.success(AppUsage.apps(context))
+            "appAlarms" -> {
+                AppAlarms.set(context, call.argument<String>("json") ?: "[]")
+                result.success(null)
+            }
             "calendarAccess" -> result.success(PhoneCalendar.allowed(context))
             "calendars", "calendarInstances", "calendarInsert", "calendarUpdate", "calendarDelete", "calendarEvent", "calendarOpen" -> {
                 if (!PhoneCalendar.allowed(context)) {

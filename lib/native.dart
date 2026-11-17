@@ -256,6 +256,54 @@ class Native {
     if (!kIsWeb) await _ch.invokeMethod('openOverlaySettings');
   }
 
+  /// Answers to "Finished …?" check-ins: {nid, a: done|more|other, text, at}.
+  static Future<List<Map<String, dynamic>>> takeChecks() async {
+    if (kIsWeb) return [];
+    final raw = await _ch.invokeMethod<String>('takeChecks');
+    if (raw == null) return [];
+    return [for (final e in jsonDecode(raw) as List) Map<String, dynamic>.from(e as Map)];
+  }
+
+  /// Whether Jarvis may read how long apps are used (Android's "Usage access").
+  static Future<bool> usageAccess() async {
+    if (kIsWeb) return false;
+    try {
+      return await _ch.invokeMethod<bool>('usageAccess') ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<void> openUsageAccess() async {
+    if (!kIsWeb) await _ch.invokeMethod('openUsageAccess');
+  }
+
+  /// Stretches of time in apps between two moments: {pkg, name, start, end}.
+  static Future<List<Map>> appSessions(DateTime from, DateTime to) async {
+    if (kIsWeb) return [];
+    try {
+      return (await _ch.invokeMethod<List>('appSessions', {'from': from.millisecondsSinceEpoch, 'to': to.millisecondsSinceEpoch}) ?? [])
+          .cast<Map>();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Apps on the home screen: {pkg, name}.
+  static Future<List<Map>> apps() async {
+    if (kIsWeb) return [];
+    try {
+      return (await _ch.invokeMethod<List>('apps') ?? []).cast<Map>();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// The app alarms that are on, for the phone's watcher.
+  static Future<void> appAlarms(String json) async {
+    if (!kIsWeb) await _ch.invokeMethod('appAlarms', {'json': json});
+  }
+
   /// Notification ids the person tapped Done on.
   static Future<List<int>> takeDone() async {
     if (kIsWeb) return [];

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'cal_index.dart';
+import 'day_log.dart';
+import 'day_page.dart';
 import 'day_planner.dart';
 import 'focus_screen.dart';
 import 'habit_core.dart';
@@ -18,8 +20,11 @@ import 'task_sheet.dart';
 /// Tap a piece for its time, length, blocks, importance for the day, links, or another day.
 /// Apply gives each piece its time, so the day is on the calendar and can be edited there.
 class PlanDayPage extends StatefulWidget {
-  const PlanDayPage({super.key, required this.store, this.day});
+  const PlanDayPage({super.key, required this.store, this.day, this.replan = false});
   final Store store;
+
+  /// Opened to place the rest of the day again (from "You're behind").
+  final bool replan;
 
   /// The day to plan. Today when null.
   final DateTime? day;
@@ -71,7 +76,7 @@ class _PlanDayPageState extends State<PlanDayPage> {
 
   /// Tasks planned earlier keep their time, unless Jarvis is asked to place them again.
   final _unpinned = <int>{};
-  bool _replan = false;
+  late bool _replan = widget.replan;
 
   /// The tray's tab: 0 tasks, 1 habits, 2 conditions.
   int _tab = 0;
@@ -805,6 +810,47 @@ class _PlanDayPageState extends State<PlanDayPage> {
     );
   }
 
+  /// Today only: how far the plan has slipped, with a way to place the rest of the day again.
+  Widget _behind(BuildContext context) {
+    final check = PlanCheck.of(store.list('items'), DateTime.now(), dayKey(_day));
+    if (check.late.isEmpty && check.skipped == 0) return const SizedBox.shrink();
+    final scheme = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    final late = check.late.isNotEmpty;
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Card(
+        margin: EdgeInsets.zero,
+        color: late ? scheme.tertiaryContainer : scheme.surfaceContainerLow,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 12, 8),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(check.summary, style: tt.titleSmall?.copyWith(color: late ? scheme.onTertiaryContainer : null)),
+            const SizedBox(height: 2),
+            Text(
+              late
+                  ? 'Not done: ${check.late.map((i) => i['title']).join(', ')}. Place the rest of the day again; what no longer fits '
+                      'goes under "Doesn\'t fit" for you to drop or move.'
+                  : 'Skipped pieces are back in the plan, to place later today or move.',
+              style: tt.bodyMedium?.copyWith(color: late ? scheme.onTertiaryContainer : scheme.onSurfaceVariant),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                icon: const Icon(Icons.auto_fix_high),
+                label: const Text('Replan the rest'),
+                onPressed: () {
+                  Haptics.tap();
+                  setState(() => _replan = true);
+                },
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => ListenableBuilder(
         listenable: store,
@@ -858,9 +904,12 @@ class _PlanDayPageState extends State<PlanDayPage> {
                   ),
                 PopupMenuButton<String>(
                   tooltip: 'Options',
-                  onSelected: (v) => store.setDayShift(store.dayShift == 0),
+                  onSelected: (v) => v == 'day'
+                      ? Navigator.push(context, MaterialPageRoute(builder: (_) => DayPage(store: store)))
+                      : store.setDayShift(store.dayShift == 0),
                   itemBuilder: (_) => [
                     CheckedPopupMenuItem(value: 'dayStart', checked: store.dayShift > 0, child: const Text('Day starts at 5 am')),
+                    const PopupMenuItem(value: 'day', child: Text('Your day so far')),
                   ],
                 ),
                 IconButton(
@@ -897,6 +946,7 @@ class _PlanDayPageState extends State<PlanDayPage> {
                         Expanded(child: Text(n)),
                       ]),
                     ),
+                  if (_isToday && !_replan) _behind(context),
                   if (planned)
                     Align(
                       alignment: Alignment.centerLeft,

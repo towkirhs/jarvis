@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'categories.dart';
 import 'clash.dart';
+import 'day_log.dart';
 import 'habit_core.dart';
 import 'habit_link.dart';
 import 'native.dart';
@@ -73,6 +74,7 @@ class Store extends ChangeNotifier {
   static const _collections = [
     'captures', 'items', 'habits', 'promises', 'decisions', 'inbox', 'actions', 'countdowns', 'focus', 'tx', 'entries',
     'rooms', 'rentPays', 'roomBills', 'houseCosts', 'clocks', 'places', 'memories', 'loanPeople', 'loans', 'cards', 'rules', 'words', 'profile', 'goals', 'incomes', 'incomePays',
+    'log', 'appAlarms',
   ];
 
   Future<void> load() async {
@@ -332,6 +334,7 @@ class Store extends ChangeNotifier {
     if (nid == null) return;
     var at = col == 'items' ? r['when'] as int? : r['remindAt'] as int?;
     if (col == 'items') await _syncLead(r, nid, at);
+    if (col == 'items') await _syncCheck(r, nid);
     // "Until done": it comes back at the same time every day until the item is finished.
     final untilDone = col == 'items' && r['untilDone'] == true && at != null;
     if (untilDone) at = nextDaily(at, DateTime.now());
@@ -566,6 +569,7 @@ class Store extends ChangeNotifier {
     final rid = (col == 'habits' ? r['rid'] : r['nid']) as int?;
     if (rid != null) Native.cancel(rid);
     if (rid != null && col == 'items') Native.cancel(Lead.id(rid));
+    if (rid != null && col == 'items') Native.cancel(CheckIn.id(rid));
     if (rid != null && col == 'countdowns') _cancelCountdown(rid);
     logAction(desc, [
       {'op': 'put', 'col': col, 'rec': old},
@@ -718,6 +722,116 @@ class Store extends ChangeNotifier {
       if (done >= ((parent['est'] as int?) ?? 0)) await markDone(parent);
     }
     await boost('Done: ${it['title']}');
+  }
+
+  /// Whether planned blocks ask "Finished?" when they end (per device, on unless turned off).
+  bool get checkIns => local('checkIns') != '0';
+
+  Future<void> setCheckIns(bool on) async {
+    await setLocal('checkIns', on ? '1' : '0');
+    for (final i in list('items').where((i) => i['planned'] != null && i['nid'] != null).toList()) {
+      await syncRecord('items', i);
+    }
+    notifyListeners();
+  }
+
+  /// The "Finished?" question at the end of a planned block.
+  Future<void> _syncCheck(Rec r, int nid) async {
+    final at = checkIns ? CheckIn.at(r) : null;
+    if (at == null || at <= DateTime.now().millisecondsSinceEpoch) {
+      await Native.cancel(CheckIn.id(nid));
+      return;
+    }
+    await Native.schedule(id: CheckIn.id(nid), millis: at, kind: 'checkin', label: '${r['title']}');
+  }
+
+  /// "started gym", "back home": a line in the day's log. Finishing a task you name marks it done,
+  /// starting one starts its clock. Returns Jarvis's answer.
+  Future<String> logNow(NowAct act, {DateTime? at}) async {
+    final t = at ?? DateTime.now();
+    final task = act.verb == 'start' || act.verb == 'finish' ? NowLog.task(list('items'), act.what) : null;
+    final e = {
+      'id': nextId(), 'at': t.millisecondsSinceEpoch, 'kind': 'now', 'verb': act.verb, 'text': act.text,
+      if (task != null) 'item': task['id'],
+    };
+    list('log').add(e);
+    logAction('Noted: ${act.text}', [
+      {'op': 'rm', 'col': 'log', 'id': e['id']},
+    ]);
+    var extra = '';
+    if (task != null && act.verb == 'start' && task['startedAt'] == null) {
+      task['startedAt'] = t.millisecondsSinceEpoch;
+      extra = ' Started the clock on "${task['title']}".';
+    }
+    if (task != null && act.verb == 'finish') {
+      await markDone(task);
+      extra = ' Marked "${task['title']}" done.';
+    }
+    save();
+    final h = t.hour % 12 == 0 ? 12 : t.hour % 12;
+    return 'Noted at $h:${t.minute.toString().padLeft(2, '0')} ${t.hour < 12 ? 'am' : 'pm'}: ${act.text}.$extra';
+  }
+
+  /// Your answer to a check-in: done, 15 more minutes, skipped, or what you did instead.
+  Future<void> applyCheck(int nid, String answer, String? text, int at) async {
+    final it = list('items').where((i) => i['nid'] == nid).firstOrNull;
+    if (it != null) await answerCheck(it, answer, text, at);
+  }
+
+  /// The same answer given in the app: [answer] is done, more, skip or other (with [text]).
+  Future<void> answerCheck(Rec it, String answer, String? text, int at) async {
+    if (it['when'] is! int) return;
+    final title = it['title'];
+    final from = it['when'] as int;
+    var a = answer;
+    if (a == 'other' && CheckIn.isSkip(text)) a = 'skip';
+    Rec entry(String verb, String line) => {
+          'id': nextId(), 'at': at, 'kind': 'check', 'verb': verb, 'text': line, 'item': it['id'], 'from': from,
+        };
+    switch (a) {
+      case 'done':
+        list('log').add(entry('done', 'Done: $title'));
+        if (it['status'] == 'open') await markDone(it);
+      case 'more':
+        // The block now ends 15 minutes after you answered; its check-in moves with it.
+        final need = ((at + 15 * 60000 - from) / 60000).ceil();
+        if (need > ((it['est'] as int?) ?? 0)) it['est'] = need;
+        await syncRecord('items', it);
+      default:
+        final old = copyRec(it);
+        it['skipped'] = dayKey(fromMs(from));
+        it.remove('planned');
+        final e = entry(a, a == 'skip' ? 'Skipped: $title' : 'Instead of $title: ${text!.trim()}');
+        list('log').add(e);
+        logAction(a == 'skip' ? 'Skipped: $title' : 'Did something else instead of $title', [
+          {'op': 'put', 'col': 'items', 'rec': old},
+          {'op': 'rm', 'col': 'log', 'id': e['id']},
+        ]);
+        await syncRecord('items', it);
+    }
+    save();
+  }
+
+  /// Once a day: yesterday's most used apps, kept in the log (Android forgets app history after about a week).
+  Future<void> noteAppDay() async {
+    if (kIsWeb) return;
+    final y = DateTime.now().subtract(const Duration(days: 1));
+    final key = dayKey(y);
+    if (local('appsNoted') == key || !await Native.usageAccess()) return;
+    await setLocal('appsNoted', key);
+    final start = DateTime(y.year, y.month, y.day);
+    final raw = await Native.appSessions(start, start.add(const Duration(days: 1)));
+    final top = AppSession.totals(raw.map(AppSession.from).whereType<AppSession>().toList()).take(5).toList();
+    if (top.isEmpty) return;
+    list('log').add({
+      'id': nextId(),
+      'at': DateTime(y.year, y.month, y.day, 23, 59).millisecondsSinceEpoch,
+      'kind': 'apps',
+      'day': key,
+      'apps': [for (final t in top) {'name': t.name, 'min': t.minutes}],
+      'text': 'Most used apps: ${top.map((t) => '${t.name} ${DayLog.span(t.minutes)}').join(', ')}',
+    });
+    save();
   }
 
   /// Suggests a longer or shorter estimate once five finished tasks in the category show a pattern.

@@ -185,6 +185,9 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
   /// Applies Done taps from notifications: finishes the item, logs the habit, or keeps the promise.
   Future<void> _applyDone() async {
     final today = dayKey(DateTime.now());
+    for (final c in await Native.takeChecks()) {
+      await s.applyCheck((c['nid'] as num).toInt(), '${c['a']}', c['text'] as String?, (c['at'] as num).toInt());
+    }
     for (final nid in await Native.takeDone()) {
       for (final it in s.list('items').where((i) => i['nid'] == nid && i['status'] == 'open').toList()) {
         await s.markDone(it);
@@ -212,6 +215,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     await Clock.drainFired(s);
     await Clock.drainVoiceAlarms(s);
     await Clock.sync(s);
+    await s.noteAppDay();
     await drainMoneyQueue(s);
     for (final (said, did, ts) in await Native.takeCommandLog()) {
       logCommand(s, said, did, ts: ts);

@@ -33,6 +33,12 @@ class AlarmReceiver : BroadcastReceiver() {
             return
         }
 
+        if (kind == "checkin") {
+            AlarmScheduler.remove(context, id)
+            CheckNote.show(context, id, label)
+            return
+        }
+
         if (entry.getBoolean("repeat")) {
             AlarmScheduler.schedule(context, id, AlarmScheduler.nextDaily(entry.getLong("millis")), kind, label, true)
         } else {

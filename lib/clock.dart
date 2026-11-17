@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'day_log.dart';
 import 'native.dart';
 import 'store.dart';
 
@@ -86,6 +87,7 @@ class Clock {
 
   static String? _sentClocks;
   static String? _sentFences;
+  static String? _sentApps;
 
   /// Makes the phone's alarms and place triggers match the data. Cheap to call often: it only tells the phone
   /// what changed since the last call.
@@ -136,6 +138,14 @@ class Clock {
           sound: t['sound'] as String?,
         );
       }
+    }
+
+    // App alarms run in the phone's own watcher; it needs them again when usage access is turned on.
+    final appJson = jsonEncode(AppAlarm.forPhone(s.list('appAlarms')));
+    final appSig = '$appJson|${await Native.usageAccess()}';
+    if (appSig != _sentApps) {
+      _sentApps = appSig;
+      await Native.appAlarms(appJson);
     }
 
     final fenceJson = jsonEncode(fences(clocks, s.list('items'), s.list('places')));

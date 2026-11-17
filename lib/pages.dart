@@ -22,6 +22,7 @@ import 'drive_page.dart';
 import 'voice_page.dart';
 import 'about_me_page.dart';
 import 'alarm_settings_page.dart';
+import 'day_page.dart';
 import 'rules_page.dart';
 import 'store.dart';
 import 'sync.dart';
@@ -64,6 +65,7 @@ class MoreScreen extends StatelessWidget {
               Text('More', style: Theme.of(context).textTheme.headlineSmall),
               group('Plan', [
                 tile(Icons.auto_awesome_motion, 'Plan my day', 'Tasks, habits and links, placed for you', PlanDayPage(store: store)),
+                tile(Icons.timeline, 'Your day', 'What really happened: your log, check-ins, app time', DayPage(store: store)),
                 tile(Icons.style_outlined, 'Flashcards', '${dueCards(store)} due', RecallPage(store: store)),
                 tile(Icons.inbox_outlined, 'Review inbox', inbox == 0 ? 'All clear' : '$inbox waiting', InboxPage(store: store), badge: inbox),
                 tile(
