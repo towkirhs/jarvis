@@ -9,6 +9,7 @@ import 'ai.dart';
 import 'categories.dart';
 import 'chatgpt_block.dart';
 import 'clash.dart';
+import 'clock.dart';
 import 'day_log.dart';
 import 'decide.dart';
 import 'destination.dart';
@@ -590,6 +591,27 @@ class Brain {
           ? ''
           : '. You usually take ${sug.ratio.toStringAsFixed(1)}x longer; try ${sug.est} min';
       return 'Task: $title${when == null ? '' : ' (${niceWhen(when)}$nag)'}$at$tail';
+    }
+    // "set alarm 5 am": a real alarm on the Clock page (its sound, intensity, Snooze), not an item in the list.
+    // Alarms that must be marked done, ring at a place, or repeat monthly or yearly stay items.
+    if (type == 'alarm' && when != null && extra['untilDone'] != true && place == null &&
+        const [null, 'daily', 'weekly'].contains(extra['repeat'])) {
+      final now = DateTime.now();
+      final t = DateTime.fromMillisecondsSinceEpoch(when);
+      final time = '${two(t.hour)}:${two(t.minute)}';
+      final days = switch (extra['repeat']) { 'daily' => [1, 2, 3, 4, 5, 6, 7], 'weekly' => [t.weekday], _ => <int>[] };
+      final ring = days.isNotEmpty ? null : (t.isAfter(now) ? when : Clock.next(time, days, now).millisecondsSinceEpoch);
+      final label = title.trim().toLowerCase() == 'alarm' ? '' : title;
+      final every = days.length == 7 ? ', every day' : (days.length == 1 ? ', every ${Clock.dayNames[days.first - 1]}' : '');
+      final shown = ring == null ? '${clock(when)}$every' : niceWhen(ring);
+      if (s.list('clocks').any((c) => c['on'] == true && c['time'] == time && (ring == null ? Clock.days(c).join() == days.join() : c['at'] == ring))) {
+        return 'Already have an alarm at $shown';
+      }
+      final alarm = {'id': s.nextId(), 'label': label, 'on': true, 'time': time, 'days': days, 'at': ring};
+      s.list('clocks').add(alarm);
+      undo.add({'op': 'rm', 'col': 'clocks', 'id': alarm['id']});
+      await Clock.sync(s);
+      return 'Alarm: ${label.isEmpty ? '' : '$label, '}$shown';
     }
     if (type == 'event' || type == 'alarm') {
       // Warn about an overlap, but still add it: the person decides.

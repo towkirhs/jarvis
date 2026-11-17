@@ -698,6 +698,11 @@ class _HomeScreenState extends State<HomeScreen> {
             '${r['title']}${r['when'] == null ? '' : ', ${niceWhen(r['when'] as int)}'}',
             () => showTaskSheet(context, s, item: r),
           ),
+        'clocks' => (
+            Icons.alarm,
+            [if ('${r['label'] ?? ''}'.isNotEmpty) r['label'], r['at'] is int ? niceWhen(r['at'] as int) : '${r['time']}'].join(', '),
+            () => _open(context, ClockScreen(store: s)),
+          ),
         'tx' => (Icons.payments_outlined, '${r['note'] ?? r['cat'] ?? 'Money'} ${s.money(r['amount'] as num)}', () => showTxSheet(context, s, tx: r)),
         'habits' => (Icons.local_fire_department_outlined, '${r['name']}', () => _open(context, HabitPage(store: s, id: id))),
         'countdowns' => (Icons.hourglass_bottom, '${r['title']}', () => _open(context, CountdownPage(store: s))),
