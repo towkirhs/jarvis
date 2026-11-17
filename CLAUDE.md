@@ -129,6 +129,17 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    `fullNotice` is on. Back does not close the screen. `AlarmPrefs` (native prefs `jarcis_alarm`): `sound`/`soundName` = the
    ringtone for every alarm without its own. Settings → Alarms and reminders (`lib/alarm_settings_page.dart`) has the switches,
    the sound, permission fixes and test alarms. Untested on a phone.
+   Your day (build after 228; `lib/day_log.dart` pure, `lib/day_page.dart`, `lib/app_alarms.dart`, `android_overlay/AppWatch.kt`):
+   collection `log` ({at, kind: now|check|apps, verb, text, item, from}). Chat notes like "started gym", "back home", "woke up"
+   or `now: …` are logged on the phone (`NowLog.parse`, no AI; a note with a time is a plan, not a log); "finished X" marks a
+   matching task done. Planned tasks get a check-in at the end of their block (`CheckIn.id` = 1.4e9 + nid, kind `checkin`,
+   `CheckNote` in ActionReceiver.kt): Done / 15 more min / "Skipped / other" (reply with a "Skipped" chip); answers wait in
+   `CheckQueue` and `Store.applyCheck` applies them (skip sets `skipped: day` and drops `planned`). `PlanCheck` compares plan
+   and reality; the Plan my day "behind" card and Your day offer "Replan the rest" (`PlanDayPage(replan: true)`). App time
+   comes from Android usage access (`AppUsage.sessions`); yesterday's top apps are saved once a day (`Store.noteAppDay`).
+   App alarms (collection `appAlarms` {pkg, name, when: open|today|sitting, min, ring, text}; Clock → Alarm → About an app)
+   run in `AppWatchService` (foreground, specialUse, polls every 3 s while the screen is on), started by `Clock.sync`
+   and on boot. Untested on a phone.
    Plan my day (`lib/day_planner.dart`, `lib/plan_day_page.dart`) is the one place to plan any day. Pieces are tasks (id) and
    habits (minus the id; `DayPlanner.habitTasks`, quick when they have no `planMin`). Tasks may carry `winFrom`/`winTo` (minutes
    after midnight), `estMax` (longest length), `chunk` (done in blocks: Apply makes part items with `partOf`; the last done part
