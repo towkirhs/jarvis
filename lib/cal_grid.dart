@@ -551,8 +551,14 @@ class _BodyPageState extends State<_BodyPage> {
             ),
             child: Stack(
               children: [
+                // A short, narrow block cuts its text off at the bottom instead of overflowing.
                 Positioned.fill(
-                  child: Column(
+                  child: ClipRect(
+                    child: OverflowBox(
+                      alignment: Alignment.topLeft,
+                      maxHeight: double.infinity,
+                      child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
@@ -574,6 +580,8 @@ class _BodyPageState extends State<_BodyPage> {
                           style: TextStyle(fontSize: 10, color: fg.withValues(alpha: 0.85)),
                         ),
                     ],
+                      ),
+                    ),
                   ),
                 ),
                 if (resizable && height >= 28)
