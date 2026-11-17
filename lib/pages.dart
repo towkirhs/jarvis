@@ -21,6 +21,7 @@ import 'native.dart';
 import 'drive_page.dart';
 import 'voice_page.dart';
 import 'about_me_page.dart';
+import 'alarm_settings_page.dart';
 import 'rules_page.dart';
 import 'store.dart';
 import 'sync.dart';
@@ -629,6 +630,13 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ]),
           _group('Everyday', [
+            ListTile(
+              leading: const Icon(Icons.notifications_active_outlined),
+              title: const Text('Alarms and reminders'),
+              subtitle: const Text('Full screen, your alarm sound, and what to allow'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AlarmSettingsPage())),
+            ),
             ListTile(
               leading: const Icon(Icons.notifications_active_outlined),
               title: const Text('Reminders a day'),

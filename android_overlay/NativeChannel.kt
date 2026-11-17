@@ -42,6 +42,27 @@ object NativeChannel {
                 RingService.start(context, 0, call.argument<String>("label") ?: "Test alarm", call.argument<String>("sound"))
                 result.success(null)
             }
+            "alarmPrefs" -> result.success(mapOf(
+                "sound" to AlarmPrefs.sound(context),
+                "soundName" to AlarmPrefs.soundName(context),
+                "fullAlarm" to AlarmPrefs.fullAlarm(context),
+                "fullNotice" to AlarmPrefs.fullNotice(context),
+                "canFullScreen" to AlarmPrefs.canFullScreen(context),
+                "overlay" to Overlay.allowed(context),
+            ))
+            "setAlarmPref" -> {
+                AlarmPrefs.set(context, call.argument<String>("key")!!, call.argument<Any>("value"))
+                result.success(null)
+            }
+            "openFullScreenSettings" -> {
+                if (android.os.Build.VERSION.SDK_INT >= 34) {
+                    context.startActivity(
+                        Intent(android.provider.Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, android.net.Uri.parse("package:${context.packageName}"))
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                }
+                result.success(null)
+            }
             "geofences" -> {
                 Geo.set(context, call.argument<String>("json") ?: "[]")
                 result.success(null)

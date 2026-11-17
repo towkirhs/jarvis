@@ -32,6 +32,24 @@ class Native {
     if (!kIsWeb) await _ch.invokeMethod('clock', {'id': id, 'millis': millis, 'label': label, 'days': days, 'sound': sound});
   }
 
+  /// How alarms show on this phone: {sound, soundName, fullAlarm, fullNotice, canFullScreen, overlay}.
+  static Future<Map<String, dynamic>> alarmPrefs() async {
+    if (kIsWeb) return const {};
+    try {
+      return Map<String, dynamic>.from(await _ch.invokeMethod<Map>('alarmPrefs') ?? const {});
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  static Future<void> setAlarmPref(String key, Object? value) async {
+    if (!kIsWeb) await _ch.invokeMethod('setAlarmPref', {'key': key, 'value': value});
+  }
+
+  static Future<void> openFullScreenSettings() async {
+    if (!kIsWeb) await _ch.invokeMethod('openFullScreenSettings');
+  }
+
   /// Rings straight away, to try an alarm's sound.
   static Future<void> ringNow(String label, String? sound) async {
     if (!kIsWeb) await _ch.invokeMethod('ringNow', {'label': label, 'sound': sound});

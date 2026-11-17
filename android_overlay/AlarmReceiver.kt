@@ -40,6 +40,11 @@ class AlarmReceiver : BroadcastReceiver() {
         }
 
         val isAlarm = kind == "alarm"
+        // An alarm of a task or event rings like a clock alarm, on the full screen, unless you turned that off.
+        if (isAlarm && AlarmPrefs.fullAlarm(context)) {
+            RingService.start(context, id, label, null, "alarm")
+            return
+        }
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val sound = RingtoneManager.getDefaultUri(
             if (isAlarm) RingtoneManager.TYPE_ALARM else RingtoneManager.TYPE_NOTIFICATION
@@ -65,6 +70,15 @@ class AlarmReceiver : BroadcastReceiver() {
         )
         val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(context, channelId)
         else Notification.Builder(context).setSound(sound)
+        // Reminders on the full screen: the notification asks for it (for a locked phone) and it is opened directly too.
+        val full = !isAlarm && AlarmPrefs.fullNotice(context)
+        if (full) {
+            val screen = RingActivity.noticeIntent(context, id, kind, label)
+            builder.setFullScreenIntent(
+                PendingIntent.getActivity(context, id, screen, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE), true
+            )
+            try { context.startActivity(screen) } catch (_: Exception) {}
+        }
         val notification = builder
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setContentTitle(if (isAlarm) "Alarm" else "Jarvis")

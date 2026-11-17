@@ -326,7 +326,7 @@ Future<void> showAlarmEditor(BuildContext context, Store s, {Rec? clock, bool at
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.music_note_outlined),
-              title: Text(soundName ?? "Phone's alarm sound"),
+              title: Text(soundName ?? 'Your usual alarm sound'),
               subtitle: const Text('Plays on repeat until you stop it'),
               trailing: Wrap(children: [
                 if (sound != null)

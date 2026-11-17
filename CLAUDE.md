@@ -122,6 +122,13 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    unit prices in `settings.rentRates`), kinds now include water and gas; a house expense "the tenant paid" adds a rentPays
    record with method 'Maintenance' and `cost` (no rent rule event). The receipt (`_ReceiptPaper` in `rent_more.dart`) follows
    a printed rent receipt form and prints through `printing` (the paper as an image on an A4 PDF page). Untested on a phone.
+   Alarm screen (build after 226): `RingService` now opens `RingActivity` directly (`startActivity`, allowed by the draw-over-apps
+   permission) as well as asking for a full-screen notification, which Android honours only on a locked phone and, from Android 14,
+   only when "full screen notifications" is allowed. Alarms on tasks and events (`kind: alarm`) ring through `RingService` too
+   (Done marks the item done) unless `AlarmPrefs.fullAlarm` is off; reminders open a full-screen card (Done, Snooze, Close) when
+   `fullNotice` is on. Back does not close the screen. `AlarmPrefs` (native prefs `jarcis_alarm`): `sound`/`soundName` = the
+   ringtone for every alarm without its own. Settings → Alarms and reminders (`lib/alarm_settings_page.dart`) has the switches,
+   the sound, permission fixes and test alarms. Untested on a phone.
    Plan my day (`lib/day_planner.dart`, `lib/plan_day_page.dart`) is the one place to plan any day. Pieces are tasks (id) and
    habits (minus the id; `DayPlanner.habitTasks`, quick when they have no `planMin`). Tasks may carry `winFrom`/`winTo` (minutes
    after midnight), `estMax` (longest length), `chunk` (done in blocks: Apply makes part items with `partOf`; the last done part
@@ -150,5 +157,4 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    in the note (`ProfileFiles.pick`, 2400 chars max); ChatGPT writes them as `profile` items; "Copy for ChatGPT to update". Untested on a phone.
 5. Groq web answers show no source links (response shape unconfirmed).
 6. Calendar, deferred: custom repeats, find free time, global search, weekly review, what-if planning.
-7. Known limits: imported times with a named time zone are read as
-   local; alarms set from chat use the older notification-style alarm.
+7. Known limits: imported times with a named time zone are read as local.
