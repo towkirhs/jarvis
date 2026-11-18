@@ -59,6 +59,57 @@ object AlarmPrefs {
         android.os.Build.VERSION.SDK_INT < 34 || context.getSystemService(NotificationManager::class.java).canUseFullScreenIntent()
 }
 
+/** What alarms and reminders depend on, for the Health check page, and the nightly background test. */
+object Health {
+    /** The background test's id: clear of items, snoozes, early reminders, check-ins and app alarms. */
+    const val BEAT_ID = 1_700_000_000
+
+    private fun p(context: Context) = context.getSharedPreferences("jarcis_alarm", Context.MODE_PRIVATE)
+
+    fun beat(context: Context, due: Long) {
+        p(context).edit().putLong("beatAt", System.currentTimeMillis()).putLong("beatDue", due).apply()
+    }
+
+    /** Arms the test for 3:30 am every night, unless it is already armed. It shows nothing and makes no sound. */
+    fun arm(context: Context) {
+        if (AlarmScheduler.entry(context, BEAT_ID) != null) return
+        val c = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.HOUR_OF_DAY, 3); set(java.util.Calendar.MINUTE, 30)
+            set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
+        }
+        if (c.timeInMillis <= System.currentTimeMillis()) c.add(java.util.Calendar.DAY_OF_MONTH, 1)
+        AlarmScheduler.schedule(context, BEAT_ID, c.timeInMillis, "beat", "Background test", true)
+    }
+
+    fun read(context: Context): Map<String, Any> {
+        val power = context.getSystemService(android.os.PowerManager::class.java)
+        val alarms = context.getSystemService(android.app.AlarmManager::class.java)
+        return mapOf(
+            "notifications" to context.getSystemService(NotificationManager::class.java).areNotificationsEnabled(),
+            "exact" to alarms.canScheduleExactAlarms(),
+            "battery" to power.isIgnoringBatteryOptimizations(context.packageName),
+            "overlay" to Overlay.allowed(context),
+            "fullScreen" to AlarmPrefs.canFullScreen(context),
+            "usage" to AppUsage.allowed(context),
+            "beatAt" to p(context).getLong("beatAt", 0L),
+            "beatDue" to p(context).getLong("beatDue", 0L),
+            "beatArmed" to (AlarmScheduler.entry(context, BEAT_ID) != null),
+        )
+    }
+
+    /** Opens the Android page where [what] is switched on. */
+    fun open(context: Context, what: String) {
+        val pkg = android.net.Uri.parse("package:${context.packageName}")
+        val intent = when (what) {
+            "notifications" -> Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+            "exact" -> Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, pkg)
+            else -> Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, pkg)
+        }
+        context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+}
+
 /**
  * A ringing alarm: plays your chosen music (or the phone's alarm sound) on a loop at alarm volume, vibrates,
  * and shows a full-screen card with Stop and Snooze, until you stop it or 10 minutes pass.

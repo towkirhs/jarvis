@@ -124,6 +124,11 @@ class Store extends ChangeNotifier {
       'settings',
       () => <String, dynamic>{'model': 'gemini-2.5-flash-lite', 'prefilter': true, 'cap': 6},
     );
+    // Once: money categories written in small letters get a capital ("groceries" → "Groceries").
+    if (settings['catCaps'] != true) {
+      Cats.capitalAll(list('tx').cast<Map<String, dynamic>>());
+      settings['catCaps'] = true;
+    }
   }
 
   List<Rec> list(String name) => (_s[name] as List).cast<Rec>();

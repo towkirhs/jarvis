@@ -607,7 +607,9 @@ class Brain {
       final time = '${two(t.hour)}:${two(t.minute)}';
       final days = switch (extra['repeat']) { 'daily' => [1, 2, 3, 4, 5, 6, 7], 'weekly' => [t.weekday], _ => <int>[] };
       final ring = days.isNotEmpty ? null : (t.isAfter(now) ? when : Clock.next(time, days, now).millisecondsSinceEpoch);
-      final label = Clock.plainAlarm(title) ? '' : title;
+      // "Buy scale alarm" is an alarm to buy a scale: the word "alarm" is not part of its name.
+      final named = title.replaceAll(RegExp(r'\s+(alarm|reminder)$', caseSensitive: false), '').trim();
+      final label = Clock.plainAlarm(title) || named.isEmpty ? '' : named;
       final every = days.length == 7 ? ', every day' : (days.length == 1 ? ', every ${Clock.dayNames[days.first - 1]}' : '');
       final shown = ring == null ? '${clock(when)}$every' : niceWhen(ring);
       if (s.list('clocks').any((c) => c['on'] == true && c['time'] == time && (ring == null ? Clock.days(c).join() == days.join() : c['at'] == ring))) {
@@ -618,7 +620,7 @@ class Brain {
       undo.add({'op': 'rm', 'col': 'clocks', 'id': alarm['id']});
       var tail = '';
       if (label.isNotEmpty && p['alarmOnly'] != true) {
-        final key = title.trim().toLowerCase();
+        final key = label.toLowerCase();
         final same = s.list('items').where((i) =>
             i['status'] == 'open' && i['clock'] == null && (i['title'] as String).trim().toLowerCase() == key).firstOrNull;
         if (same != null) {
@@ -630,7 +632,7 @@ class Brain {
           await s.syncRecord('items', same);
           tail = ', linked to the ${same['kind'] == 'event' ? 'event' : 'task'}';
         } else {
-          final task = await s.addItem(kind: 'task', title: title, when: ring ?? when, captureId: capId, undo: undo, extra: {...extra, 'clock': alarm['id']});
+          final task = await s.addItem(kind: 'task', title: label, when: ring ?? when, captureId: capId, undo: undo, extra: {...extra, 'clock': alarm['id']});
           alarm['item'] = task['id'];
           tail = ', with a linked task';
         }
@@ -1108,7 +1110,7 @@ Return ONLY JSON in this shape:
 
 Rules:
 - Never invent a date or time that was not said. If it is unclear ("later", "soon"), set time to null and lower the confidence.
-${events ? '- A meeting or appointment at a time is "event".' : '- Never use "event": the person puts things on their calendar by starting with the word "calendar". A meeting or appointment at a time is a "task" with that date and time.'} Use "alarm" only when the person asks to be woken or for an alarm. Jarvis sets it on the Clock and, when it is about something to do, adds a linked task by itself: never add a separate task for the same thing. If the alarm is for an event or task in the same note, give it the same title as that item. If they want just an alarm and no task, set "alarmOnly": true.
+${events ? '- A meeting or appointment at a time is "event".' : '- Never use "event": the person puts things on their calendar by starting with the word "calendar". A meeting or appointment at a time is a "task" with that date and time.'} Use "alarm" only when the person asks to be woken or for an alarm. Jarvis sets it on the Clock and, when it is about something to do, adds a linked task by itself: never add a separate task for the same thing. If the alarm is for an event or task in the same note, give it the same title as that item. If they want just an alarm and no task, set "alarmOnly": true. Never end a title with "alarm" or "reminder": "buy scale alarm at 12" is titled "Buy scale".
 - A habit is something repeated over weeks (gym, reading, praying, studying). Reporting that it was done or skipped is "habit_log" with the day it happened, never a task. Saying they want to start doing something regularly is "habit_new". A one-off thing to do is a task.
 - "priority": "high" for urgent or important things the person stresses, otherwise only if they say it. "tags" and "list" only if they name them (like "add to my study list", "tag it exam"). "repeat" only for things said to repeat ("every day", "every Monday" = weekly). "durationMinutes" is how long an event lasts. "description" holds extra details that do not fit the title.
 - "countdown" is a date to count down to or remember every year: a birthday, an anniversary, a holiday, or an exam or trip the person wants a countdown for. "category" is "birthday", "anniversary", "holiday" or "countdown", and "date" is required.

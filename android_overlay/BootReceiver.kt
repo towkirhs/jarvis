@@ -11,6 +11,7 @@ class BootReceiver : BroadcastReceiver() {
             AlarmScheduler.rearmAll(context)
             Geo.register(context) // Android forgets geofences on reboot
             AppAlarms.sync(context)
+            Health.arm(context)
         }
     }
 }

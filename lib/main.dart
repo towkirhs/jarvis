@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import 'ai.dart';
 import 'alarm_sound.dart';
+import 'backups.dart';
 import 'clock.dart';
 import 'haptics.dart';
 import 'brain.dart';
@@ -218,6 +219,11 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     await Clock.drainVoiceAlarms(s);
     await Clock.sync(s);
     await s.noteAppDay();
+    try {
+      await Backups.daily(s);
+    } catch (_) {
+      // Storage full or busy: tried again on the next tick.
+    }
     await drainMoneyQueue(s);
     for (final (said, did, ts) in await Native.takeCommandLog()) {
       logCommand(s, said, did, ts: ts);

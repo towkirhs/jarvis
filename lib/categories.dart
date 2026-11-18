@@ -25,9 +25,22 @@ class Cats {
     }
     final k = key(name);
     for (final c in known) {
-      if (key(c) == k) return c.trim();
+      if (key(c) == k) return _capital(c.trim());
     }
     return _capital(name);
+  }
+
+  /// Every category starting with a small letter ("groceries") gets a capital ("Groceries"). Returns how many changed.
+  static int capitalAll(Iterable<Map<String, dynamic>> txs) {
+    var n = 0;
+    for (final t in txs) {
+      final c = t['cat'];
+      if (c is String && c.isNotEmpty && _capital(c) != c) {
+        t['cat'] = _capital(c);
+        n++;
+      }
+    }
+    return n;
   }
 
   /// Categories of [type] with how many entries and how much, most used first.

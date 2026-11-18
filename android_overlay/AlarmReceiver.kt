@@ -34,6 +34,13 @@ class AlarmReceiver : BroadcastReceiver() {
             return
         }
 
+        // The nightly background test: proves Android still lets Jarvis's reminders fire while the phone sleeps.
+        if (kind == "beat") {
+            Health.beat(context, entry.getLong("millis"))
+            AlarmScheduler.schedule(context, id, AlarmScheduler.nextDaily(entry.getLong("millis")), kind, label, true)
+            return
+        }
+
         if (kind == "checkin") {
             AlarmScheduler.remove(context, id)
             CheckNote.show(context, id, label)

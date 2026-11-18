@@ -59,6 +59,14 @@ object NativeChannel {
                 AlarmPrefs.set(context, call.argument<String>("key")!!, call.argument<Any>("value"))
                 result.success(null)
             }
+            "health" -> {
+                Health.arm(context)
+                result.success(Health.read(context))
+            }
+            "openHealthFix" -> {
+                Health.open(context, call.argument<String>("what") ?: "app")
+                result.success(null)
+            }
             "openFullScreenSettings" -> {
                 if (android.os.Build.VERSION.SDK_INT >= 34) {
                     context.startActivity(

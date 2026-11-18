@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
@@ -5,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'ai_page.dart';
 import 'clash.dart';
 import 'day_start_menu.dart';
+import 'health_page.dart';
 import 'ics_page.dart';
 import 'phone_calendar_page.dart';
 import 'ai.dart';
@@ -23,6 +26,7 @@ import 'drive_page.dart';
 import 'voice_page.dart';
 import 'about_me_page.dart';
 import 'alarm_settings_page.dart';
+import 'backups.dart';
 import 'day_page.dart';
 import 'rules_page.dart';
 import 'store.dart';
@@ -87,14 +91,13 @@ class MoreScreen extends StatelessWidget {
                 tile(Icons.record_voice_over, 'About me', '${store.list('words').length} words, ${store.list('profile').length} profile files', AboutMePage(store: store)),
                 tile(Icons.psychology_outlined, 'Memory', '${store.list('memories').length} remembered', MemoryPage(store: store)),
               ]),
-              group('Home', [
-              ]),
               group('Connections', [
                 tile(Icons.account_tree_outlined, 'Rules and links', '${store.list('rules').where((r) => r['on'] == true).length} on', RulesPage(store: store)),
                 tile(Icons.record_voice_over_outlined, 'Hey Jarvis', 'Wake word and phone actions', VoicePage(store: store)),
                 tile(Icons.add_to_drive, 'Google Drive', 'Ask your files', DrivePage(store: store)),
               ]),
               group('App', [
+                tile(Icons.health_and_safety_outlined, 'Health check', 'Will alarms and backups work?', HealthPage(store: store)),
                 tile(Icons.undo, 'Activity and undo', null, ActivityPage(store: store)),
                 tile(Icons.settings_outlined, 'Settings', null, SettingsPage(store: store)),
               ]),
@@ -479,6 +482,57 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  /// Shows what a backup holds and replaces everything with it once you agree. What is here now is kept first.
+  Future<void> _restoreFrom(String text, String from) async {
+    final Map<String, dynamic> data;
+    try {
+      data = Backups.parse(text);
+    } catch (_) {
+      _say('That is not a Jarvis backup.');
+      return;
+    }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Restore this backup?'),
+        content: Text('$from\n\n${Backups.summary(data)}.\n\nIt replaces everything on this phone. A copy of what is here now '
+            'is kept first, so you can go back.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Restore')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await Backups.beforeRestore(s);
+    await s.importBackup(text);
+    _say('Backup restored.');
+  }
+
+  Future<void> _dailyBackups() async {
+    final files = await Backups.list();
+    if (!mounted) return;
+    final picked = await showModalBottomSheet<File>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: files.isEmpty
+            ? const Padding(padding: EdgeInsets.all(24), child: Text('No daily backup yet. The first one is made today.'))
+            : ListView(shrinkWrap: true, children: [
+                for (final f in files)
+                  ListTile(
+                    leading: const Icon(Icons.history),
+                    title: Text(niceDay(DateTime.parse(Backups.dayOf(f.uri.pathSegments.last)!).millisecondsSinceEpoch)),
+                    subtitle: Text('${(f.lengthSync() / 1024).round()} KB'),
+                    onTap: () => Navigator.pop(ctx, f),
+                  ),
+              ]),
+      ),
+    );
+    if (picked == null || !mounted) return;
+    await _restoreFrom(await picked.readAsString(), 'Daily backup from ${Backups.dayOf(picked.uri.pathSegments.last)}.');
+  }
+
   Future<void> _showLog() async {
     final log = await Native.getLog();
     if (!mounted) return;
@@ -633,6 +687,13 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ]),
           _group('Everyday', [
+            ListTile(
+              leading: const Icon(Icons.health_and_safety_outlined),
+              title: const Text('Health check'),
+              subtitle: const Text('Everything alarms, reminders and backups need, with fixes'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _open(HealthPage(store: s)),
+            ),
             DayStartSwitch(store: s),
             ListTile(
               leading: const Icon(Icons.notifications_active_outlined),
@@ -702,6 +763,32 @@ class _SettingsPageState extends State<SettingsPage> {
               trailing: const Icon(Icons.chevron_right),
               onTap: () => _open(SyncPage(store: s)),
             ),
+            if (!kIsWeb) ...[
+              ListTile(
+                leading: const Icon(Icons.save_alt),
+                title: const Text('Save a backup file'),
+                subtitle: const Text('Everything in one file, kept where you choose (Downloads, Drive). AI keys are left out.'),
+                onTap: () async {
+                  if (await Backups.saveCopy(s)) _say('Backup saved.');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.file_open_outlined),
+                title: const Text('Restore from a file'),
+                subtitle: const Text('Shows what is in it before anything changes'),
+                onTap: () async {
+                  final text = await Backups.pick();
+                  if (text != null) await _restoreFrom(text, 'From the file you picked.');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.history),
+                title: const Text('Daily backups'),
+                subtitle: const Text('Made by itself once a day and kept on this phone, the last 14 days'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: _dailyBackups,
+              ),
+            ],
             ListTile(
               leading: const Icon(Icons.content_copy_outlined),
               title: const Text('Copy backup'),
@@ -713,7 +800,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             ListTile(
               leading: const Icon(Icons.restore),
-              title: const Text('Restore backup'),
+              title: const Text('Restore from pasted text'),
               subtitle: const Text('Replaces everything on this phone'),
               onTap: _restore,
             ),

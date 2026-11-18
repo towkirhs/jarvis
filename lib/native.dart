@@ -265,6 +265,22 @@ class Native {
     return [for (final e in jsonDecode(raw) as List) Map<String, dynamic>.from(e as Map)];
   }
 
+  /// What alarms depend on: {notifications, exact, battery, overlay, fullScreen, usage, beatAt, beatDue, beatArmed}.
+  /// Also arms the nightly background test.
+  static Future<Map<String, dynamic>> health() async {
+    if (kIsWeb) return const {};
+    try {
+      return Map<String, dynamic>.from(await _ch.invokeMethod<Map>('health') ?? const {});
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  /// Opens Android's page to fix [what]: notifications, exact, or the app's own page (battery and the rest).
+  static Future<void> openHealthFix(String what) async {
+    if (!kIsWeb) await _ch.invokeMethod('openHealthFix', {'what': what});
+  }
+
   /// Whether Jarvis may read how long apps are used (Android's "Usage access").
   static Future<bool> usageAccess() async {
     if (kIsWeb) return false;
