@@ -200,4 +200,23 @@ void main() {
     final w = DateTime.fromMillisecondsSinceEpoch(s.list('items').single['when'] as int);
     expect([w.hour, w.minute], [19, 30]);
   });
+
+  testWidgets('top 3: chosen from the strip, marked TOP, and placed first', (t) async {
+    final s = await _store(t);
+    s.list('items').addAll([_task(1, 'Walk the dog', est: 60), _task(2, 'Write report', est: 60)]);
+    await t.pumpWidget(MaterialApp(home: PlanDayPage(store: s, day: _day)));
+    await t.pumpAndSettle();
+    expect(find.text('Top 3: what has to happen?'), findsOneWidget);
+    await t.tap(find.text('Add one').first);
+    await t.pumpAndSettle();
+    await t.tap(find.descendant(of: find.byType(ListTile), matching: find.text('Write report')));
+    await t.pumpAndSettle();
+    await t.tap(find.text('Done'));
+    await t.pumpAndSettle();
+    expect((s.byId('items', 2)!['dayPri'] as Map)['p'], 3);
+    expect(find.text('TOP'), findsOneWidget);
+    expect(find.text('Top 3 · 0 of 1 done'), findsOneWidget);
+    // Placed first: Write report starts before Walk the dog.
+    expect(t.getTopLeft(find.text('Write report').last).dy, lessThan(t.getTopLeft(find.text('Walk the dog')).dy));
+  });
 }

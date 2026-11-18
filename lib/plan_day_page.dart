@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'cal_index.dart';
+import 'cal_quick.dart';
 import 'day_log.dart';
 import 'day_page.dart';
 import 'day_planner.dart';
@@ -678,22 +679,28 @@ class _PlanDayPageState extends State<PlanDayPage> {
     final habit = (id ?? 0) < 0 || it?['planHabit'] != null;
     final piece = id == null ? null : _piece(id);
     final timed = b.minutes > 0 && status == null;
+    final top = it != null && _isTop(it);
     final needs = piece == null ? null : _owner(piece)?['needs'];
     final link = b.fixed || !Needs.has(needs) ? null : (b.reason ?? 'Only if ${Needs.describe(needs, name: PieceFacts(store).name, money: store.money)}');
     final line = [
       if (timed) '${clock(b.start.millisecondsSinceEpoch)} – ${clock(b.end.millisecondsSinceEpoch)}',
       if (timed) fmtMinutes(b.minutes),
       if (b.part != null) 'block ${b.part} of ${b.parts}',
-      if (b.fixed) 'on your calendar',
+      if (b.fixed) 'fixed',
+      if (!b.fixed && timed && id != null && _edits[id]?.start != null) 'you set this time',
+      if (!b.fixed && timed && id != null && _edits[id]?.start == null && !top) 'Jarvis placed',
       if (!b.fixed && _hasWindow(id)) 'has a time window',
       if (status != null) status,
     ].join('  ·  ');
     Widget card(bool hot) => Card(
           margin: const EdgeInsets.only(bottom: 8),
-          color: b.fixed ? scheme.surfaceContainerHighest : null,
+          // Fixed: grey. Your top 3: the accent wash. Placed by Jarvis: an outline.
+          color: b.fixed ? scheme.surfaceContainerHighest : (top ? scheme.primaryContainer : null),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
-            side: hot ? BorderSide(color: scheme.primary, width: 2) : BorderSide.none,
+            side: hot || top
+                ? BorderSide(color: scheme.primary, width: hot ? 2 : 1.5)
+                : (b.fixed || status != null ? BorderSide.none : BorderSide(color: scheme.outlineVariant)),
           ),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
@@ -713,7 +720,17 @@ class _PlanDayPageState extends State<PlanDayPage> {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 6),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(b.title, style: tt.titleMedium, maxLines: 2, overflow: TextOverflow.ellipsis),
+                      Row(children: [
+                        if (top)
+                          Container(
+                            margin: const EdgeInsets.only(right: 6),
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                            decoration: BoxDecoration(color: scheme.primary, borderRadius: BorderRadius.circular(8)),
+                            child: Text('TOP', style: tt.labelSmall?.copyWith(color: scheme.onPrimary, fontWeight: FontWeight.w700)),
+                          ),
+                        if (b.fixed) Padding(padding: const EdgeInsets.only(right: 4), child: Icon(Icons.lock_outline, size: 14, color: scheme.onSurfaceVariant)),
+                        Flexible(child: Text(b.title, style: tt.titleMedium, maxLines: 2, overflow: TextOverflow.ellipsis)),
+                      ]),
                       if (line.isNotEmpty) Text(line, style: tt.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
                       if (link != null)
                         Padding(
@@ -741,6 +758,280 @@ class _PlanDayPageState extends State<PlanDayPage> {
         onDragStarted: Haptics.dragStart,
         feedback: _feedback(b.title),
         child: card(candidates.isNotEmpty),
+      ),
+    );
+  }
+
+  // ---------- top 3, timeline, what changes ----------
+
+  /// One of the day's top 3: "High" importance for this day.
+  bool _isTop(Rec it) => it['dayPri'] is Map && (it['dayPri'] as Map)['day'] == dayKey(_day) && (it['dayPri'] as Map)['p'] == 3;
+
+  List<Rec> get _tops => [for (final i in store.list('items')) if (i['kind'] == 'task' && i['status'] != 'cancelled' && _isTop(i)) i];
+
+  /// What has to happen this day: up to 3 tasks, placed first.
+  Future<void> _chooseTop() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (ctx) => ListenableBuilder(
+        listenable: store,
+        builder: (ctx, _) {
+          final tt = Theme.of(ctx).textTheme;
+          final scheme = Theme.of(ctx).colorScheme;
+          final chosen = _tops.where((i) => i['status'] == 'open').toList();
+          final open = store
+              .list('items')
+              .where((i) => i['kind'] == 'task' && i['status'] == 'open' && i['planHabit'] == null && i['partOf'] == null && !_isTop(i))
+              .toList();
+          return SafeArea(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.86),
+              child: ListView(
+                shrinkWrap: true,
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                children: [
+                  Text('What has to happen ${_isToday ? 'today' : 'this day'}?', style: tt.headlineSmall),
+                  const SizedBox(height: 4),
+                  Text('Pick up to 3. Jarvis places them first and fits the rest around your fixed things.',
+                      style: TextStyle(color: scheme.onSurfaceVariant)),
+                  const SizedBox(height: 12),
+                  for (final (n, i) in chosen.indexed)
+                    Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      color: scheme.primaryContainer,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: scheme.primary, width: 1.5)),
+                      child: ListTile(
+                        leading: CircleAvatar(radius: 14, backgroundColor: scheme.primary, child: Text('${n + 1}', style: TextStyle(color: scheme.onPrimary))),
+                        title: Text('${i['title']}'),
+                        trailing: IconButton(
+                          tooltip: 'Not a top task',
+                          icon: const Icon(Icons.close),
+                          onPressed: () => store.updateRec('items', i, '${i['title']}: not a top task', (r) => r.remove('dayPri')),
+                        ),
+                      ),
+                    ),
+                  if (chosen.length < 3) ...[
+                    const SizedBox(height: 8),
+                    Text(chosen.isEmpty ? 'Your tasks' : 'Tap to add (${3 - chosen.length} left)', style: tt.titleSmall?.copyWith(color: scheme.onSurfaceVariant)),
+                    const SizedBox(height: 4),
+                    if (open.isEmpty) Text('No open tasks.', style: TextStyle(color: scheme.onSurfaceVariant)),
+                    for (final i in open.take(30))
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(Icons.radio_button_unchecked, color: scheme.onSurfaceVariant),
+                        title: Text('${i['title']}'),
+                        subtitle: i['est'] is int ? Text(fmtMinutes(i['est'] as int)) : null,
+                        onTap: () {
+                          Haptics.tap();
+                          store.updateRec('items', i, '${i['title']}: top task for ${dayKey(_day)}', (r) => r['dayPri'] = {'day': dayKey(_day), 'p': 3});
+                          setState(() => _extra.add(i['id'] as int));
+                        },
+                      ),
+                  ],
+                  const SizedBox(height: 12),
+                  FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('Done')),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// The top 3 as a row of tiles at the top: done ones ticked; tap to choose them.
+  Widget _topStrip(DayPlan plan) {
+    final scheme = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    final tops = _tops.take(3).toList();
+    final done = tops.where((i) => i['status'] == 'done').length;
+    PlanBlock? blockOf(Rec i) => plan.blocks.where((b) => b.itemId == i['id']).firstOrNull;
+    Widget tile(Rec? i) {
+      final finished = i?['status'] == 'done';
+      final b = i == null ? null : blockOf(i);
+      return Expanded(
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: _chooseTop,
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 64),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: i == null ? null : scheme.primaryContainer,
+              borderRadius: BorderRadius.circular(14),
+              border: i == null
+                  ? Border.all(color: scheme.outlineVariant, width: 1.5)
+                  : (finished ? null : Border.all(color: scheme.primary, width: 1.5)),
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              if (i == null)
+                Icon(Icons.add, size: 18, color: scheme.onSurfaceVariant)
+              else if (finished)
+                Icon(Icons.check, size: 18, color: scheme.primary)
+              else
+                Text(b == null ? 'not placed' : clock(b.start.millisecondsSinceEpoch),
+                    style: tt.labelSmall?.copyWith(color: scheme.primary, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 2),
+              Text(i == null ? 'Add one' : '${i['title']}',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: tt.bodySmall?.copyWith(
+                    color: i == null ? scheme.onSurfaceVariant : scheme.onSurface,
+                    decoration: finished ? TextDecoration.lineThrough : null,
+                  )),
+            ]),
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(tops.isEmpty ? 'Top 3: what has to happen?' : 'Top 3 · $done of ${tops.length} done',
+            style: tt.labelLarge?.copyWith(color: scheme.onSurfaceVariant)),
+        const SizedBox(height: 6),
+        Row(children: [
+          tile(tops.elementAtOrNull(0)),
+          const SizedBox(width: 8),
+          tile(tops.elementAtOrNull(1)),
+          const SizedBox(width: 8),
+          tile(tops.elementAtOrNull(2)),
+        ]),
+      ]),
+    );
+  }
+
+  static String _hm(DateTime d) => clock(d.millisecondsSinceEpoch);
+
+  /// The day as one timeline: a time on the left, the piece on the right; free gaps you can tap to fill,
+  /// the red "now" line, and a warning where a piece runs into something fixed.
+  List<Widget> _timeline(DayPlan plan) {
+    final scheme = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    final now = DateTime.now();
+    final blocks = plan.blocks;
+    final out = <Widget>[];
+    var nowShown = !_isToday;
+    Widget nowLine() => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Row(children: [
+            SizedBox(width: 64, child: Text(_hm(now), style: tt.labelSmall?.copyWith(color: scheme.error, fontWeight: FontWeight.w700))),
+            Expanded(child: Container(height: 2, decoration: BoxDecoration(color: scheme.error, borderRadius: BorderRadius.circular(1)))),
+          ]),
+        );
+    Widget gap(DateTime from, DateTime to) {
+      final mins = to.difference(from).inMinutes;
+      return Padding(
+        padding: const EdgeInsets.only(left: 64, bottom: 8),
+        child: OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size.fromHeight(44),
+            alignment: Alignment.centerLeft,
+            foregroundColor: scheme.onSurfaceVariant,
+            side: BorderSide(color: scheme.outlineVariant),
+          ),
+          icon: const Icon(Icons.add, size: 18),
+          label: Text('Free ${fmtMinutes(mins)}, tap to add'),
+          onPressed: () => showQuickAdd(context, store, day: from, at: TimeOfDay.fromDateTime(from), minutes: mins.clamp(15, 60), kind: 'task'),
+        ),
+      );
+    }
+
+    for (var k = 0; k < blocks.length; k++) {
+      final b = blocks[k];
+      if (!nowShown && b.start.isAfter(now)) {
+        nowShown = true;
+        final prevEnd = k == 0 ? null : blocks[k - 1].end;
+        if (prevEnd != null && prevEnd.isBefore(now) && b.start.difference(now).inMinutes >= 15) {
+          out.add(nowLine());
+          out.add(gap(now, b.start));
+        } else {
+          out.add(nowLine());
+        }
+      } else if (k > 0) {
+        final prevEnd = blocks[k - 1].end;
+        if (b.start.difference(prevEnd).inMinutes >= 30 && b.start.isAfter(now)) out.add(gap(prevEnd.isAfter(now) ? prevEnd : now, b.start));
+      }
+      final clash = b.fixed ? null : blocks.where((o) => o.fixed && o.start.isBefore(b.end) && o.end.isAfter(b.start)).firstOrNull;
+      final timed = b.minutes > 0;
+      out.add(Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        SizedBox(
+          width: 64,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 14),
+            child: Text(timed ? _hm(b.start) : '',
+                style: tt.labelSmall?.copyWith(color: b.itemId != null && store.byId('items', b.itemId) != null && _isTop(store.byId('items', b.itemId)!) ? scheme.primary : scheme.onSurfaceVariant)),
+          ),
+        ),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            _pieceCard(b),
+            if (clash != null)
+              Padding(
+                padding: const EdgeInsets.only(left: 12, bottom: 8),
+                child: Text('Overlaps ${clash.title} at ${_hm(clash.start)}', style: tt.bodySmall?.copyWith(color: scheme.error)),
+              ),
+          ]),
+        ),
+      ]));
+    }
+    if (!nowShown && blocks.isNotEmpty) out.add(nowLine());
+    if (blocks.isEmpty) {
+      out.add(Padding(padding: const EdgeInsets.only(left: 0, bottom: 8), child: gap(_isToday && now.hour >= 8 ? now : DateTime(_day.year, _day.month, _day.day, 9), DateTime(_day.year, _day.month, _day.day, 22))));
+    }
+    return out;
+  }
+
+  /// "Re-place the rest": what would move, before you say yes.
+  Widget _changes(DayPlan plan) {
+    final scheme = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    final moves = <(String, String)>[];
+    for (final b in plan.blocks.where((b) => !b.fixed && b.itemId != null)) {
+      final it = store.byId('items', b.itemId);
+      final w = it?['when'];
+      if (it == null || it['planned'] != dayKey(_day) || w is! int) continue;
+      if (w != b.start.millisecondsSinceEpoch) moves.add((b.title, '${clock(w)} → ${_hm(b.start)}'));
+    }
+    for (final b in plan.overflow) {
+      moves.add((b.title, "doesn't fit any more"));
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Card(
+        margin: EdgeInsets.zero,
+        color: scheme.primaryContainer,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 12, 8),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Re-placing the rest', style: tt.titleSmall),
+            const SizedBox(height: 4),
+            Text(
+              moves.isEmpty ? 'Nothing moves. Fixed things and your top tasks keep their place.' : 'Fixed things stay put. This is what changes:',
+              style: tt.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+            ),
+            for (final (t, m) in moves)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text('$t: $m', style: tt.bodyMedium),
+              ),
+            const SizedBox(height: 4),
+            Wrap(alignment: WrapAlignment.end, spacing: 8, children: [
+              TextButton(
+                onPressed: () => setState(() {
+                  _replan = false;
+                  _edits.clear();
+                  _unpinned.clear();
+                }),
+                child: const Text('Keep as it was'),
+              ),
+              FilledButton(onPressed: () => _apply(context, plan), child: const Text('Use this')),
+            ]),
+          ]),
+        ),
       ),
     );
   }
@@ -950,13 +1241,15 @@ class _PlanDayPageState extends State<PlanDayPage> {
                         Expanded(child: Text(n)),
                       ]),
                     ),
+                  _topStrip(plan),
+                  if (_replan) _changes(plan),
                   if (_isToday && !_replan) _behind(context),
                   if (planned)
                     Align(
                       alignment: Alignment.centerLeft,
                       child: TextButton.icon(
                         icon: const Icon(Icons.auto_fix_high),
-                        label: const Text('Place everything again'),
+                        label: const Text('Re-place the rest'),
                         onPressed: () => setState(() => _replan = true),
                       ),
                     ),
@@ -997,7 +1290,7 @@ class _PlanDayPageState extends State<PlanDayPage> {
                     ),
                   ],
                   const SizedBox(height: 12),
-                  for (final b in plan.blocks) _pieceCard(b),
+                  ..._timeline(plan),
                   if (plan.overflow.isNotEmpty) ...[
                     _sectionTitle(_isToday ? "Doesn't fit today" : "Doesn't fit this day", color: scheme.error),
                     for (final b in plan.overflow) _pieceCard(PlanBlock(b.title, _day, b.minutes, itemId: b.itemId), status: b.reason ?? fmtMinutes(b.minutes)),

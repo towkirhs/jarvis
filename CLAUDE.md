@@ -202,7 +202,10 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    `{any, if: [check]}` with checks `done` (piece id, `not`), `balance`, `countdown`. States: met, after (placed after what it
    follows), standby (fallback, no time), off. A linked item's reminder is scheduled only while its needs are met
    (`Store.syncRecord`, `syncNeeds` on every save and minute tick); `doneIf` is applied in `Store._autoDone` (no undo entry).
-   The page: tray with Tasks / Habits / Conditions chips (tap adds to the day, hold-drag onto a piece links), piece cards, Now card,
+   Redesign (build after 282): top 3 strip (tasks with `dayPri` p 3 for the day; `_chooseTop` sheet, up to 3, placed first),
+   the day as a timeline (`_timeline`: time column, fixed = grey with a lock, TOP = accent, Jarvis placed = outline,
+   "you set this time", free gaps of 30+ min → quick add, red now line, "Overlaps X"), and "Re-place the rest" shows what
+   moves first (`_changes`: Use this / Keep as it was).    The page: tray with Tasks / Habits / Conditions chips (tap adds to the day, hold-drag onto a piece links), piece cards, Now card,
    sections Doesn't fit / Quick / On standby / Not today. Not built: place and timer conditions (no "where am I now" state yet).
    Task form (`lib/task_sheet.dart`) is a full page: name + "takes time or quick", the rest under More options; Location's map
    button picks a saved place (arrive/leave reminder optional). Map tiles come from CARTO (OSM's servers block apps).
