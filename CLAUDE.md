@@ -146,6 +146,12 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    task, unless `alarmOnly`. `Store._syncLinkedClock` turns it off when the item is finished and moves it with the item; when it
    rings at the item's own time the item's notice is skipped. Deleting the item removes its alarm. Alarms in a note are applied
    last. `untilDone`, place and monthly/yearly alarms stay items.
+   Health and backups (build after 249): `lib/health_page.dart` (`HealthCheck.rows` pure) reads `Native.health()` (`Health` in
+   Ring.kt: notifications, exact alarms, battery optimisation, overlay, full screen, usage access) and shows fixes; it also arms the
+   nightly background test (`Health.BEAT_ID` 1.7e9, kind `beat`, 3:30 am, no sound; `AlarmReceiver` records `beatAt`/`beatDue`),
+   armed on boot too. `lib/backups.dart`: a daily backup file `backups/jarvis-YYYY-MM-DD.json` in app documents (last 14, made on
+   the tick), "Save a backup file" (Android Save dialog), "Restore from a file" / "Daily backups" with a summary and a
+   `before-restore-*.json` copy first. Settings → Everyday and More → App have Health check. Untested on a phone.
    Your day (build after 228; `lib/day_log.dart` pure, `lib/day_page.dart`, `lib/app_alarms.dart`, `android_overlay/AppWatch.kt`):
    collection `log` ({at, kind: now|check|apps, verb, text, item, from}). Chat notes like "started gym", "back home", "woke up"
    or `now: …` are logged on the phone (`NowLog.parse`, no AI; a note with a time is a plan, not a log); "finished X" marks a
