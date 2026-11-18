@@ -183,6 +183,12 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    App alarms (collection `appAlarms` {pkg, name, when: open|today|sitting, min, ring, text}; Clock → Alarm → About an app)
    run in `AppWatchService` (foreground, specialUse, polls every 3 s while the screen is on), started by `Clock.sync`
    and on boot. Untested on a phone.
+   Plan and done in the calendar (build after 269): view sheet → "Plan and what you did" splits each grid day (`TimeGrid.done`):
+   plan on the left half, `DayLog.blocks` on the right (started → stopped or next note, sleep → wake, check-ins, apps with
+   "Time in apps", `TimeGrid.apps`); saved in `calView` parts 4-5. Tap the right half = `showDoneSheet` (lib/done_sheet.dart,
+   `Store.addDone`); tap a block = `editDone`; hold to move, bottom handle to stretch (15 min snap, Undo). Log entries may carry
+   `end` and `act`. Your own buttons (collection `acts` {name}) on Your day: tap starts (`Store.startAct`), tap again stops
+   (`stopLog`), hold to rename/remove; "started X" with a button's name links it; "finished X" ends the open one. Untested on a phone.
    Plan my day (`lib/day_planner.dart`, `lib/plan_day_page.dart`) is the one place to plan any day. Pieces are tasks (id) and
    habits (minus the id; `DayPlanner.habitTasks`, quick when they have no `planMin`). Tasks may carry `winFrom`/`winTo` (minutes
    after midnight), `estMax` (longest length), `chunk` (done in blocks: Apply makes part items with `partOf`; the last done part

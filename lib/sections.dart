@@ -27,7 +27,7 @@ class Sections {
     Section('memory', 'Memory and About me', ['memories', 'words', 'profile']),
     Section('clock', 'Alarms and places', ['clocks', 'places', 'appAlarms']),
     Section('cards', 'Flashcards', ['cards']),
-    Section('day', 'Your day', ['log']),
+    Section('day', 'Your day', ['log', 'acts']),
   ];
 
   static Section? byKey(String key) => all.where((x) => x.key == key).firstOrNull;

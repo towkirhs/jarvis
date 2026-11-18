@@ -142,6 +142,40 @@ void main() {
     await _pump(t, s);
     expect(t.getRect(find.text('Late study')).left, greaterThan(48 + 284.0)); // back on Tuesday the 17th
   });
+
+  testWidgets('Plan and what you did: plan on the left half, what you did on the right; tap the right to add', (t) async {
+    final s = await _store([_ev(1, 'Class', 9)]);
+    s.list('log').add({
+      'id': 5, 'kind': 'now', 'verb': 'start', 'text': 'Started tuition',
+      'at': DateTime(2026, 11, 16, 10).millisecondsSinceEpoch, 'end': DateTime(2026, 11, 16, 11, 30).millisecondsSinceEpoch,
+    });
+    Haptics.on = false;
+    t.view.physicalSize = const Size(900, 1800);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(const MethodChannel('jarcis/native'), (_) async => null);
+    await t.pumpWidget(MaterialApp(
+      home: Scaffold(body: TimeGrid(store: s, anchor: _day, count: 3, done: true, onVisible: (_) {}, onDayTap: (_) {})),
+    ));
+    await t.pumpAndSettle();
+    final plan = t.getRect(find.ancestor(of: find.text('Class'), matching: find.byType(Opacity)).first);
+    final did = t.getRect(find.byKey(ValueKey('done5@${DateTime(2026, 11, 16, 10).millisecondsSinceEpoch}')));
+    expect(plan.width, closeTo(284 / 2 - 2, 1));
+    expect(did.left - plan.left, closeTo(142, 1));
+    expect(did.height, closeTo(GridMath.hourH * 1.5 - 1, 1));
+
+    // An empty slot on the right side of Tuesday at 8 am.
+    await t.tapAt(Offset(48 + 284 + 200, _bodyTop(t) + 8 * GridMath.hourH + 5));
+    await t.pumpAndSettle();
+    expect(find.text('Add what you did'), findsOneWidget);
+    await t.enterText(find.byType(TextField), 'Reading');
+    await t.tap(find.text('Add'));
+    await t.pumpAndSettle();
+    final added = s.list('log').last;
+    expect([added['text'], DateTime.fromMillisecondsSinceEpoch(added['at'] as int)], ['Started Reading', DateTime(2026, 11, 17, 8)]);
+    expect(find.text('Reading'), findsOneWidget);
+  });
 }
 
 /// Where the hour grid begins on screen (below the names row). The tall test window never scrolls it.

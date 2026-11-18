@@ -4,10 +4,10 @@ import 'package:flutter/material.dart';
 import 'app_alarms.dart';
 import 'day_log.dart';
 import 'day_start_menu.dart';
+import 'done_sheet.dart';
 import 'haptics.dart';
 import 'native.dart';
 import 'plan_day_page.dart';
-import 'record_sheet.dart';
 import 'store.dart';
 
 /// Your day as it really went: how the plan is going, what you are doing now, a timeline, and time in apps.
@@ -255,8 +255,83 @@ class _DayPageState extends State<DayPage> with WidgetsBindingObserver {
       const SizedBox(height: 8),
       Wrap(spacing: 8, runSpacing: 4, children: [
         for (final q in quick) ActionChip(label: Text(q), onPressed: () => _log(q)),
+        // Your own buttons: tap to start, tap again to stop; hold to rename or remove.
+        for (final a in store.list('acts')) _actChip(context, a),
+        ActionChip(avatar: const Icon(Icons.add, size: 18), label: const Text('Button'), tooltip: 'Add your own button', onPressed: () => _editAct(null)),
       ]),
+      const SizedBox(height: 4),
+      TextButton.icon(
+        icon: const Icon(Icons.more_time),
+        label: const Text('Add something you did earlier'),
+        onPressed: () {
+          final n = DateTime.now();
+          showDoneSheet(context, store, from: n.subtract(const Duration(hours: 1)), to: n);
+        },
+      ),
     ]);
+  }
+
+  Widget _actChip(BuildContext context, Rec a) {
+    final run = DayLog.running(store.list('log'), a['id'] as int);
+    final mins = run == null ? 0 : DateTime.now().difference(DateTime.fromMillisecondsSinceEpoch(run['at'] as int)).inMinutes;
+    return GestureDetector(
+      onLongPress: () => _editAct(a),
+      child: FilterChip(
+        avatar: Icon(run == null ? Icons.play_arrow : Icons.stop, size: 18),
+        label: Text(run == null ? '${a['name']}' : '${a['name']} · ${DayLog.span(mins)}'),
+        showCheckmark: false,
+        selected: run != null,
+        onSelected: (_) {
+          Haptics.toggle(run == null);
+          if (run == null) {
+            store.startAct(a);
+          } else {
+            store.stopLog(run);
+          }
+        },
+      ),
+    );
+  }
+
+  /// Add a button ([a] null), or rename or remove one.
+  Future<void> _editAct(Rec? a) async {
+    final ctrl = TextEditingController(text: a == null ? '' : '${a['name']}');
+    final res = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(a == null ? 'Your own button' : 'Change button'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: const InputDecoration(hintText: 'Tuition, YouTube, Study…'),
+          onSubmitted: (v) => Navigator.pop(ctx, v),
+        ),
+        actions: [
+          if (a != null) TextButton(onPressed: () => Navigator.pop(ctx, '\u0000'), child: const Text('Remove')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, ctrl.text), child: const Text('Save')),
+        ],
+      ),
+    );
+    if (res == null) return;
+    if (a != null && res == '\u0000') {
+      store.removeRec('acts', a, 'Removed button: ${a['name']}');
+      return;
+    }
+    final name = res.trim();
+    if (name.isEmpty) return;
+    final nice = name[0].toUpperCase() + name.substring(1);
+    if (a == null) {
+      final r = {'id': store.nextId(), 'name': nice};
+      store.list('acts').add(r);
+      store.logAction('Added button: $nice', [
+        {'op': 'rm', 'col': 'acts', 'id': r['id']},
+      ]);
+      store.save();
+    } else {
+      await store.updateRec('acts', a, 'Renamed button: $nice', (x) => x['name'] = nice);
+    }
   }
 
   Widget _moment(BuildContext context, Moment m) {
@@ -287,10 +362,7 @@ class _DayPageState extends State<DayPage> with WidgetsBindingObserver {
     // What you said, or answered at a check-in: tap to change the words or the time, copy or delete it.
     return InkWell(
       borderRadius: BorderRadius.circular(14),
-      onTap: () => showRecordSheet(context, store, 'log', log,
-          title: 'Your day',
-          fields: const [Field('text', 'What', kind: 'long'), Field('at', 'When', kind: 'when')],
-          name: (r) => '${r['text']}'),
+      onTap: () => editDone(context, store, log),
       child: row,
     );
   }

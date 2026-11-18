@@ -208,4 +208,39 @@ void main() {
     final a = s.list('appAlarms').single;
     expect([a['pkg'], a['when'], a['min'], a['ring']], ['com.google.android.youtube', 'today', 80, true]);
   });
+
+  test('Done blocks: started until stopped or the next thing, sleep until waking, your buttons only when stopped', () {
+    final log = <Rec>[
+      {'id': 1, 'kind': 'now', 'verb': 'sleep', 'text': 'Going to sleep', 'at': _ms(0, 30)},
+      {'id': 2, 'kind': 'now', 'verb': 'wake', 'text': 'Woke up', 'at': _ms(7)},
+      {'id': 3, 'kind': 'now', 'verb': 'start', 'text': 'Started gym', 'at': _ms(8)},
+      {'id': 4, 'kind': 'now', 'verb': 'start', 'text': 'Started Tuition', 'at': _ms(8, 30), 'act': 9},
+      {'id': 5, 'kind': 'now', 'verb': 'back', 'text': 'Back home', 'at': _ms(9)},
+      {'id': 6, 'kind': 'now', 'verb': 'start', 'text': 'Started reading', 'at': _ms(10), 'end': _ms(10, 45)},
+    ];
+    final b = DayLog.blocks(log, _at(0), _at(24), now: _at(11));
+    String show(DoneBlock x) => '${x.title} ${DateTime.fromMillisecondsSinceEpoch(x.start).hour}-'
+        '${DateTime.fromMillisecondsSinceEpoch(x.end).hour}:${DateTime.fromMillisecondsSinceEpoch(x.end).minute}${x.running ? ' running' : ''}';
+    expect(b.map(show), ['Sleep 0-7:0', 'Gym 8-9:0', 'Tuition 8-11:0 running', 'Back home 9-10:0', 'Reading 10-10:45']);
+    expect(DayLog.running(log, 9)?['id'], 4);
+    expect(DayLog.running(log, 8), isNull);
+  });
+
+  test('your own buttons: start, stop, "finished tuition" ends it, and adding one afterwards', () async {
+    final s = await _store();
+    s.list('acts').add({'id': 9, 'name': 'Tuition'});
+    s.startAct(s.list('acts').single);
+    final run = DayLog.running(s.list('log'), 9)!;
+    await s.stopLog(run, at: (run['at'] as int) + 3600000);
+    expect(DayLog.running(s.list('log'), 9), isNull);
+
+    await s.logNow(NowLog.parse('started tuition')!);
+    expect(s.list('log').last['act'], 9);
+    await s.logNow(NowLog.parse('finished tuition')!);
+    expect(s.list('log').where((e) => e['act'] == 9 && e['end'] == null), isEmpty);
+
+    s.addDone('YouTube', _ms(6), _ms(7));
+    final y = DayLog.blocks(s.list('log'), _at(0), _at(24), now: _at(23)).firstWhere((x) => x.title == 'YouTube');
+    expect([y.start, y.end, y.running], [_ms(6), _ms(7), false]);
+  });
 }

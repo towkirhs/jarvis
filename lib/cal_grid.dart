@@ -1,13 +1,17 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import 'cal_edit.dart';
 import 'cal_event.dart';
 import 'cal_index.dart';
 import 'cal_quick.dart';
+import 'day_log.dart';
+import 'done_sheet.dart';
 import 'haptics.dart';
+import 'native.dart';
 import 'store.dart';
 import 'task_sheet.dart';
 import 'theme.dart' show accents;
@@ -105,8 +109,16 @@ class TimeGrid extends StatefulWidget {
     required this.onVisible,
     required this.onDayTap,
     this.stack = false,
+    this.done = false,
+    this.apps = false,
   });
   final Store store;
+
+  /// Each day splits in two: the plan on the left, what you really did on the right.
+  final bool done;
+
+  /// With [done]: time in apps shows in the Done half too.
+  final bool apps;
 
   /// Events at the same time lie on top of each other (each a step to the right) instead of side by side.
   final bool stack;
@@ -229,6 +241,8 @@ class TimeGridState extends State<TimeGrid> {
                         count: count,
                         scheme: scheme,
                         stack: widget.stack,
+                        done: widget.done,
+                        apps: widget.apps,
                       ),
                     ),
                   ),
@@ -318,8 +332,16 @@ class _Drag {
 
 /// One page of the grid: the hour lines, the blocks, the "now" line and a block being dragged.
 class _BodyPage extends StatefulWidget {
-  const _BodyPage({required this.store, required this.start, required this.count, required this.scheme, this.stack = false});
-  final bool stack;
+  const _BodyPage({
+    required this.store,
+    required this.start,
+    required this.count,
+    required this.scheme,
+    this.stack = false,
+    this.done = false,
+    this.apps = false,
+  });
+  final bool stack, done, apps;
   final Store store;
   final DateTime start;
   final int count;
@@ -333,6 +355,59 @@ class _BodyPageState extends State<_BodyPage> {
   static const _hourH = GridMath.hourH;
   _Drag? _drag;
   ({int col, int minute, int dur})? _ghost;
+
+  /// A Done block being moved or stretched: the block, which way, and how far (pixels).
+  ({DoneBlock block, bool resize, double dy})? _doneDrag;
+  List<AppSession> _appTime = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadApps();
+  }
+
+  Future<void> _loadApps() async {
+    if (!widget.done || !widget.apps || kIsWeb || !await Native.usageAccess()) return;
+    final from = _at(widget.start, 0);
+    final raw = await Native.appSessions(from, from.add(Duration(days: widget.count)));
+    if (mounted) setState(() => _appTime = raw.map(AppSession.from).whereType<AppSession>().toList());
+  }
+
+  static int _snap(double dy) => ((dy / _hourH * 60) / 15).round() * 15;
+
+  /// Puts a moved or stretched Done block in place, with Undo.
+  Future<void> _commitDone() async {
+    final d = _doneDrag;
+    setState(() => _doneDrag = null);
+    final rec = d?.block.log;
+    if (d == null || rec == null) return;
+    final delta = _snap(d.dy) * 60000;
+    if (delta == 0) return;
+    Haptics.dragEnd();
+    final b = d.block;
+    if (d.resize && b.end + delta - b.start < 5 * 60000) return;
+    await widget.store.updateRec('log', rec, '${d.resize ? 'Changed length' : 'Moved'}: ${b.title}', (x) {
+      if (x['kind'] == 'check') {
+        if (!d.resize) x['from'] = (x['from'] as int) + delta;
+        x['at'] = (x['at'] as int) + delta;
+      } else if (d.resize) {
+        x['end'] = b.end + delta;
+      } else {
+        x['at'] = (x['at'] as int) + delta;
+        if (!b.running) x['end'] = b.end + delta;
+      }
+    });
+    if (!mounted) return;
+    final s = widget.store;
+    final log = s.list('actions').last['id'] as int;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        content: Text(d.resize ? 'Length changed' : 'Moved'),
+        persist: false,
+        action: SnackBarAction(label: 'Undo', onPressed: () => s.undo(log)),
+      ));
+  }
 
   int get _shift => widget.store.dayShift;
   int _minuteOf(DateTime d) => gridMinute(d, _shift);
@@ -381,6 +456,12 @@ class _BodyPageState extends State<_BodyPage> {
   Future<void> _tapEmpty(TapUpDetails t) async {
     final col = GridMath.columnAt(t.localPosition.dx, _colW, widget.count);
     final minute = GridMath.minuteAt(t.localPosition.dy);
+    // The Done half: add something you did then.
+    if (widget.done && t.localPosition.dx - col * _colW > _colW / 2) {
+      final from = _at(DateTime(widget.start.year, widget.start.month, widget.start.day + col), minute);
+      await showDoneSheet(context, widget.store, from: from, to: from.add(const Duration(hours: 1)));
+      return;
+    }
     setState(() => _ghost = (col: col, minute: minute, dur: 60));
     final real = _at(DateTime(widget.start.year, widget.start.month, widget.start.day + col), minute);
     await showQuickAdd(context, widget.store, day: real, at: TimeOfDay.fromDateTime(real), minutes: 60);
@@ -412,6 +493,16 @@ class _BodyPageState extends State<_BodyPage> {
           final (lane, n) = lanes[i];
           blocks.add(_block(context, timed[i], k, lane, n, colW, scheme));
         }
+        if (widget.done) {
+          final from = _at(days[k], 0);
+          final done = DayLog.blocks(s.list('log'), from, from.add(const Duration(days: 1)), now: now, apps: widget.apps ? _appTime : const []);
+          final dayMs = from.millisecondsSinceEpoch;
+          int minuteOf(int ms) => ((ms - dayMs) ~/ 60000).clamp(0, 24 * 60);
+          final dl = GridMath.lanes([for (final b in done) (minuteOf(b.start), max(minuteOf(b.end), minuteOf(b.start) + 15))]);
+          for (var i = 0; i < done.length; i++) {
+            blocks.add(_doneBlock(context, done[i], k, dl[i].$1, dl[i].$2, colW, minuteOf(done[i].start), minuteOf(done[i].end), scheme));
+          }
+        }
       }
       final drag = _drag;
       final ghost = _ghost;
@@ -425,6 +516,7 @@ class _BodyPageState extends State<_BodyPage> {
               child: CustomPaint(
                 painter: _GridPainter(
                   count: count,
+                  split: widget.done ? scheme.surfaceContainerHighest.withValues(alpha: 0.35) : null,
                   line: scheme.outlineVariant.withValues(alpha: 0.4),
                   nowMinute: todayCol < 0 ? null : _minuteOf(now),
                   nowCol: todayCol,
@@ -438,7 +530,7 @@ class _BodyPageState extends State<_BodyPage> {
             Positioned(
               top: ghost.minute / 60 * _hourH,
               left: ghost.col * colW + 1,
-              width: colW - 2,
+              width: (widget.done ? colW / 2 : colW) - 2,
               height: ghost.dur / 60 * _hourH - 1,
               child: IgnorePointer(
                 child: DecoratedBox(
@@ -469,7 +561,7 @@ class _BodyPageState extends State<_BodyPage> {
     return Positioned(
       top: minute / 60 * _hourH,
       left: col.clamp(0, widget.count - 1).toDouble() * colW + 1,
-      width: colW - 2,
+      width: (widget.done ? colW / 2 : colW) - 2,
       height: max(dur / 60 * _hourH, 20.0) - 1,
       child: IgnorePointer(
         child: Material(
@@ -512,8 +604,9 @@ class _BodyPageState extends State<_BodyPage> {
     // Side by side: each lane gets an equal share. On top of each other: each lane starts a step to the
     // right and runs to the edge, with a thin outline so the one underneath still shows.
     final over = widget.stack && lanes > 1;
-    final step = over ? min(colW * 0.22, colW / lanes) : colW / lanes;
-    final w = over ? colW - lane * step : step;
+    final pw = widget.done ? colW / 2 : colW;
+    final step = over ? min(pw * 0.22, pw / lanes) : pw / lanes;
+    final w = over ? pw - lane * step : step;
     final c = eventColor(it, scheme);
     final fg = onEventColor(c);
     final done = it['status'] == 'done';
@@ -617,12 +710,116 @@ class _BodyPageState extends State<_BodyPage> {
       ),
     );
   }
+
+  /// What you really did, in the right half of a day: tap to change it, hold to move it, pull the bottom to stretch it.
+  Widget _doneBlock(BuildContext context, DoneBlock b, int col, int lane, int lanes, double colW, int startMin, int endMin, ColorScheme scheme) {
+    final d = _doneDrag;
+    final mine = d != null && d.block.log != null && d.block.log?['id'] == b.log?['id'] && d.block.start == b.start;
+    var s0 = startMin, e0 = endMin;
+    if (mine) {
+      final m = _snap(d.dy);
+      if (d.resize) {
+        e0 = max(s0 + 5, e0 + m);
+      } else {
+        s0 += m;
+        e0 += m;
+      }
+    }
+    const hourH = GridMath.hourH;
+    final half = colW / 2;
+    final w = half / lanes;
+    final top = s0 / 60 * hourH;
+    final height = max((e0 - s0) / 60 * hourH, 18.0) - 1;
+    final (bg, fg) = switch (b.kind) {
+      'app' => (scheme.surfaceContainerHighest, scheme.onSurfaceVariant),
+      'sleep' => (scheme.secondaryContainer, scheme.onSecondaryContainer),
+      _ => (scheme.primaryContainer, scheme.onSurface),
+    };
+    final rec = b.log;
+    final range = b.running ? '${clock(b.start)} – now' : '${clock(b.start)} – ${clock(b.end)}';
+    return Positioned(
+      key: ValueKey('done${rec?['id'] ?? b.title}@${b.start}'),
+      top: top,
+      left: col * colW + half + lane * w + 1,
+      width: w - 2,
+      height: height,
+      child: GestureDetector(
+        onTap: rec == null ? null : () => editDone(context, widget.store, rec),
+        onLongPressStart: rec == null
+            ? null
+            : (_) {
+                Haptics.dragStart();
+                setState(() => _doneDrag = (block: b, resize: false, dy: 0));
+              },
+        onLongPressMoveUpdate: rec == null ? null : (m) => setState(() => _doneDrag = (block: b, resize: false, dy: m.offsetFromOrigin.dy)),
+        onLongPressEnd: rec == null ? null : (_) => _commitDone(),
+        onLongPressCancel: rec == null ? null : () => setState(() => _doneDrag = null),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(5, 2, 3, 2),
+          decoration: BoxDecoration(
+            color: bg.withValues(alpha: mine ? 0.7 : 1),
+            borderRadius: BorderRadius.circular(8),
+            border: b.running ? Border.all(color: scheme.primary, width: 1.5) : null,
+          ),
+          child: Stack(children: [
+            Positioned.fill(
+              child: ClipRect(
+                child: OverflowBox(
+                  alignment: Alignment.topLeft,
+                  maxHeight: double.infinity,
+                  child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(
+                      b.title,
+                      maxLines: height < 36 ? 1 : 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 11, fontWeight: b.kind == 'app' ? FontWeight.w400 : FontWeight.w600, color: fg),
+                    ),
+                    if (height >= 40)
+                      Text(range, maxLines: 1, overflow: TextOverflow.clip, style: TextStyle(fontSize: 10, color: fg.withValues(alpha: 0.8))),
+                  ]),
+                ),
+              ),
+            ),
+            if (rec != null && height >= 28)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: 14,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onVerticalDragStart: (_) {
+                    Haptics.dragStart();
+                    setState(() => _doneDrag = (block: b, resize: true, dy: 0));
+                  },
+                  onVerticalDragUpdate: (m) => setState(() => _doneDrag = (block: b, resize: true, dy: (_doneDrag?.dy ?? 0) + m.delta.dy)),
+                  onVerticalDragEnd: (_) => _commitDone(),
+                  onVerticalDragCancel: () => setState(() => _doneDrag = null),
+                  child: Align(
+                    alignment: Alignment.bottomCenter,
+                    child: Container(
+                      width: 18,
+                      height: 3,
+                      margin: const EdgeInsets.only(bottom: 2),
+                      decoration: BoxDecoration(color: fg.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(2)),
+                    ),
+                  ),
+                ),
+              ),
+          ]),
+        ),
+      ),
+    );
+  }
 }
 
 /// Hour lines, day dividers and the red "now" line, drawn in one pass.
 class _GridPainter extends CustomPainter {
-  _GridPainter({required this.count, required this.line, required this.nowMinute, required this.nowCol, required this.nowColor});
+  _GridPainter({required this.count, required this.line, required this.nowMinute, required this.nowCol, required this.nowColor, this.split});
   final int count;
+
+  /// The Done half's shade, when each day is split into plan and done.
+  final Color? split;
   final Color line;
   final int? nowMinute;
   final int nowCol;
@@ -638,6 +835,12 @@ class _GridPainter extends CustomPainter {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), p);
     }
     final colW = size.width / count;
+    final tint = split;
+    if (tint != null) {
+      for (var k = 0; k < count; k++) {
+        canvas.drawRect(Rect.fromLTWH(k * colW + colW / 2, 0, colW / 2, size.height), Paint()..color = tint);
+      }
+    }
     for (var k = 0; k < count; k++) {
       canvas.drawLine(Offset(k * colW, 0), Offset(k * colW, size.height), p);
     }
@@ -654,5 +857,5 @@ class _GridPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_GridPainter o) =>
-      o.count != count || o.line != line || o.nowMinute != nowMinute || o.nowCol != nowCol || o.nowColor != nowColor;
+      o.count != count || o.split != split || o.line != line || o.nowMinute != nowMinute || o.nowCol != nowCol || o.nowColor != nowColor;
 }

@@ -82,7 +82,7 @@ class Store extends ChangeNotifier {
   static const _collections = [
     'captures', 'items', 'habits', 'promises', 'decisions', 'inbox', 'actions', 'countdowns', 'focus', 'tx', 'entries',
     'rooms', 'rentPays', 'roomBills', 'houseCosts', 'clocks', 'places', 'memories', 'loanPeople', 'loans', 'cards', 'rules', 'words', 'profile', 'goals', 'incomes', 'incomePays',
-    'log', 'appAlarms',
+    'log', 'appAlarms', 'acts',
   ];
 
   Future<void> load() async {
@@ -813,9 +813,19 @@ class Store extends ChangeNotifier {
   Future<String> logNow(NowAct act, {DateTime? at}) async {
     final t = at ?? DateTime.now();
     final task = act.verb == 'start' || act.verb == 'finish' ? NowLog.task(list('items'), act.what) : null;
+    final mine = act.verb == 'start' ? list('acts').where((a) => '${a['name']}'.toLowerCase() == act.what.toLowerCase()).firstOrNull : null;
+    // "Finished tuition" / "stopped YouTube" ends what you started, so it shows with its real length.
+    if (act.verb == 'finish') {
+      final w = act.what.toLowerCase().replaceAll(RegExp(r'^(the|my)\s+'), '');
+      final open = list('log').where((e) =>
+          e['kind'] == 'now' && e['verb'] == 'start' && e['end'] == null && e['at'] is int &&
+          t.millisecondsSinceEpoch - (e['at'] as int) < 24 * 3600000 && DayLog.title(e).toLowerCase() == w).toList();
+      if (open.isNotEmpty) open.last['end'] = t.millisecondsSinceEpoch;
+    }
     final e = {
       'id': nextId(), 'at': t.millisecondsSinceEpoch, 'kind': 'now', 'verb': act.verb, 'text': act.text,
       if (task != null) 'item': task['id'],
+      if (mine != null) 'act': mine['id'],
     };
     list('log').add(e);
     logAction('Noted: ${act.text}', [
@@ -833,6 +843,35 @@ class Store extends ChangeNotifier {
     save();
     final h = t.hour % 12 == 0 ? 12 : t.hour % 12;
     return 'Noted at $h:${t.minute.toString().padLeft(2, '0')} ${t.hour < 12 ? 'am' : 'pm'}: ${act.text}.$extra';
+  }
+
+  /// Starts your own button [act] (Tuition, YouTube…): it runs until you stop it.
+  void startAct(Rec act) {
+    final e = {
+      'id': nextId(), 'at': DateTime.now().millisecondsSinceEpoch, 'kind': 'now', 'verb': 'start',
+      'text': 'Started ${act['name']}', 'act': act['id'],
+    };
+    list('log').add(e);
+    logAction('Started: ${act['name']}', [
+      {'op': 'rm', 'col': 'log', 'id': e['id']},
+    ]);
+    save();
+  }
+
+  /// Ends [e] (something you started) at [at], or now.
+  Future<void> stopLog(Rec e, {int? at}) =>
+      updateRec('log', e, 'Stopped: ${DayLog.title(e)}', (x) => x['end'] = at ?? DateTime.now().millisecondsSinceEpoch);
+
+  /// Something you did, added afterwards: [what] from [from] to [to].
+  void addDone(String what, int from, int to, {int? act}) {
+    final e = {
+      'id': nextId(), 'at': from, 'end': to, 'kind': 'now', 'verb': 'start', 'text': 'Started $what', if (act != null) 'act': act,
+    };
+    list('log').add(e);
+    logAction('Added: $what', [
+      {'op': 'rm', 'col': 'log', 'id': e['id']},
+    ]);
+    save();
   }
 
   /// Your answer to a check-in: done, 15 more minutes, skipped, or what you did instead.

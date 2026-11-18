@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'store.dart';
 
 /// One thing you said you are doing ("started gym", "back home", "now: reading").
@@ -150,6 +152,15 @@ class Moment {
   final String kind;
 }
 
+/// One stretch in the calendar's Done column. [kind]: act, sleep, check or app.
+class DoneBlock {
+  const DoneBlock(this.start, this.end, this.title, this.kind, {this.log, this.running = false});
+  final int start, end;
+  final String title, kind;
+  final Rec? log;
+  final bool running;
+}
+
 class DayLog {
   /// Whether moment [a] belongs to [day] (following the day start).
   static bool _sameDay(DateTime a, DateTime day) {
@@ -179,8 +190,8 @@ class DayLog {
       }
       if (verb == 'finish' && e['item'] != null) saidDone.add(e['item']);
       // Something you started runs until the next thing you said.
-      DateTime? end;
-      if (verb == 'start' || verb == 'back') {
+      DateTime? end = e['end'] is int ? DateTime.fromMillisecondsSinceEpoch(e['end'] as int) : null;
+      if (end == null && e['act'] == null && (verb == 'start' || verb == 'back')) {
         for (final n in entries.skip(k + 1)) {
           if (n['kind'] == 'now') {
             end = DateTime.fromMillisecondsSinceEpoch(n['at'] as int);
@@ -202,6 +213,56 @@ class DayLog {
     out.sort((a, b) => a.at.compareTo(b.at));
     return out;
   }
+
+  /// What you really did between [from] and [to], as blocks for the calendar's Done column:
+  /// things you started (until you stopped them, or until the next thing you said), sleep (until you woke up),
+  /// check-in answers, and app stretches of 5 minutes or more. Something still going runs until [now].
+  static List<DoneBlock> blocks(List<Rec> log, DateTime from, DateTime to, {required DateTime now, List<AppSession> apps = const []}) {
+    final said = log.where((e) => e['at'] is int && (e['kind'] == 'now' || e['kind'] == 'check')).toList()
+      ..sort((a, b) => (a['at'] as int).compareTo(b['at'] as int));
+    final out = <DoneBlock>[];
+    final nowMs = now.millisecondsSinceEpoch;
+    for (var k = 0; k < said.length; k++) {
+      final e = said[k];
+      final at = e['at'] as int;
+      final verb = '${e['verb']}';
+      if (e['kind'] == 'check') {
+        if (e['from'] is int && verb != 'skip') out.add(DoneBlock(e['from'] as int, at, title(e), 'check', log: e));
+        continue;
+      }
+      if (verb != 'start' && verb != 'back' && verb != 'sleep') continue;
+      int? end = e['end'] as int?;
+      if (end == null && e['act'] == null) {
+        for (final n in said.skip(k + 1)) {
+          if (n['kind'] != 'now' || n['act'] != null) continue;
+          if (verb == 'sleep' && n['verb'] != 'wake') continue;
+          end = n['at'] as int;
+          break;
+        }
+      }
+      // Still going: only if it began in the last 16 hours (an old open one is shown as half an hour).
+      final running = end == null && nowMs - at < 16 * 3600000;
+      end ??= running ? max(nowMs, at + 60000) : at + 30 * 60000;
+      out.add(DoneBlock(at, end, title(e), verb == 'sleep' ? 'sleep' : 'act', log: e, running: running));
+    }
+    for (final s in AppSession.merge(apps)) {
+      if (s.minutes >= 5) out.add(DoneBlock(s.start.millisecondsSinceEpoch, s.end.millisecondsSinceEpoch, s.name, 'app'));
+    }
+    final a = from.millisecondsSinceEpoch, b = to.millisecondsSinceEpoch;
+    return out.where((x) => x.end > a && x.start < b).toList()..sort((x, y) => x.start.compareTo(y.start));
+  }
+
+  /// A log entry's name without "Started": "Started tuition" → "Tuition", "Going to sleep" → "Sleep".
+  static String title(Rec e) {
+    if (e['verb'] == 'sleep') return 'Sleep';
+    final t = '${e['text'] ?? ''}'.replaceFirst(RegExp(r'^Started\s+', caseSensitive: false), '').trim();
+    return t.isEmpty ? '${e['text'] ?? ''}' : t[0].toUpperCase() + t.substring(1);
+  }
+
+  /// Your own button [act] is running: the entry it started that has not been stopped yet.
+  static Rec? running(List<Rec> log, int act) =>
+      log.where((e) => e['act'] == act && e['end'] == null && e['at'] is int).fold<Rec?>(
+          null, (best, e) => best == null || (e['at'] as int) > (best['at'] as int) ? e : best);
 
   static String span(int minutes) {
     final h = minutes ~/ 60, m = minutes % 60;

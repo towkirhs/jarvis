@@ -417,10 +417,12 @@ class _CalendarViewState extends State<_CalendarView> {
     super.initState();
     // Your default view: "days|across|stack", saved from the view sheet.
     final p = (widget.store.local('calView') ?? '').split('|');
-    if (p.length == 3) {
+    if (p.length >= 3) {
       _n = int.tryParse(p[0]) ?? 3;
       _across = p[1] == '1';
       _stack = p[2] == '1';
+      _done = p.length > 3 && p[3] == '1';
+      _apps = p.length > 4 && p[4] == '1';
     }
   }
 
@@ -455,7 +457,12 @@ class _CalendarViewState extends State<_CalendarView> {
         _list = true;
       });
 
-  void _show({int? n, bool? across, bool? stack}) => setState(() {
+  /// Each day split into what you planned and what you really did; app time in the Done half.
+  bool _done = false, _apps = false;
+
+  void _show({int? n, bool? across, bool? stack, bool? done, bool? apps}) => setState(() {
+        _done = done ?? _done;
+        _apps = apps ?? _apps;
         _n = n ?? _n;
         _across = across ?? _across;
         _stack = stack ?? _stack;
@@ -475,9 +482,9 @@ class _CalendarViewState extends State<_CalendarView> {
           builder: (ctx, setS) {
             final tt = Theme.of(ctx).textTheme;
             final scheme = Theme.of(ctx).colorScheme;
-            void show({int? n, bool? across, bool? stack}) {
+            void show({int? n, bool? across, bool? stack, bool? done, bool? apps}) {
               Haptics.tap();
-              _show(n: n, across: across, stack: stack);
+              _show(n: n, across: across, stack: stack, done: done, apps: apps);
               setS(() {});
             }
 
@@ -544,12 +551,27 @@ class _CalendarViewState extends State<_CalendarView> {
                     value: _stack,
                     onChanged: (v) => show(stack: v),
                   ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Plan and what you did'),
+                    subtitle: const Text('Each day splits: the plan on the left, what really happened on the right. Tap the right side to add something you did.'),
+                    value: _done,
+                    onChanged: (v) => show(done: v),
+                  ),
+                  if (_done)
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Time in apps'),
+                      subtitle: const Text('Facebook, YouTube… on the right side too'),
+                      value: _apps,
+                      onChanged: (v) => show(apps: v),
+                    ),
                   const SizedBox(height: 8),
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton(
                       onPressed: () async {
-                        await widget.store.setLocal('calView', '$_n|${_across ? 1 : 0}|${_stack ? 1 : 0}');
+                        await widget.store.setLocal('calView', '$_n|${_across ? 1 : 0}|${_stack ? 1 : 0}|${_done ? 1 : 0}|${_apps ? 1 : 0}');
                         Haptics.success();
                         if (ctx.mounted) Navigator.pop(ctx);
                         if (mounted) {
@@ -607,13 +629,15 @@ class _CalendarViewState extends State<_CalendarView> {
                             : _n > 7
                                 ? _agenda(context, s, _n)
                                 : KeyedSubtree(
-                                    key: ValueKey('$_n/$_stack/${s.dayShift}/$_seq'),
+                                    key: ValueKey('$_n/$_stack/$_done/$_apps/${s.dayShift}/$_seq'),
                                     child: TimeGrid(
                                       key: _grid,
                                       store: s,
                                       anchor: _anchor,
                                       count: _n,
                                       stack: _stack,
+                                      done: _done,
+                                      apps: _apps,
                                       onVisible: (d) => setState(() => _day = d),
                                       onDayTap: _openDay,
                                     ),
