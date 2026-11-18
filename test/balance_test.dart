@@ -27,6 +27,10 @@ void main() {
     expect(LocalParser.balance('make bkash 500', _accounts)!['account'], 'bKash');
     expect(LocalParser.balance('bank balance 5,200', _accounts)!['leaves'], 5200);
     expect(LocalParser.balance('set cash to 830', _accounts)!['leaves'], 830);
+    final first = LocalParser.balance('Make 1187 cash  transport', _accounts)!;
+    expect([first['account'], first['leaves'], first['category']], ['Cash', 1187, 'Transport']);
+    expect(LocalParser.balance('set 500 in bkash', _accounts)!['account'], 'bKash');
+    expect(LocalParser.balance('make 3 copies of the cash memo', _accounts), isNull);
     expect(LocalParser.balance('spent 200 on food from cash', _accounts), isNull);
     expect(LocalParser.balance('I have 3 tuitions tomorrow', _accounts), isNull);
     expect(LocalParser.balance('cashback is 50', _accounts), isNull);

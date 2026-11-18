@@ -124,6 +124,8 @@ class LocalParser {
       RegExp('\\b($acct)\\s+(?:balance\\s+)?(?:is|=|now|has|shows|becomes?)\\s+(?:now\\s+|only\\s+)?$n'),
       RegExp('\\b(?:make|set|update|change)\\s+(?:my\\s+|the\\s+)?($acct)(?:\\s+balance)?\\s+(?:to\\s+)?$n'),
       RegExp('\\b($acct)\\s+balance\\s+(?:to\\s+)?$n'),
+      // "make 1187 cash transport", "set 500 in bkash": the number before the account.
+      RegExp('\\b(?:make|set|update|change)\\s+(?:it\\s+)?$n\\s*(?:in\\s+|on\\s+|for\\s+)?(?:my\\s+|the\\s+)?($acct)\\b'),
     ];
     // "I have 1687, the rest went on transport": no account named means Cash (or the first account), but only
     // when the rest of the note says it is a balance (the rest, left, remaining) or names the currency.
@@ -131,14 +133,15 @@ class LocalParser {
     if (!patterns.any((p) => p.hasMatch(t)) &&
         unnamed.hasMatch(t) &&
         RegExp(r'\b(?:rest|remaining|left|else|balance|tk|taka|bdt)\b|৳').hasMatch(t)) {
-      patterns.add(unnamed); // index 4
+      patterns.add(unnamed); // index 5
     }
     for (final (i, p) in patterns.indexed) {
       final m = p.firstMatch(t);
       if (m == null) continue;
-      final noName = i == 4;
-      final said = noName ? '' : (i == 0 ? m[2]! : m[1]!);
-      final amount = num.parse((i == 0 || noName ? m[1]! : m[2]!).replaceAll(',', ''));
+      final noName = i == 5;
+      final numFirst = i == 0 || i == 4;
+      final said = noName ? '' : (numFirst ? m[2]! : m[1]!);
+      final amount = num.parse((numFirst || noName ? m[1]! : m[2]!).replaceAll(',', ''));
       final account = noName
           ? accounts.firstWhere((a) => a.toLowerCase() == 'cash', orElse: () => accounts.first)
           : accounts.firstWhere((a) => a.toLowerCase() == said);
