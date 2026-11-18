@@ -5,6 +5,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.media.AudioAttributes
@@ -20,6 +21,13 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import android.text.InputType
+import android.view.WindowInsets
+import android.view.WindowManager
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
+import android.widget.EditText
+import android.widget.ImageView
 import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.FrameLayout
@@ -235,11 +243,19 @@ object NewClocks {
  * remapper like the Essential Key can launch), by "Hey Jarvis", or after an answer for a follow-up.
  * Actions for button apps: com.towkirhs.jarcis.TALK (listen), .SNAP (photo to Jarvis), .DO with extra "text".
  */
-class ListenActivity : Activity() {
+open class ListenActivity : Activity() {
     private var recognizer: SpeechRecognizer? = null
     private var retried = false
     private lateinit var line: TextView
+    private lateinit var box: EditText
+    private lateinit var mic: ImageView
+    private val onAnswer: (String) -> Unit = { text -> show(text) }
+    private var listening = false
     private val main by lazy { Handler(Looper.getMainLooper()) }
+    private val giveUp = Runnable { show("Saved. Jarvis will answer in a notification.") }
+
+    /** Start by listening (the key, "Hey Jarvis", the bubble's voice) or by typing (the bubble's text). */
+    protected open val listenFirst = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -266,80 +282,202 @@ class ListenActivity : Activity() {
                 return
             }
         }
-        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            Commands.toast(this, "Allow the microphone in Jarvis, Hey Jarvis")
-            startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-            finish()
-            return
-        }
         card()
-        listen()
+        // Jarvis's answers to typed notes come to this card while it is open, instead of a notification.
+        Chat.card = onAnswer
+        if (listenFirst) listen() else typing()
     }
 
-    /** A small card at the bottom; tap outside it to cancel. */
+    private fun canHear() = checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+
+    /**
+     * One card for talking and typing, like a chat box: what you say or Jarvis answers on top, then a text box
+     * with the mic and send. Tap the box to type instead of talk; tap the mic to talk again. Tap outside to close.
+     */
     private fun card() {
         val dp = resources.displayMetrics.density
         line = TextView(this).apply {
-            text = if (intent.getBooleanExtra("followUp", false)) "Anything else?" else "Listening…"
-            textSize = 18f
+            text = if (!listenFirst) "" else if (intent.getBooleanExtra("followUp", false)) "Anything else?" else "Listening…"
+            textSize = 17f
+            maxLines = 8
             setTextColor(Color.WHITE)
+            visibility = if (listenFirst) TextView.VISIBLE else TextView.GONE
+            setPadding(0, 0, 0, (12 * dp).toInt())
         }
-        val box = LinearLayout(this).apply {
+        box = EditText(this).apply {
+            hint = "Type or talk to Jarvis…"
+            textSize = 17f
+            setTextColor(Color.WHITE)
+            setHintTextColor(0x99FFFFFF.toInt())
+            background = null
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES or InputType.TYPE_TEXT_FLAG_AUTO_CORRECT
+            imeOptions = EditorInfo.IME_ACTION_SEND
+            setOnEditorActionListener { _, action, _ -> if (action == EditorInfo.IME_ACTION_SEND) send() else false }
+            // Starting to type stops the listening.
+            setOnFocusChangeListener { _, has -> if (has) stopListening() }
+            setOnClickListener { stopListening() }
+        }
+        fun round(icon: Int, desc: String, fill: Int, ink: Int, tap: () -> Unit) = ImageView(this).apply {
+            setImageResource(icon)
+            contentDescription = desc
+            scaleType = ImageView.ScaleType.CENTER_INSIDE
+            val p = (10 * dp).toInt()
+            setPadding(p, p, p, p)
+            imageTintList = ColorStateList.valueOf(ink)
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(fill)
+            }
+            setOnClickListener { tap() }
+        }
+        mic = round(android.R.drawable.ic_btn_speak_now, "Talk", 0x33FFFFFF, Color.WHITE) { if (listening) stopListening() else talk() }
+        val size = (44 * dp).toInt()
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(box, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(mic, LinearLayout.LayoutParams(size, size).apply { marginStart = (8 * dp).toInt() })
+            addView(round(android.R.drawable.ic_menu_send, "Send", 0xFF9FD3D3.toInt(), 0xFF0B2A2A.toInt()) { send() },
+                LinearLayout.LayoutParams(size, size).apply { marginStart = (8 * dp).toInt() })
+        }
+        val open = TextView(this).apply {
+            text = "Open Jarvis"
+            textSize = 14f
+            setTextColor(0xFF9FD3D3.toInt())
+            gravity = Gravity.END
+            setPadding(0, (10 * dp).toInt(), 0, 0)
+            setOnClickListener {
+                startActivity(Intent(this@ListenActivity, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                finish()
+            }
+        }
+        val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val pad = (20 * dp).toInt()
-            setPadding(pad, pad, pad, pad)
+            setPadding(pad, pad, pad, (14 * dp).toInt())
             background = GradientDrawable().apply {
                 cornerRadius = 28 * dp
                 setColor(0xF01E2A33.toInt())
             }
             addView(line)
-            // The way into the chat: opening Jarvis by package (a button app) lands here instead.
-            addView(TextView(this@ListenActivity).apply {
-                text = "Open Jarvis"
-                textSize = 14f
-                setTextColor(0xFF9FD3D3.toInt())
-                gravity = Gravity.END
-                setPadding(0, (14 * dp).toInt(), 0, 0)
-                setOnClickListener {
-                    startActivity(Intent(this@ListenActivity, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                    finish()
-                }
-            })
+            addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            addView(open, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             isClickable = true
         }
-        setContentView(FrameLayout(this).apply {
+        val root = FrameLayout(this).apply {
             setOnClickListener { finish() }
-            addView(box, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            addView(card, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                 gravity = Gravity.BOTTOM
                 val m = (16 * dp).toInt()
-                setMargins(m, m, m, (32 * dp).toInt())
+                setMargins(m, m, m, m)
             })
-        })
+            // Keep the card just above the keyboard.
+            setOnApplyWindowInsetsListener { v, insets ->
+                v.setPadding(0, 0, 0, insets.getInsets(WindowInsets.Type.ime() or WindowInsets.Type.systemBars()).bottom)
+                insets
+            }
+        }
+        window.setDecorFitsSystemWindows(false)
+        setContentView(root)
+    }
+
+    /** Typing: the box gets the keyboard. */
+    private fun typing() {
+        box.requestFocus()
+        window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE)
+        (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showSoftInput(box, InputMethodManager.SHOW_IMPLICIT)
+    }
+
+    /** Talking: the keyboard goes away and the phone listens. */
+    private fun talk() {
+        if (!canHear()) {
+            Commands.toast(this, "Allow the microphone in Jarvis, Hey Jarvis")
+            return
+        }
+        box.clearFocus()
+        (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(box.windowToken, 0)
+        retried = false
+        line.visibility = TextView.VISIBLE
+        line.text = "Listening…"
+        listen()
+    }
+
+    private fun stopListening() {
+        if (!listening) return
+        listening = false
+        recognizer?.cancel()
+        recognizer?.destroy()
+        recognizer = null
+        mic.alpha = 1f
+        if (line.text == "Listening…" || line.text == "Anything else?") line.visibility = TextView.GONE
+    }
+
+    /** What you typed: a phone command runs at once; anything else goes to Jarvis, whose answer shows here. */
+    private fun send(): Boolean {
+        val text = box.text.toString().trim()
+        if (text.isEmpty()) return true
+        box.setText("")
+        main.removeCallbacks(giveUp)
+        if (Commands.parse(this, text) != null) {
+            show(Assistant.handle(this, text, false))
+        } else {
+            show("…")
+            NoteQueue.add(this, text, null, "typed")
+            Chat.process(this, null)
+            main.postDelayed(giveUp, 25_000)
+        }
+        return true
+    }
+
+    private fun show(text: String) {
+        if (text != "…") main.removeCallbacks(giveUp)
+        line.text = text
+        line.visibility = TextView.VISIBLE
     }
 
     private fun listen() {
+        if (!canHear()) {
+            Commands.toast(this, "Allow the microphone in Jarvis, Hey Jarvis")
+            line.visibility = TextView.GONE
+            typing()
+            return
+        }
         val r = SpeechRecognizer.createSpeechRecognizer(this)
         recognizer = r
+        listening = true
+        mic.alpha = 0.55f
         r.setRecognitionListener(object : RecognitionListener {
             override fun onResults(results: Bundle?) {
+                listening = false
+                mic.alpha = 1f
                 val text = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
                 if (text.isNullOrBlank()) return finish()
                 line.text = "“$text”"
                 val shown = Assistant.handle(this@ListenActivity, text, true)
                 line.text = shown
-                main.postDelayed({ finish() }, 1200)
+                // Spoken: close as before (a follow-up card may open). Typing meanwhile keeps the card.
+                main.postDelayed({ if (!box.hasFocus() && box.text.isEmpty()) finish() }, 1200)
             }
             override fun onPartialResults(partialResults: Bundle?) {
                 partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
                     ?.takeIf { it.isNotBlank() }?.let { line.text = it }
             }
             override fun onError(error: Int) {
+                if (!listening) return // cancelled because you started typing
                 // The mic may still be with the wake word, or nothing was heard yet: try once more before giving up.
-                if (retried || isFinishing) return finish()
+                if (retried || isFinishing) {
+                    // A follow-up nobody answered just closes, as before.
+                    if (intent.getBooleanExtra("followUp", false) && box.text.isEmpty()) return finish()
+                    listening = false
+                    mic.alpha = 1f
+                    // Nothing heard: keep the card for typing instead of closing it.
+                    line.text = "Didn't catch that. Type, or tap the mic."
+                    return
+                }
                 retried = true
                 line.text = "Listening…"
                 r.destroy()
-                main.postDelayed({ if (!isFinishing) listen() }, 400)
+                main.postDelayed({ if (!isFinishing && listening) listen() }, 400)
             }
             override fun onReadyForSpeech(params: Bundle?) {}
             override fun onBeginningOfSpeech() {}
@@ -355,6 +493,7 @@ class ListenActivity : Activity() {
         main.removeCallbacksAndMessages(null)
         recognizer?.destroy()
         recognizer = null
+        if (Chat.card === onAnswer) Chat.card = null
         openCards--
         WakeService.resume(this)
         super.onDestroy()

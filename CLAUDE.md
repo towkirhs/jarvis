@@ -65,8 +65,11 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    voice briefing questions (build 140), ChatGPT blocks (build 143).
 3. On `overhaul`, untested on a phone: `untilDone` items (ring daily until marked done), speech language
    setting (default en-IN), listening card retry, notes with before/until/if/every going to the AI.
-   Also the typing card (`TypeActivity` in `QuickNote.kt`): Handy's bubble "text" and the action
-   `com.towkirhs.jarcis.TYPE` open it over the current app, and Jarvis answers inside it.
+   Talk-or-type card (build after 282): `ListenActivity` (Talk.kt) is one card with the answer line, a text box, mic and send;
+   it starts listening (key, "Hey Jarvis", TALK) or typing (`TypeActivity` in QuickNote.kt = the same card with
+   `listenFirst = false`: Handy's bubble "text", action `com.towkirhs.jarcis.TYPE`). Tapping the box stops listening; the mic
+   listens again; typed notes answer in the card (`Chat.card`). MainActivity sends itself back (`inFront`) when the bubble's
+   "text" brought it forward. Untested on a phone.
 4. Rent (`lib/rent_more.dart`), untested on a phone: All bills by month, receipts (save as image uses the
    system Save dialog; there is no native share yet, so sharing is "Copy as text"), payment methods, and
    tenant meetings (calendar events with `meeting: true`).

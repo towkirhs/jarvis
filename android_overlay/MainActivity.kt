@@ -118,6 +118,18 @@ class MainActivity : FlutterActivity() {
         started = true
     }
 
+    private var inFront = false
+
+    override fun onResume() {
+        super.onResume()
+        inFront = true
+    }
+
+    override fun onPause() {
+        inFront = false
+        super.onPause()
+    }
+
     override fun onStop() {
         started = false
         super.onStop()
@@ -126,8 +138,9 @@ class MainActivity : FlutterActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         if (typingCard(intent)) {
-            // Jarvis was in the background: put it back there, so only the card shows.
-            if (!started) moveTaskToBack(true)
+            // Jarvis was in the background: put it back there, so only the card shows over the app you were in.
+            // (onStart runs before onNewIntent when the app comes back, so "started" cannot tell; "inFront" can.)
+            if (!inFront) moveTaskToBack(true)
             return
         }
         sharedTextFrom(intent)?.let { channel?.invokeMethod("sharedText", it) }
