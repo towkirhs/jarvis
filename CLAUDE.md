@@ -152,6 +152,11 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    `Brain.claimsAction`: an AI reply that says it did something while no item was applied is replaced with "I couldn't do that…".
    `LocalParser.moneyCommand`: "create a money account named X" (item `account`) and "delete food 20" (item `money_delete`: the newest
    entry of that amount in 30 days whose category or note has the word; Undo puts it back), also usable by the AI and ChatGPT.
+   Copy, edit and arrange (build after 258): the app root is a `SelectionArea` (hold any text to copy); hold a Jarvis answer to copy it;
+   `lib/record_sheet.dart` (`showRecordSheet` with `Field`s: edit, copy, delete) for promises, decisions and Your day lines.
+   `lib/arrange.dart`: More → Arrange screens orders or hides the middle tabs (`local('tabs')`, Home first and More last are fixed;
+   `Shell._tabs`) and Home's parts (`local('homeHide')`: ribbon, now, chips). Task form ⋮ (`lib/item_moves.dart`): move to another
+   day (keeps the time), turn into a daily habit (task cancelled, one Undo), make a copy, copy as text. Untested on a phone.
    Health and backups (build after 249): `lib/health_page.dart` (`HealthCheck.rows` pure) reads `Native.health()` (`Health` in
    Ring.kt: notifications, exact alarms, battery optimisation, overlay, full screen, usage access) and shows fixes; it also arms the
    nightly background test (`Health.BEAT_ID` 1.7e9, kind `beat`, 3:30 am, no sound; `AlarmReceiver` records `beatAt`/`beatDue`),

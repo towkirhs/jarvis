@@ -212,6 +212,13 @@ class Store extends ChangeNotifier {
   /// (also in [DayStart]). Only how days are grouped and drawn; times are stored as they are. Kept on this device.
   int get dayShift => local('dayStart5') == '1' ? 300 : 0;
 
+  /// Saves how the screens are arranged (see `Arrange`) and redraws them.
+  Future<void> setArrange({String? tabs, String? homeHide}) async {
+    if (tabs != null) await setLocal('tabs', tabs);
+    if (homeHide != null) await setLocal('homeHide', homeHide);
+    notifyListeners();
+  }
+
   Future<void> setDayShift(bool on) async {
     await setLocal('dayStart5', on ? '1' : '0');
     DayStart.minutes = dayShift;

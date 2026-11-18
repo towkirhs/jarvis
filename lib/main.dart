@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import 'ai.dart';
 import 'alarm_sound.dart';
+import 'arrange.dart';
 import 'backups.dart';
 import 'clock.dart';
 import 'haptics.dart';
@@ -114,6 +115,8 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     Native.onDoneWaiting = _tick;
     Native.onMoneyWaiting = _tick;
     Native.onLaunchAction = _openCapture;
+    _arrangedAs = s.local('tabs');
+    s.addListener(_arranged);
     _boot();
     _timer = Timer.periodic(const Duration(minutes: 1), (_) => _tick());
     s.addListener(_soonSync);
@@ -150,6 +153,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     _timer?.cancel();
     _syncSoon?.cancel();
     s.removeListener(_soonSync);
+    s.removeListener(_arranged);
     s.ruleNotice.removeListener(_ruleDid);
     _pages.dispose();
     WidgetsBinding.instance.removeObserver(this);
@@ -256,6 +260,18 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     }
   }
 
+  String? _arrangedAs;
+
+  /// The tabs were rearranged: redraw them, staying on Home if the open tab moved or went.
+  void _arranged() {
+    final now = s.local('tabs');
+    if (now == _arrangedAs) return;
+    _arrangedAs = now;
+    if (!mounted) return;
+    setState(() => _tab = 0);
+    if (_pages.hasClients) _pages.jumpToPage(0);
+  }
+
   void _goTo(int i) {
     if (_pages.hasClients) {
       _pages.jumpToPage(i); // onPageChanged updates the tab
@@ -264,14 +280,28 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     }
   }
 
-  static const _destinations = [
-    (Icons.home_outlined, Icons.home, 'Home'),
-    (Icons.checklist, Icons.checklist, 'Plan'),
-    (Icons.account_balance_wallet_outlined, Icons.account_balance_wallet, 'Money'),
-    (Icons.menu_book_outlined, Icons.menu_book, 'Journal'),
-    (Icons.local_fire_department_outlined, Icons.local_fire_department, 'Habits'),
-    (Icons.more_horiz, Icons.more_horiz, 'More'),
-  ];
+  static const _tabInfo = {
+    'home': (Icons.home_outlined, Icons.home, 'Home'),
+    'plan': (Icons.checklist, Icons.checklist, 'Plan'),
+    'money': (Icons.account_balance_wallet_outlined, Icons.account_balance_wallet, 'Money'),
+    'journal': (Icons.menu_book_outlined, Icons.menu_book, 'Journal'),
+    'habits': (Icons.local_fire_department_outlined, Icons.local_fire_department, 'Habits'),
+    'more': (Icons.more_horiz, Icons.more_horiz, 'More'),
+  };
+
+  /// The tabs, as arranged (More → Arrange screens): Home first, More last.
+  List<String> get _tabs => ['home', ...Arrange.tabs(s.local('tabs')), 'more'];
+
+  List<(IconData, IconData, String)> get _destinations => [for (final k in _tabs) _tabInfo[k]!];
+
+  Widget _page(String k) => switch (k) {
+        'plan' => ItemsScreen(store: s),
+        'money' => MoneyPage(store: s),
+        'journal' => JournalScreen(store: s),
+        'habits' => HabitsScreen(store: s),
+        'more' => MoreScreen(store: s),
+        _ => HomeScreen(store: s),
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -322,22 +352,14 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
               setState(() => _tab = i);
             },
             children: [
-              for (final page in [
-                HomeScreen(store: s),
-                ItemsScreen(store: s),
-                MoneyPage(store: s),
-                JournalScreen(store: s),
-                HabitsScreen(store: s),
-                MoreScreen(store: s),
-              ])
-                _KeepAlive(child: page),
+              for (final k in _tabs) _KeepAlive(key: ValueKey(k), child: _page(k)),
             ],
           );
 }
 
 /// Keeps a tab's scroll position and state while you are on another tab.
 class _KeepAlive extends StatefulWidget {
-  const _KeepAlive({required this.child});
+  const _KeepAlive({super.key, required this.child});
   final Widget child;
 
   @override

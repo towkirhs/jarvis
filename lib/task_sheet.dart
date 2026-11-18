@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'cal_grid.dart' show onEventColor;
 import 'clash.dart';
 import 'clock.dart';
 import 'haptics.dart';
+import 'item_moves.dart';
 import 'place_picker.dart';
 import 'day_planner.dart';
 import 'needs_editor.dart';
@@ -392,6 +394,51 @@ class _TaskFormPageState extends State<TaskFormPage> {
         ],
       ];
 
+  /// ⋮ on an item: move it to another day, turn it into a habit, make a copy, or copy it as text.
+  Widget _moreMenu(BuildContext context) => PopupMenuButton<String>(
+        tooltip: 'More',
+        onSelected: (v) => _more(context, v),
+        itemBuilder: (_) => const [
+          PopupMenuItem(value: 'move', child: ListTile(leading: Icon(Icons.event_repeat), title: Text('Move to another day'))),
+          PopupMenuItem(value: 'habit', child: ListTile(leading: Icon(Icons.local_fire_department_outlined), title: Text('Turn into a habit'))),
+          PopupMenuItem(value: 'duplicate', child: ListTile(leading: Icon(Icons.control_point_duplicate), title: Text('Make a copy'))),
+          PopupMenuItem(value: 'copy', child: ListTile(leading: Icon(Icons.copy), title: Text('Copy as text'))),
+        ],
+      );
+
+  Future<void> _more(BuildContext context, String v) async {
+    final it = item!;
+    final title = '${it['title']}';
+    void done(String text) {
+      Haptics.success();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+        Navigator.pop(context);
+      }
+    }
+
+    switch (v) {
+      case 'copy':
+        await Clipboard.setData(ClipboardData(text: ItemMoves.asText(it)));
+        Haptics.tap();
+        if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Copied.')));
+      case 'duplicate':
+        await ItemMoves.duplicate(s, it);
+        done('Copy made: $title');
+      case 'move':
+        final w = it['when'] as int?;
+        final from = w == null ? DateTime.now() : fromMs(w);
+        final d = await showDatePicker(
+            context: context, initialDate: from, firstDate: DateTime(from.year - 1), lastDate: DateTime(from.year + 5));
+        if (d == null) return;
+        await ItemMoves.moveTo(s, it, d);
+        done('Moved: $title, ${niceDay(it['when'] as int)}');
+      case 'habit':
+        await ItemMoves.toHabit(s, it);
+        done('Now a habit: $title (once a day). Change how often on the Habits tab.');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -406,6 +453,7 @@ class _TaskFormPageState extends State<TaskFormPage> {
         leading: IconButton(tooltip: 'Close', icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
         title: Text(item == null ? 'New' : 'Edit'),
         actions: [
+          if (item != null) _moreMenu(context),
           if (item != null)
             IconButton(
               tooltip: 'Delete',

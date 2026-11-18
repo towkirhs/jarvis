@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'arrange.dart';
 import 'native.dart';
 import 'about_me.dart';
 import 'about_me_page.dart';
@@ -309,6 +310,9 @@ class _HomeScreenState extends State<HomeScreen> {
           ..sort((a, b) => (a['when'] as int).compareTo(b['when'] as int)))
         .firstOrNull;
 
+    // Parts of Home you switched off (More → Arrange screens).
+    final hide = Arrange.hidden(s.local('homeHide'));
+
     // Small things worth a glance, as chips under the day strip; tap for the full Today panel.
     final chips = <Widget>[
       if (!AI.available(s))
@@ -338,6 +342,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ]),
         ),
+        if (!hide.contains('ribbon'))
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: DayRibbon(
@@ -352,7 +357,7 @@ class _HomeScreenState extends State<HomeScreen> {
             onTap: () => _openToday(context),
           ),
         ),
-        if (nowPick != null || next != null)
+        if ((nowPick != null || next != null) && !hide.contains('now'))
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
             child: Card(
@@ -379,7 +384,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ),
-        if (chips.isNotEmpty)
+        if (chips.isNotEmpty && !hide.contains('chips'))
           SizedBox(
             height: 44,
             child: ListView.separated(
