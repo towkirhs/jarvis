@@ -16,6 +16,7 @@ import 'needs.dart';
 import 'piece_facts.dart';
 import 'rule_runner.dart';
 import 'rules.dart';
+import 'sections.dart';
 import 'sync_merge.dart';
 
 export 'day_start.dart';
@@ -1279,6 +1280,33 @@ class Store extends ChangeNotifier {
       for (final e in list('entries'))
         if (match(e['ts'] as int)) (fromMs(e['ts'] as int).year, e['text'] as String),
     ];
+  }
+
+  // ---------- sections ----------
+
+  /// One section (see [Sections]) as text, to copy or save.
+  String exportSection(Section sec) => Sections.export(_s, sec);
+
+  /// How many records a section has here.
+  int sectionCount(Section sec) => Sections.count(_s, sec);
+
+  /// Adds a copied section next to what is here (new ids, ones already here skipped), as one Activity entry
+  /// with Undo. Returns (section, how many were added); throws FormatException for text that is not a section.
+  Future<(Section, int)> importSection(String text) async {
+    final (sec, data) = Sections.parse(text);
+    final added = Sections.merge(_s, data, nextId);
+    final undo = <Rec>[];
+    var n = 0;
+    for (final e in added.entries) {
+      for (final r in e.value) {
+        n++;
+        undo.add({'op': 'rm', 'col': e.key, 'id': r['id'], 'nid': r['nid'] ?? r['rid']});
+        await syncRecord(e.key, r);
+      }
+    }
+    if (n > 0) logAction('Added $n from ${sec.name}', undo);
+    save();
+    return (sec, n);
   }
 
   // ---------- backup ----------

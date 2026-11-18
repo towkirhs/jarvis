@@ -157,6 +157,9 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    `lib/arrange.dart`: More → Arrange screens orders or hides the middle tabs (`local('tabs')`, Home first and More last are fixed;
    `Shell._tabs`) and Home's parts (`local('homeHide')`: ribbon, now, chips). Task form ⋮ (`lib/item_moves.dart`): move to another
    day (keeps the time), turn into a daily habit (task cancelled, one Undo), make a copy, copy as text. Untested on a phone.
+   Move data (`lib/sections.dart` pure, `lib/data_page.dart`, More → Move data): any one section (`Sections.all`: items, habits,
+   money = accounts+tx+goals, journal, rent, loans…) copied or saved as {"jarvisSection", "data"}; `Store.importSection` adds it with
+   new ids, skipping records with the same content (accounts by name), as one Undo. Links between records by id are not remapped.
    Health and backups (build after 249): `lib/health_page.dart` (`HealthCheck.rows` pure) reads `Native.health()` (`Health` in
    Ring.kt: notifications, exact alarms, battery optimisation, overlay, full screen, usage access) and shows fixes; it also arms the
    nightly background test (`Health.BEAT_ID` 1.7e9, kind `beat`, 3:30 am, no sound; `AlarmReceiver` records `beatAt`/`beatDue`),

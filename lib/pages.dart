@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 
 import 'ai_page.dart';
 import 'clash.dart';
+import 'data_page.dart';
 import 'day_start_menu.dart';
 import 'health_page.dart';
 import 'record_sheet.dart';
@@ -101,6 +102,7 @@ class MoreScreen extends StatelessWidget {
               group('App', [
                 tile(Icons.health_and_safety_outlined, 'Health check', 'Will alarms and backups work?', HealthPage(store: store)),
                 tile(Icons.dashboard_customize_outlined, 'Arrange screens', 'Order or hide tabs; choose what Home shows', ArrangePage(store: store)),
+                tile(Icons.swap_horiz, 'Move data', 'Copy, save or add one part: money, habits, journal…', DataPage(store: store)),
                 tile(Icons.undo, 'Activity and undo', null, ActivityPage(store: store)),
                 tile(Icons.settings_outlined, 'Settings', null, SettingsPage(store: store)),
               ]),
