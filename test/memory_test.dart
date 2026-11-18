@@ -75,4 +75,16 @@ void main() {
       expect(Memory.pick([], 'hello there'), isEmpty);
     });
   });
+
+  test('a past note on the same thing is found again, newest first', () {
+    final caps = [
+      {'status': 'done', 'ts': 1, 'cleaned': 'Go to C Terminal in Agargaon to reach Shishu Hospital.'},
+      {'status': 'done', 'ts': 2, 'cleaned': 'Bought milk at the hospital shop.'},
+      {'status': 'done', 'ts': 3, 'cleaned': 'Gym at 6 tomorrow.'},
+      {'status': 'pending', 'ts': 4, 'cleaned': 'Shishu Hospital visit'},
+    ];
+    expect(Memory.pickNotes(caps, 'want to go to Shishu Hospital'), ['Go to C Terminal in Agargaon to reach Shishu Hospital.']);
+    expect(Memory.pickNotes(caps, 'hospital'), ['Bought milk at the hospital shop.', 'Go to C Terminal in Agargaon to reach Shishu Hospital.']);
+    expect(Memory.pickNotes(caps, 'pay the electricity bill'), isEmpty);
+  });
 }

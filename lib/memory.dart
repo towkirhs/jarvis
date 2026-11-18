@@ -82,6 +82,23 @@ class Memory {
 
   /// The memories to give the AI with [note]: pinned ones, ones that share words with the note, and the ones you
   /// repeat most, up to [maxChars].
+  /// Past notes (done captures) that share words with this one, newest first among equals:
+  /// "want to go to Shishu Hospital" finds "go to C Terminal in Agargaon to reach Shishu Hospital" from last month.
+  static List<String> pickNotes(List<Map<String, dynamic>> captures, String note, {int max = 5}) {
+    final noteWords = words(note);
+    if (noteWords.isEmpty) return const [];
+    final need = min(2, noteWords.length);
+    final hits = <(int, int, Map<String, dynamic>)>[];
+    for (final c in captures) {
+      if (c['status'] != 'done') continue;
+      final text = '${c['cleaned'] ?? c['raw'] ?? ''}';
+      final hit = words(text).intersection(noteWords).length;
+      if (hit >= need && !same(text, note)) hits.add((hit, (c['ts'] as int?) ?? 0, c));
+    }
+    hits.sort((a, b) => a.$1 != b.$1 ? b.$1.compareTo(a.$1) : b.$2.compareTo(a.$2));
+    return [for (final h in hits.take(max)) '${h.$3['cleaned'] ?? h.$3['raw']}'];
+  }
+
   static List<String> pick(List<Map<String, dynamic>> memories, String note, {int maxChars = 1400}) {
     final noteWords = words(note);
     double score(Map<String, dynamic> m) {

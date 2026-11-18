@@ -672,7 +672,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Row(mainAxisSize: MainAxisSize.min, children: [
                   Icon(Icons.info_outline, size: 14, color: scheme.onSurfaceVariant),
                   const SizedBox(width: 4),
-                  Text('Nothing changed', style: small?.copyWith(fontStyle: FontStyle.italic)),
+                  Flexible(child: Text('Nothing changed, only kept in your journal', style: small?.copyWith(fontStyle: FontStyle.italic))),
                 ]),
               ],
               if (sources.isNotEmpty) ...[

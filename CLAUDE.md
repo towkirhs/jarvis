@@ -156,7 +156,8 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    (balance, the difference goes to the category), `spent:`, `got:` (`from`/`to <account>`), `delete:`, `account:`. A note made only
    of command lines skips the AI. The AI and ChatGPT write money as `"commands": [..]` (prompt rule "MONEY GOES IN commands"),
    run by the same parser in `Brain._apply`; they show under the answer as chips (tap = put in the box to fix and resend).
-   An AI or ChatGPT answer that changed nothing (no items, no memory) gets `nothing: true` → "Nothing changed". Untested on a phone.
+   An AI or ChatGPT answer that changed nothing (no items, no memory) gets `nothing: true` → "Nothing changed, only kept in your journal".
+   Past notes on the same thing (`Memory.pickNotes`, 2+ shared words) go into the AI prompt; the reply tells what they say first. Untested on a phone.
    Copy, edit and arrange (build after 258): the app root is a `SelectionArea` (hold any text to copy); hold a Jarvis answer to copy it;
    `lib/record_sheet.dart` (`showRecordSheet` with `Field`s: edit, copy, delete) for promises, decisions and Your day lines.
    `lib/arrange.dart`: More → Arrange screens orders or hides the middle tabs (`local('tabs')`, Home first and More last are fixed;
