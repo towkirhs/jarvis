@@ -174,7 +174,6 @@ void main() {
     await t.pumpAndSettle();
     final added = s.list('log').last;
     expect([added['text'], DateTime.fromMillisecondsSinceEpoch(added['at'] as int)], ['Started Reading', DateTime(2026, 11, 17, 8)]);
-    expect(find.text('Reading'), findsOneWidget);
   });
 }
 

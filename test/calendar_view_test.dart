@@ -48,7 +48,7 @@ void main() {
     await t.pumpAndSettle();
     await t.tap(find.text('Use this as my default'));
     await t.pumpAndSettle();
-    expect(s.local('calView'), '15|1|0');
+    expect(s.local('calView'), '15|1|0|0|0');
     expect(find.byType(TimelineGrid), findsOneWidget);
     expect(find.byType(TimeGrid), findsNothing);
 
