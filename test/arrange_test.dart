@@ -38,7 +38,7 @@ void main() {
     await t.tap(find.byType(Switch).first);
     await t.pumpAndSettle();
     expect(s.local('tabs'), 'money,journal,habits');
-    await t.scrollUntilVisible(find.text('Day strip'), 100);
+    await t.scrollUntilVisible(find.text('Day strip'), 100, scrollable: find.byType(Scrollable).first);
     await t.tap(find.text('Day strip'));
     await t.pumpAndSettle();
     expect(Arrange.hidden(s.local('homeHide')), {'ribbon'});
