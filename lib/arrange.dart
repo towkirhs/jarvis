@@ -59,7 +59,7 @@ class Arrange {
 
   /// The tabs to show, in order, from the saved setting ("money,plan,day"); unknown or repeated names are skipped.
   static List<String> tabs(String? saved) {
-    if (saved == null) return middle;
+    if (saved == null) return [...middle];
     return [for (final k in saved.split(',')) if (of(k) != null) k].toSet().take(maxTabs).toList();
   }
 
