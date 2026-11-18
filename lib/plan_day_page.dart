@@ -904,7 +904,7 @@ class _PlanDayPageState extends State<PlanDayPage> {
     );
   }
 
-  static String _hm(DateTime d) => clock(d.millisecondsSinceEpoch);
+  static String _tm(DateTime d) => clock(d.millisecondsSinceEpoch);
 
   /// The day as one timeline: a time on the left, the piece on the right; free gaps you can tap to fill,
   /// the red "now" line, and a warning where a piece runs into something fixed.
@@ -918,7 +918,7 @@ class _PlanDayPageState extends State<PlanDayPage> {
     Widget nowLine() => Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Row(children: [
-            SizedBox(width: 64, child: Text(_hm(now), style: tt.labelSmall?.copyWith(color: scheme.error, fontWeight: FontWeight.w700))),
+            SizedBox(width: 64, child: Text(_tm(now), style: tt.labelSmall?.copyWith(color: scheme.error, fontWeight: FontWeight.w700))),
             Expanded(child: Container(height: 2, decoration: BoxDecoration(color: scheme.error, borderRadius: BorderRadius.circular(1)))),
           ]),
         );
@@ -962,7 +962,7 @@ class _PlanDayPageState extends State<PlanDayPage> {
           width: 64,
           child: Padding(
             padding: const EdgeInsets.only(top: 14),
-            child: Text(timed ? _hm(b.start) : '',
+            child: Text(timed ? _tm(b.start) : '',
                 style: tt.labelSmall?.copyWith(color: b.itemId != null && store.byId('items', b.itemId) != null && _isTop(store.byId('items', b.itemId)!) ? scheme.primary : scheme.onSurfaceVariant)),
           ),
         ),
@@ -972,7 +972,7 @@ class _PlanDayPageState extends State<PlanDayPage> {
             if (clash != null)
               Padding(
                 padding: const EdgeInsets.only(left: 12, bottom: 8),
-                child: Text('Overlaps ${clash.title} at ${_hm(clash.start)}', style: tt.bodySmall?.copyWith(color: scheme.error)),
+                child: Text('Overlaps ${clash.title} at ${_tm(clash.start)}', style: tt.bodySmall?.copyWith(color: scheme.error)),
               ),
           ]),
         ),
@@ -994,7 +994,7 @@ class _PlanDayPageState extends State<PlanDayPage> {
       final it = store.byId('items', b.itemId);
       final w = it?['when'];
       if (it == null || it['planned'] != dayKey(_day) || w is! int) continue;
-      if (w != b.start.millisecondsSinceEpoch) moves.add((b.title, '${clock(w)} → ${_hm(b.start)}'));
+      if (w != b.start.millisecondsSinceEpoch) moves.add((b.title, '${clock(w)} → ${_tm(b.start)}'));
     }
     for (final b in plan.overflow) {
       moves.add((b.title, "doesn't fit any more"));
