@@ -609,6 +609,17 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const Padding(padding: EdgeInsets.only(top: 4, right: 8), child: ShapeIcon(Icons.auto_awesome, size: 28)),
         Flexible(
+          child: GestureDetector(
+          // Hold Jarvis's answer to copy it, with what it did.
+          onLongPress: () async {
+            final copy = [if (text != null) text, if (results.isNotEmpty && msg.isNotEmpty) msg].join('\n');
+            if (copy.isEmpty) return;
+            await Clipboard.setData(ClipboardData(text: copy));
+            Haptics.tick();
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Answer copied.')));
+            }
+          },
           child: Container(
             constraints: BoxConstraints(maxWidth: maxW),
             margin: const EdgeInsets.only(top: 4, bottom: 8),
@@ -676,6 +687,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 if (action != null && action['undone'] == true) Padding(padding: const EdgeInsets.only(left: 8), child: Text('Undone', style: small)),
               ]),
             ]),
+          ),
           ),
         ),
       ]),

@@ -8,6 +8,7 @@ import 'ai_page.dart';
 import 'clash.dart';
 import 'day_start_menu.dart';
 import 'health_page.dart';
+import 'record_sheet.dart';
 import 'ics_page.dart';
 import 'phone_calendar_page.dart';
 import 'ai.dart';
@@ -318,6 +319,7 @@ class PromisesPage extends StatelessWidget {
                 for (final p in open)
                   Card(
                     child: ListTile(
+                      onTap: () => _editPromise(context, store, p),
                       title: Text('${p['person']}: ${p['what']}'),
                       subtitle: Text(p['due'] == null ? 'No deadline' : 'By ${niceWhen(p['due'] as int)}'),
                       trailing: IconButton(
@@ -333,7 +335,7 @@ class PromisesPage extends StatelessWidget {
                   const SizedBox(height: 16),
                   Text('Kept', style: Theme.of(context).textTheme.titleMedium),
                   for (final p in done)
-                    ListTile(dense: true, title: Text('${p['person']}: ${p['what']}')),
+                    ListTile(dense: true, title: Text('${p['person']}: ${p['what']}'), onTap: () => _editPromise(context, store, p)),
                 ],
               ],
             );
@@ -341,6 +343,15 @@ class PromisesPage extends StatelessWidget {
         ),
       );
 }
+
+Future<void> _editPromise(BuildContext context, Store store, Rec p) => showRecordSheet(context, store, 'promises', p,
+    title: 'Promise',
+    fields: const [
+      Field('person', 'To'),
+      Field('what', 'What', kind: 'long'),
+      Field('due', 'By', kind: 'when', optional: true),
+    ],
+    name: (r) => 'promise to ${r['person']}');
 
 // ---------------------------------------------------------------- decisions
 
@@ -367,6 +378,14 @@ class DecisionsPage extends StatelessWidget {
               children: [
                 for (final d in all)
                   ListTile(
+                    onTap: () => showRecordSheet(context, store, 'decisions', d,
+                        title: 'Decision',
+                        fields: const [
+                          Field('decision', 'Decision', kind: 'long'),
+                          Field('reason', 'Because', kind: 'long', optional: true),
+                          Field('ts', 'Decided on', kind: 'when'),
+                        ],
+                        name: (r) => '${r['decision']}'),
                     title: Text(d['decision'] as String),
                     subtitle: Text(
                       '${DayStart.key(d['ts'] as int)}${d['reason'] == null ? '' : '\nBecause ${d['reason']}'}',

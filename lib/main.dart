@@ -81,6 +81,8 @@ class JarcisApp extends StatelessWidget {
             },
             // Lists stretch and settle at their ends instead of stopping dead.
             scrollBehavior: const MaterialScrollBehavior().copyWith(physics: const BouncingScrollPhysics(), overscroll: false),
+            // Hold any text to select and copy it, anywhere in the app.
+            builder: (context, child) => SelectionArea(child: child!),
             home: Shell(store: store),
           );
         },

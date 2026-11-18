@@ -138,8 +138,11 @@ class AppSession {
 
 /// One line of the day's timeline.
 class Moment {
-  const Moment(this.at, this.text, this.kind, {this.end});
+  const Moment(this.at, this.text, this.kind, {this.end, this.log});
   final DateTime at;
+
+  /// The log record it came from, if any (so it can be edited).
+  final Rec? log;
   final DateTime? end;
   final String text;
 
@@ -165,13 +168,13 @@ class DayLog {
       final at = DateTime.fromMillisecondsSinceEpoch(e['at'] as int);
       final verb = '${e['verb']}';
       if (e['kind'] == 'apps') {
-        out.add(Moment(at, '${e['text']}', 'apps'));
+        out.add(Moment(at, '${e['text']}', 'apps', log: e));
         continue;
       }
       if (e['kind'] == 'check') {
         if (verb == 'done') saidDone.add(e['item']);
         final from = e['from'] is int ? DateTime.fromMillisecondsSinceEpoch(e['from'] as int) : null;
-        out.add(Moment(from ?? at, '${e['text']}', verb, end: from == null ? null : at));
+        out.add(Moment(from ?? at, '${e['text']}', verb, end: from == null ? null : at, log: e));
         continue;
       }
       if (verb == 'finish' && e['item'] != null) saidDone.add(e['item']);
@@ -185,7 +188,7 @@ class DayLog {
           }
         }
       }
-      out.add(Moment(at, '${e['text']}', verb == 'start' ? 'now' : verb, end: end));
+      out.add(Moment(at, '${e['text']}', verb == 'start' ? 'now' : verb, end: end, log: e));
     }
     for (final i in items) {
       final at = i['doneAt'];

@@ -7,6 +7,7 @@ import 'day_start_menu.dart';
 import 'haptics.dart';
 import 'native.dart';
 import 'plan_day_page.dart';
+import 'record_sheet.dart';
 import 'store.dart';
 
 /// Your day as it really went: how the plan is going, what you are doing now, a timeline, and time in apps.
@@ -263,7 +264,7 @@ class _DayPageState extends State<DayPage> with WidgetsBindingObserver {
     final tt = Theme.of(context).textTheme;
     final mins = m.end?.difference(m.at).inMinutes;
     final faded = m.kind == 'app' || m.kind == 'apps';
-    return Padding(
+    final row = Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         SizedBox(
@@ -280,6 +281,17 @@ class _DayPageState extends State<DayPage> with WidgetsBindingObserver {
           ]),
         ),
       ]),
+    );
+    final log = m.log;
+    if (log == null) return row;
+    // What you said, or answered at a check-in: tap to change the words or the time, copy or delete it.
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: () => showRecordSheet(context, store, 'log', log,
+          title: 'Your day',
+          fields: const [Field('text', 'What', kind: 'long'), Field('at', 'When', kind: 'when')],
+          name: (r) => '${r['text']}'),
+      child: row,
     );
   }
 
