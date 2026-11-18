@@ -148,7 +148,11 @@ class Moment {
 }
 
 class DayLog {
-  static bool _sameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
+  /// Whether moment [a] belongs to [day] (following the day start).
+  static bool _sameDay(DateTime a, DateTime day) {
+    final d = DayStart.of(a);
+    return d.year == day.year && d.month == day.month && d.day == day.day;
+  }
 
   /// [day]'s timeline, oldest first: your log, finished tasks and app stretches of 5 minutes or more.
   static List<Moment> timeline(DateTime day, {required List<Rec> log, required List<Rec> items, List<AppSession> apps = const []}) {

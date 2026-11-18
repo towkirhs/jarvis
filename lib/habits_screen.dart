@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
+import 'day_start_menu.dart';
 import 'shapes.dart';
 import 'habit_core.dart';
 import 'habit_editor.dart';
@@ -82,7 +83,7 @@ class HabitsScreen extends StatelessWidget {
         body: ListenableBuilder(
           listenable: store,
           builder: (context, _) {
-            final now = DateTime.now();
+            final now = DayStart.now();
             final scheme = Theme.of(context).colorScheme;
             final tt = Theme.of(context).textTheme;
             final habits = store.orderedHabits();
@@ -113,6 +114,7 @@ class HabitsScreen extends StatelessWidget {
                       icon: const Icon(Icons.swap_vert),
                       onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => HabitOrderPage(store: store))),
                     ),
+                  DayStartMenu(store: store),
                 ]),
                 if (habits.isEmpty) ...[
                   const SizedBox(height: 24),
@@ -323,7 +325,7 @@ class ArchivedHabitsPage extends StatelessWidget {
                   child: ListTile(
                     leading: Icon(habitIcon(h), color: Color(habitColor(h))),
                     title: Text(h['name'] as String),
-                    subtitle: Text('${HabitCore.totalDone(h)} days done, best streak ${HabitCore.longestStreak(h, DateTime.now())}'),
+                    subtitle: Text('${HabitCore.totalDone(h)} days done, best streak ${HabitCore.longestStreak(h, DayStart.now())}'),
                     trailing: TextButton(
                       onPressed: () => store.updateRec('habits', h, 'Restored habit ${h['name']}', (r) => r['archived'] = false),
                       child: const Text('Restore'),
@@ -351,7 +353,7 @@ class _HabitReportPageState extends State<HabitReportPage> {
 
   @override
   Widget build(BuildContext context) {
-    final now = DateTime.now();
+    final now = DayStart.now();
     final today = DateTime(now.year, now.month, now.day);
     final from = switch (_range) {
       'month' => DateTime(now.year, now.month),
@@ -434,7 +436,7 @@ class HabitPage extends StatelessWidget {
           final h = store.byId('habits', id);
           if (h == null) return const Scaffold(body: Center(child: Text('Habit deleted.')));
           final color = Color(habitColor(h));
-          final now = DateTime.now();
+          final now = DayStart.now();
           final paused = HabitCore.isPaused(h, now);
           final archived = h['archived'] == true;
           final tt = Theme.of(context).textTheme;

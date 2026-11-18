@@ -288,7 +288,7 @@ class _FocusScreenState extends State<FocusScreen> {
   var pomos = 0;
   var minutes = 0;
   for (final f in s.list('focus')) {
-    if (dayKey(fromMs(f['start'] as int)) != key) continue;
+    if (DayStart.key(f['start'] as int) != key) continue;
     if (f['pomo'] == true) pomos++;
     minutes += f['minutes'] as int;
   }
@@ -304,7 +304,7 @@ class FocusStatsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = store;
-    final now = DateTime.now();
+    final now = DayStart.now();
     final today = _dayStats(s, now);
     final yesterday = _dayStats(s, DateTime(now.year, now.month, now.day - 1));
     final sessions = s.list('focus');
@@ -389,7 +389,7 @@ class FocusStatsPage extends StatelessWidget {
                           contentPadding: EdgeInsets.zero,
                           leading: Icon(f['pomo'] == true ? Icons.timer : Icons.av_timer),
                           title: Text(f['label'] as String),
-                          subtitle: Text('${dayKey(fromMs(f['start'] as int))}  ${clock(f['start'] as int)} - ${clock(f['end'] as int)}'),
+                          subtitle: Text('${DayStart.key(f['start'] as int)}  ${clock(f['start'] as int)} - ${clock(f['end'] as int)}'),
                           trailing: Text('${f['minutes']} min'),
                         ),
                     ],
@@ -456,7 +456,7 @@ class _TrendsState extends State<_Trends> {
   @override
   Widget build(BuildContext context) {
     final s = widget.store;
-    final now = DateTime.now();
+    final now = DayStart.now();
     final today = DateTime(now.year, now.month, now.day);
     late DateTime start;
     late DateTime end;
@@ -698,7 +698,7 @@ class _YearGrid extends StatelessWidget {
     final now = DateTime.now();
     final perDay = <String, int>{};
     for (final f in store.list('focus')) {
-      final k = dayKey(fromMs(f['start'] as int));
+      final k = DayStart.key(f['start'] as int);
       perDay[k] = (perDay[k] ?? 0) + (f['minutes'] as int);
     }
     Color shade(int m) {

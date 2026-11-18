@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'ai.dart';
+import 'day_start_menu.dart';
 import 'haptics.dart';
 import 'brain.dart';
 import 'cal_event.dart';
@@ -75,7 +76,7 @@ class _JournalScreenState extends State<JournalScreen> {
   String _search = '';
   String? _answer;
   bool _asking = false;
-  DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
+  DateTime _month = DateTime(DayStart.now().year, DayStart.now().month);
 
   Store get s => widget.store;
 
@@ -167,6 +168,7 @@ class _JournalScreenState extends State<JournalScreen> {
                       ),
                     ),
                     IconButton(tooltip: 'Reflect on my week', icon: const Icon(Icons.auto_awesome), onPressed: _reflect),
+                    DayStartMenu(store: s),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -269,7 +271,7 @@ class _MoodCalendar extends StatelessWidget {
     final first = DateTime(month.year, month.month, 1);
     final count = DateTime(month.year, month.month + 1, 0).day;
     final scheme = Theme.of(context).colorScheme;
-    final today = dayKey(DateTime.now());
+    final today = DayStart.today();
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(8),
@@ -559,7 +561,7 @@ class _EntryEditorState extends State<_EntryEditor> {
     if (e == null) {
       final now = DateTime.now();
       final d = widget.day;
-      final ts = d == null || dayKey(d) == dayKey(now)
+      final ts = d == null || dayKey(d) == DayStart.today()
           ? now.millisecondsSinceEpoch
           : DateTime(d.year, d.month, d.day, 21).millisecondsSinceEpoch;
       final r = {
@@ -706,7 +708,7 @@ class JournalInsightsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = store;
-    final now = DateTime.now();
+    final now = DayStart.now();
     final moods = <String, int>{};
     for (final d in s.journalDays()) {
       final m = s.dayMood(d);
@@ -734,7 +736,7 @@ class JournalInsightsPage extends StatelessWidget {
       compare('${h['name']} (habit)', (d) => HabitCore.done(h, DateTime.parse(d)));
     }
     compare('Focused 1h+', (d) =>
-        s.list('focus').where((f) => dayKey(fromMs(f['start'] as int)) == d).fold<int>(0, (a, f) => a + (f['minutes'] as int)) >= 60);
+        s.list('focus').where((f) => DayStart.key(f['start'] as int) == d).fold<int>(0, (a, f) => a + (f['minutes'] as int)) >= 60);
     links.sort((a, b) => b.$2.compareTo(a.$2));
 
     final words = s.list('entries').fold<int>(0, (a, e) => a + (e['text'] as String).split(RegExp(r'\s+')).where((w) => w.isNotEmpty).length);

@@ -13,7 +13,7 @@ class PieceFacts implements NeedFacts {
 
   @override
   String piece(int id) {
-    final now = DateTime.now();
+    final now = DayStart.now();
     final today = DateTime(now.year, now.month, now.day);
     final d = DateTime(day.year, day.month, day.day);
     if (id < 0) {

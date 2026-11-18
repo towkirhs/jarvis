@@ -104,7 +104,13 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    calendar's view sheet or Plan my day's menu (same setting). Only grouping and drawing change, never stored times:
    `CalIndex.build(shift:)` puts timed items before 5 am on the day before (all-day items keep their date), `CalIndex.dayOf`
    says which day a moment belongs to, the grids draw 5 am → 4:59 am (`gridMinute`), and `DayPlanner.plan(dayShift:)` treats
-   5 am to 5 am as the day (late at night it may plan until 5 am). Habits, money, journal and rules keep midnight days.
+   5 am to 5 am as the day (late at night it may plan until 5 am). Since build 246 it applies everywhere through `DayStart`
+   (`lib/day_start.dart`, pure, exported by store.dart; `minutes` set by `Store.load`/`setDayShift`): `DayStart.key(ms)` and
+   `today()` replace `dayKey(fromMs(..))`/`dayKey(DateTime.now())`; `itemDay` keeps all-day items on their date; habits get
+   `DayStart.now()`/`of(now)` as their day (logged times stay real); money months, journal, focus, countdowns, Your day, the
+   local parser's today/tomorrow, the AI prompt and context (`Brain.dayStartNote`) follow it. Switch: Settings → Everyday,
+   the ⋮ menu (`DayStartMenu`) on Habits, Money, Journal and Your day, the calendar view sheet and Plan my day. Not shifted:
+   Home's hour ribbon, quick answers, loans and rent dates.
    Batch 5 (build after 213): nudge limit 1-50 or "No limit" (`settings.cap` 0 → `Store.cap` huge). Home's glance row has a Clock
    card (next alarm → ClockScreen). Chat keywords with a colon (`Destination._colon`): `decide:` (odds via `Brain.decide`,
    options from "A or B" by `Decide.options`, shown as bars in the chat from `c['decision']`), `decided: X because Y`

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'app_alarms.dart';
 import 'day_log.dart';
+import 'day_start_menu.dart';
 import 'haptics.dart';
 import 'native.dart';
 import 'plan_day_page.dart';
@@ -26,14 +27,14 @@ class _DayPageState extends State<DayPage> with WidgetsBindingObserver {
   bool? _usage;
 
   bool get _isToday {
-    final n = DateTime.now();
+    final n = DayStart.now();
     return _day.year == n.year && _day.month == n.month && _day.day == n.day;
   }
 
   @override
   void initState() {
     super.initState();
-    final d = widget.day ?? DateTime.now();
+    final d = widget.day ?? DayStart.now();
     _day = DateTime(d.year, d.month, d.day);
     WidgetsBinding.instance.addObserver(this);
     _loadApps();
@@ -55,7 +56,7 @@ class _DayPageState extends State<DayPage> with WidgetsBindingObserver {
   Future<void> _loadApps() async {
     if (kIsWeb) return;
     final ok = await Native.usageAccess();
-    final raw = ok ? await Native.appSessions(_day, _day.add(const Duration(days: 1))) : const <Map>[];
+    final raw = ok ? await Native.appSessions(_day.add(Duration(minutes: DayStart.minutes)), _day.add(Duration(days: 1, minutes: DayStart.minutes))) : const <Map>[];
     if (!mounted) return;
     setState(() {
       _usage = ok;
@@ -89,7 +90,7 @@ class _DayPageState extends State<DayPage> with WidgetsBindingObserver {
   static String _dayName(DateTime d) {
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    final n = DateTime.now();
+    final n = DayStart.now();
     final diff = d.difference(DateTime(n.year, n.month, n.day)).inDays;
     if (diff == 0) return 'Today';
     if (diff == -1) return 'Yesterday';
@@ -123,6 +124,7 @@ class _DayPageState extends State<DayPage> with WidgetsBindingObserver {
                 Flexible(child: Text(_dayName(_day), style: tt.titleMedium, maxLines: 1, overflow: TextOverflow.ellipsis)),
                 IconButton(tooltip: 'Next day', icon: const Icon(Icons.chevron_right), onPressed: _isToday ? null : () => _goTo(1)),
               ]),
+              actions: [DayStartMenu(store: store)],
             ),
             body: ListView(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),

@@ -92,7 +92,7 @@ String habitDayText(Rec h, DateTime day) {
 
 /// After a habit is done: haptics, and a nudge to the next habit in its stack.
 void afterHabitChange(BuildContext context, Store s, Rec h, {bool wasDone = false}) {
-  final now = DateTime.now();
+  final now = DayStart.now();
   if (!wasDone && HabitCore.done(h, now)) {
     Haptics.success();
     final next = HabitCore.nextInStack(s.list('habits'), h, now);
@@ -153,7 +153,7 @@ class _HabitQuickControlState extends State<HabitQuickControl> {
   }
 
   Future<void> _do(Future<void> Function() change) async {
-    final was = HabitCore.done(h, DateTime.now());
+    final was = HabitCore.done(h, DayStart.now());
     await change();
     if (mounted) afterHabitChange(context, s, h, wasDone: was);
   }
@@ -161,24 +161,24 @@ class _HabitQuickControlState extends State<HabitQuickControl> {
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
-    final today = dk(now);
+    final today = dk(DayStart.of(now));
     final type = (h['type'] as String?) ?? 'yesno';
     final color = Color(habitColor(h));
-    final done = HabitCore.done(h, now);
+    final done = HabitCore.done(h, DayStart.of(now));
     switch (type) {
       case 'count':
       case 'frequency':
         return FilledButton.tonal(
           onPressed: () => _do(() => s.addHabitValue(h, today, 1)),
-          onLongPress: () => showHabitDay(context, s, h, now),
+          onLongPress: () => showHabitDay(context, s, h, DayStart.of(now)),
           child: const Text('+1'),
         );
       case 'duration':
         final started = h['timer'] as int?;
         if (started != null) {
           final secs = (now.millisecondsSinceEpoch - started) ~/ 1000;
-          final t = HabitCore.target(h, now);
-          final logged = (HabitCore.value(h, now) ?? 0) * 60;
+          final t = HabitCore.target(h, DayStart.of(now));
+          final logged = (HabitCore.value(h, DayStart.of(now)) ?? 0) * 60;
           final left = t == null ? null : (t * 60 - logged - secs).round();
           final shown = left != null && left > 0 ? left : secs;
           final label = '${left != null && left > 0 ? '' : '+'}${shown ~/ 60}:${(shown % 60).toString().padLeft(2, '0')}';
@@ -242,7 +242,7 @@ class HabitTodayRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final h = habit;
-    final now = DateTime.now();
+    final now = DayStart.now();
     final color = Color(habitColor(h));
     final scheduled = HabitCore.scheduled(h, now);
     final p = HabitCore.progress(h, now) ?? 0;
@@ -374,7 +374,7 @@ Future<void> showHabitDay(BuildContext context, Store s, Rec h, DateTime day) as
               children: [
                 Text(h['name'] as String, style: tt.titleLarge),
                 Text(
-                  '${dk(day) == dk(DateTime.now()) ? 'Today' : '${day.day}/${day.month}/${day.year}'}'
+                  '${dk(day) == dk(DayStart.now()) ? 'Today' : '${day.day}/${day.month}/${day.year}'}'
                   '${target == null || const ['yesno', 'time', 'checklist', 'rating'].contains(type) ? '' : ', goal ${type == 'limit' ? 'at most ' : ''}${fmtNum(target)} $unit'}',
                   style: tt.bodyMedium,
                 ),

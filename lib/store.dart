@@ -17,12 +17,15 @@ import 'rule_runner.dart';
 import 'rules.dart';
 import 'sync_merge.dart';
 
+export 'day_start.dart';
+
 typedef Rec = Map<String, dynamic>;
 
 String dayKey(DateTime d) =>
     '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
 DateTime fromMs(int ms) => DateTime.fromMillisecondsSinceEpoch(ms);
+
 
 Rec copyRec(Rec r) => jsonDecode(jsonEncode(r)) as Rec;
 
@@ -43,8 +46,10 @@ String fmtMinutes(int m) => m < 60 ? '$m min' : '${m ~/ 60}h${m % 60 == 0 ? '' :
 
 /// "Today", "Tomorrow", "Yesterday", "Sat" within a week, otherwise "7 Nov" (with the year if not this year).
 String niceDay(int ms) {
-  final d = fromMs(ms);
-  final now = DateTime.now();
+  // A time follows the day start (1 am can still be "Today" of yesterday's date); a date (midnight) keeps its day.
+  final raw = fromMs(ms);
+  final d = raw.hour == 0 && raw.minute == 0 ? raw : DayStart.of(raw);
+  final now = DayStart.now();
   final diff = DateTime(d.year, d.month, d.day).difference(DateTime(now.year, now.month, now.day)).inDays;
   if (diff == 0) return 'Today';
   if (diff == 1) return 'Tomorrow';
@@ -80,6 +85,7 @@ class Store extends ChangeNotifier {
 
   Future<void> load() async {
     _prefs = await SharedPreferences.getInstance();
+    DayStart.minutes = dayShift;
     final raw = _prefs.getString('state');
     _s = raw == null ? <String, dynamic>{} : jsonDecode(raw) as Rec;
     _fillDefaults();
@@ -176,8 +182,8 @@ class Store extends ChangeNotifier {
         }
       }
       for (final h in list('habits')) {
-        if (h['archived'] == true || !Needs.holdsNow(h['doneIf'], f) || HabitCore.done(h, now)) continue;
-        (h['logs'] as Rec)[dayKey(now)] = (h['type'] ?? 'yesno') == 'yesno' ? 'yes' : {'v': h['target'] ?? 1};
+        if (h['archived'] == true || !Needs.holdsNow(h['doneIf'], f) || HabitCore.done(h, DayStart.of(now))) continue;
+        (h['logs'] as Rec)[dayKey(DayStart.of(now))] = (h['type'] ?? 'yesno') == 'yesno' ? 'yes' : {'v': h['target'] ?? 1};
         changed = true;
       }
       if (!changed) break;
@@ -196,12 +202,13 @@ class Store extends ChangeNotifier {
     syncNeeds();
   }
 
-  /// Minutes after midnight a day starts in the calendar and Plan my day: 300 (5 am) when "Day starts at 5 am"
-  /// is on, else 0. Only how days are grouped and drawn; times are stored as they are. Kept on this device.
+  /// Minutes after midnight a day starts, everywhere in Jarvis: 300 (5 am) when "Day starts at 5 am" is on, else 0
+  /// (also in [DayStart]). Only how days are grouped and drawn; times are stored as they are. Kept on this device.
   int get dayShift => local('dayStart5') == '1' ? 300 : 0;
 
   Future<void> setDayShift(bool on) async {
     await setLocal('dayStart5', on ? '1' : '0');
+    DayStart.minutes = dayShift;
     notifyListeners();
   }
 
@@ -318,11 +325,11 @@ class Store extends ChangeNotifier {
     var n = 2;
     for (final it in list('items')) {
       final w = it['when'] as int?;
-      if (it['kind'] == 'task' && it['status'] == 'open' && w != null && dayKey(fromMs(w)) == day) n++;
+      if (it['kind'] == 'task' && it['status'] == 'open' && w != null && DayStart.itemDay(it) == day) n++;
     }
     for (final p in list('promises')) {
       final w = p['remindAt'] as int?;
-      if (p['status'] == 'open' && w != null && dayKey(fromMs(w)) == day) n++;
+      if (p['status'] == 'open' && w != null && DayStart.key(w) == day) n++;
     }
     return n + ((boosts[day] as int?) ?? 0);
   }
@@ -355,7 +362,7 @@ class Store extends ChangeNotifier {
       return;
     }
     final isAlarm = col == 'items' && r['kind'] != 'task';
-    if (!isAlarm && noticeLoad(dayKey(fromMs(at))) > cap) {
+    if (!isAlarm && noticeLoad(DayStart.key(at)) > cap) {
       await Native.cancel(nid);
       return;
     }
@@ -500,7 +507,7 @@ class Store extends ChangeNotifier {
 
   /// A short celebration reminder, only if today's budget still has room.
   Future<void> boost(String text) async {
-    final day = dayKey(DateTime.now());
+    final day = DayStart.today();
     if (noticeLoad(day) >= cap) return;
     boosts[day] = ((boosts[day] as int?) ?? 0) + 1;
     await Native.schedule(
@@ -841,7 +848,7 @@ class Store extends ChangeNotifier {
         await syncRecord('items', it);
       default:
         final old = copyRec(it);
-        it['skipped'] = dayKey(fromMs(from));
+        it['skipped'] = DayStart.key(from);
         it.remove('planned');
         final e = entry(a, a == 'skip' ? 'Skipped: $title' : 'Instead of $title: ${text!.trim()}');
         list('log').add(e);
@@ -857,11 +864,11 @@ class Store extends ChangeNotifier {
   /// Once a day: yesterday's most used apps, kept in the log (Android forgets app history after about a week).
   Future<void> noteAppDay() async {
     if (kIsWeb) return;
-    final y = DateTime.now().subtract(const Duration(days: 1));
+    final y = DayStart.now().subtract(const Duration(days: 1));
     final key = dayKey(y);
     if (local('appsNoted') == key || !await Native.usageAccess()) return;
     await setLocal('appsNoted', key);
-    final start = DateTime(y.year, y.month, y.day);
+    final start = DateTime(y.year, y.month, y.day).add(Duration(minutes: DayStart.minutes));
     final raw = await Native.appSessions(start, start.add(const Duration(days: 1)));
     final top = AppSession.totals(raw.map(AppSession.from).whereType<AppSession>().toList()).take(5).toList();
     if (top.isEmpty) return;
@@ -906,7 +913,7 @@ class Store extends ChangeNotifier {
       'color': list('habits').length,
       'remind': remind,
       'rid': remind == null ? null : nextId(),
-      'start': dayKey(DateTime.now()),
+      'start': DayStart.today(),
       'logs': <String, dynamic>{},
     };
     list('habits').add(h);
@@ -925,11 +932,11 @@ class Store extends ChangeNotifier {
   int periodCount(Rec h, DateTime start) => HabitCore.periodCount(h, start);
 
   /// The habit's current streak (days, or weeks/months for weekly/monthly targets).
-  int streakPeriods(Rec h) => HabitCore.currentStreak(h, DateTime.now());
+  int streakPeriods(Rec h) => HabitCore.currentStreak(h, DayStart.now());
 
   /// Habits still to do today, in routine order (morning, then the rest, then evening).
   List<Rec> habitsDueToday() {
-    final now = DateTime.now();
+    final now = DayStart.now();
     return orderedHabits().where((h) => HabitCore.dueToday(h, now)).toList();
   }
 
@@ -1167,12 +1174,12 @@ class Store extends ChangeNotifier {
   // ---------- journal ----------
 
   List<Rec> capturesOn(String day) => list('captures')
-      .where((c) => c['status'] == 'done' && dayKey(fromMs(c['ts'] as int)) == day)
+      .where((c) => c['status'] == 'done' && DayStart.key(c['ts'] as int) == day)
       .toList();
 
   /// Written journal entries of a day, oldest first.
   List<Rec> entriesOn(String day) =>
-      list('entries').where((e) => dayKey(fromMs(e['ts'] as int)) == day).toList()
+      list('entries').where((e) => DayStart.key(e['ts'] as int) == day).toList()
         ..sort((a, b) => (a['ts'] as int).compareTo(b['ts'] as int));
 
   /// The day's mood (1 awful to 5 great): the last journal entry that has one, or else what Jarvis heard in notes.
@@ -1192,10 +1199,10 @@ class Store extends ChangeNotifier {
   List<String> journalDays() {
     final days = <String>{};
     for (final c in list('captures')) {
-      if (c['status'] == 'done') days.add(dayKey(fromMs(c['ts'] as int)));
+      if (c['status'] == 'done') days.add(DayStart.key(c['ts'] as int));
     }
     for (final e in list('entries')) {
-      days.add(dayKey(fromMs(e['ts'] as int)));
+      days.add(DayStart.key(e['ts'] as int));
     }
     return days.toList()..sort((a, b) => b.compareTo(a));
   }
@@ -1203,7 +1210,7 @@ class Store extends ChangeNotifier {
   /// Days in a row, up to today (or yesterday, so the streak survives until tonight), with something written.
   int journalStreak() {
     final days = journalDays().toSet();
-    final now = DateTime.now();
+    final now = DayStart.now();
     var d = DateTime(now.year, now.month, now.day);
     if (!days.contains(dayKey(d))) d = DateTime(d.year, d.month, d.day - 1);
     var n = 0;
@@ -1216,10 +1223,10 @@ class Store extends ChangeNotifier {
 
   /// What the rest of Jarvis knows about a day, for the "Your day" card and the AI.
   List<String> dayFacts(String day) {
-    bool on(int? ms) => ms != null && dayKey(fromMs(ms)) == day;
+    bool on(int? ms) => ms != null && DayStart.key(ms) == day;
     final done = list('items').where((i) => i['status'] == 'done' && on(i['doneAt'] as int?)).map((i) => i['title']).toList();
     final events = list('items')
-        .where((i) => i['kind'] == 'event' && i['status'] != 'cancelled' && on(i['when'] as int?))
+        .where((i) => i['kind'] == 'event' && i['status'] != 'cancelled' && DayStart.itemDay(i) == day)
         .map((i) => i['title'])
         .toList();
     final habits = list('habits').where((h) => HabitCore.done(h, DateTime.parse(day))).map((h) => h['name']).toList();

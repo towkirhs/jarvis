@@ -186,7 +186,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
 
   /// Applies Done taps from notifications: finishes the item, logs the habit, or keeps the promise.
   Future<void> _applyDone() async {
-    final today = dayKey(DateTime.now());
+    final today = DayStart.today();
     for (final c in await Native.takeChecks()) {
       await s.applyCheck((c['nid'] as num).toInt(), '${c['a']}', c['text'] as String?, (c['at'] as num).toInt());
     }
@@ -232,8 +232,9 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
       // Offline or GitHub is down: the next tick tries again.
     }
     final now = DateTime.now();
-    final today = dayKey(now);
-    if (now.hour >= 21 &&
+    final today = DayStart.today();
+    // The evening summary: from 9 pm until the day ends (5 am with "Day starts at 5 am").
+    if ((now.hour >= 21 || now.hour * 60 < DayStart.minutes) &&
         AI.available(s) &&
         s.summaries[today] == null &&
         _summaryTried != today &&

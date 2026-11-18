@@ -14,7 +14,7 @@ class MoneyIO {
   static List<List<Object?>> _rows(Iterable<Rec> txs) => [
         for (final t in txs)
           [
-            dayKey(fromMs(t['ts'] as int)),
+            DayStart.key(t['ts'] as int),
             clock(t['ts'] as int),
             t['type'],
             t['amount'],

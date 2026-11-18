@@ -4,6 +4,10 @@
 /// An account: {name, initial, savings: bool}. A goal (collection `goals`):
 /// {id, name, target, due (ms or null), account (name, or null), adds: [{ts, amount}], start (ms)}.
 /// A goal linked to an account counts that account's balance; otherwise what was added to it by hand.
+library;
+
+import 'day_start.dart';
+
 class MonthSum {
   const MonthSum(this.month, this.income, this.expense);
   final DateTime month;
@@ -17,7 +21,7 @@ class MonthSum {
 
 class MoneyStats {
   static DateTime _monthOf(int ts) {
-    final d = DateTime.fromMillisecondsSinceEpoch(ts);
+    final d = DayStart.of(DateTime.fromMillisecondsSinceEpoch(ts));
     return DateTime(d.year, d.month);
   }
 
@@ -82,7 +86,7 @@ class MoneyStats {
     final out = List<num>.filled(7, 0);
     for (final t in txs) {
       if (t['type'] != 'expense' || _monthOf(t['ts'] as int) != m) continue;
-      final d = DateTime.fromMillisecondsSinceEpoch(t['ts'] as int);
+      final d = DayStart.of(DateTime.fromMillisecondsSinceEpoch(t['ts'] as int));
       out[d.weekday - 1] += t['amount'] as num;
     }
     return out;

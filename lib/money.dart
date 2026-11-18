@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'categories.dart';
 import 'categories_page.dart';
+import 'day_start_menu.dart';
 import 'haptics.dart';
 import 'income_tab.dart';
 import 'items_screen.dart' show EdgeSwipe;
@@ -25,7 +26,7 @@ const _chartColors = [
 ];
 
 bool _inMonth(Rec t, DateTime m) {
-  final d = fromMs(t['ts'] as int);
+  final d = DayStart.of(fromMs(t['ts'] as int));
   return d.year == m.year && d.month == m.month;
 }
 
@@ -270,7 +271,7 @@ class MoneyPage extends StatefulWidget {
 }
 
 class _MoneyPageState extends State<MoneyPage> {
-  DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
+  DateTime _month = DateTime(DayStart.now().year, DayStart.now().month);
   DateTime? _calDay;
 
   Store get s => widget.store;
@@ -315,6 +316,7 @@ class _MoneyPageState extends State<MoneyPage> {
                   PopupMenuItem(value: 'import', child: Text('Import CSV or Excel')),
                 ],
               ),
+              DayStartMenu(store: s),
             ],
             bottom: const TabBar(
               isScrollable: true,
@@ -440,7 +442,7 @@ class _MoneyPageState extends State<MoneyPage> {
     if (txs.isEmpty) return _empty();
     final days = <String, List<Rec>>{};
     for (final t in txs) {
-      days.putIfAbsent(dayKey(fromMs(t['ts'] as int)), () => []).add(t);
+      days.putIfAbsent(DayStart.key(t['ts'] as int), () => []).add(t);
     }
     return ListView(
       padding: const EdgeInsets.only(bottom: 80),
@@ -472,7 +474,7 @@ class _MoneyPageState extends State<MoneyPage> {
     final lead = first.weekday - 1;
     final scheme = Theme.of(context).colorScheme;
     final selected = _calDay == null ? null : dayKey(_calDay!);
-    final dayTx = selected == null ? <Rec>[] : txs.where((t) => dayKey(fromMs(t['ts'] as int)) == selected).toList();
+    final dayTx = selected == null ? <Rec>[] : txs.where((t) => DayStart.key(t['ts'] as int) == selected).toList();
     return ListView(
       padding: const EdgeInsets.fromLTRB(4, 8, 4, 80),
       children: [
@@ -487,7 +489,7 @@ class _MoneyPageState extends State<MoneyPage> {
             for (var d = 1; d <= daysIn; d++)
               Builder(builder: (context) {
                 final day = DateTime(_month.year, _month.month, d);
-                final (inc, exp) = _sums(txs.where((t) => dayKey(fromMs(t['ts'] as int)) == dayKey(day)));
+                final (inc, exp) = _sums(txs.where((t) => DayStart.key(t['ts'] as int) == dayKey(day)));
                 return InkWell(
                   onTap: () => setState(() => _calDay = day),
                   child: Container(
@@ -499,7 +501,7 @@ class _MoneyPageState extends State<MoneyPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('$d', style: TextStyle(fontSize: 12, fontWeight: dayKey(day) == dayKey(DateTime.now()) ? FontWeight.bold : null)),
+                        Text('$d', style: TextStyle(fontSize: 12, fontWeight: dayKey(day) == DayStart.today() ? FontWeight.bold : null)),
                         const Spacer(),
                         if (inc > 0) Text(_short(inc), style: const TextStyle(fontSize: 10, color: _incomeColor)),
                         if (exp > 0) Text(_short(exp), style: const TextStyle(fontSize: 10, color: _expenseColor)),
@@ -634,7 +636,7 @@ class _MoneyPageState extends State<MoneyPage> {
     final tt = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
     final txs = s.list('tx');
-    final now = DateTime.now();
+    final now = DayStart.now();
     final isNow = _month == DateTime(now.year, now.month);
     final six = MoneyStats.months(txs, _month);
     final m = six.last;

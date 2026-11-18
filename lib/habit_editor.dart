@@ -58,7 +58,7 @@ class _HabitEditorState extends State<HabitEditor> {
   String _initTarget() {
     final h = old;
     if (h == null) return _num(HabitType.all.first.target);
-    return _num(HabitCore.target({...h, 'prog': null}, DateTime.now()) ?? h['target']);
+    return _num(HabitCore.target({...h, 'prog': null}, DayStart.now()) ?? h['target']);
   }
 
   bool get _measured => !const ['yesno', 'time', 'checklist', 'auto'].contains(_type);
@@ -88,14 +88,14 @@ class _HabitEditorState extends State<HabitEditor> {
       return setState(() => _error = Haptics.rejected() ?? 'Pick at least one day.');
     }
     final routine = _routine == 'custom' ? _customRoutine.text.trim() : _routine;
-    final today = dayKey(DateTime.now());
+    final today = DayStart.today();
 
     void apply(Rec r) {
       r['name'] = n;
       r['type'] = _type;
       // A new target applies from today; old days keep the target they had.
       if (_measured) {
-        final before = old == null ? null : HabitCore.target({...old!, 'prog': null}, DateTime.now());
+        final before = old == null ? null : HabitCore.target({...old!, 'prog': null}, DayStart.now());
         if (r['target'] == null) {
           r['target'] = target;
         } else if (before != target) {
@@ -274,7 +274,7 @@ class _HabitEditorState extends State<HabitEditor> {
                       'week' => {'kind': 'week', 'n': 3},
                       'month' => {'kind': 'month', 'n': 12},
                       'every' => {'kind': 'every', 'n': 2},
-                      'once' => {'kind': 'once', 'date': dayKey(DateTime.now())},
+                      'once' => {'kind': 'once', 'date': DayStart.today()},
                       _ => {'kind': 'daily'},
                     }),
               ),

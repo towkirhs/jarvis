@@ -36,7 +36,7 @@ class _Facts implements RuleFacts {
   @override
   bool habitDone(String habit) {
     final h = RuleRunner.habit(s, habit);
-    return h != null && HabitCore.done(h.cast<String, dynamic>(), now);
+    return h != null && HabitCore.done(h.cast<String, dynamic>(), DayStart.of(now));
   }
 
   @override
@@ -161,8 +161,8 @@ class RuleRunner {
         case 'habit':
           final h = habit(s, fill(a['habit']));
           if (h == null) break;
-          final day = dayKey(now);
-          if (HabitCore.done(h.cast<String, dynamic>(), now)) break;
+          final day = dayKey(DayStart.of(now));
+          if (HabitCore.done(h.cast<String, dynamic>(), DayStart.of(now))) break;
           undo.add({'op': 'put', 'col': 'habits', 'rec': copyRec(h)});
           final type = (h['type'] as String?) ?? 'yesno';
           (h['logs'] as Rec)[day] = type == 'yesno' ? 'yes' : {'v': h['target'] ?? 1};

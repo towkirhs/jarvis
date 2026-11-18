@@ -644,7 +644,7 @@ class _CalendarViewState extends State<_CalendarView> {
     final countdowns = CalIndex.countdowns(s);
     final tt = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
-    final todayKey = dayKey(DateTime.now());
+    final todayKey = DayStart.today();
     final rows = <Widget>[];
     for (var i = 0; i < n; i++) {
       final d = DateTime(from.year, from.month, from.day + i);
@@ -679,7 +679,7 @@ class _CalendarViewState extends State<_CalendarView> {
     final monday = s.mondayOf(_day);
     final week = [for (var i = 0; i < 7; i++) DateTime(monday.year, monday.month, monday.day + i)];
     final key = dayKey(_day);
-    final todayKey = dayKey(DateTime.now());
+    final todayKey = DayStart.today();
     final entries = CalIndex.build(s.calendarItems, _day, _day, shift: s.dayShift)[key] ?? const <CalEntry>[];
     final countdowns = CalIndex.countdowns(s)[key] ?? const <Rec>[];
     final scheme = Theme.of(context).colorScheme;

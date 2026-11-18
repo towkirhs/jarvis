@@ -25,7 +25,7 @@ int habitTotal(Rec h) => HabitCore.totalDone(h);
 
 /// First day of each of the last n months, oldest first.
 List<DateTime> lastMonths(int n) {
-  final now = DateTime.now();
+  final now = DayStart.now();
   return [for (var i = n - 1; i >= 0; i--) DateTime(now.year, now.month - i, 1)];
 }
 
@@ -40,7 +40,7 @@ List<int> monthCounts(Rec h, int n) => [
 
 /// Score at the end of each of the last n months (today for the current one), oldest first.
 List<double> monthScores(Rec h, int n) {
-  final today = _day(DateTime.now());
+  final today = _day(DayStart.now());
   return [
     for (final m in lastMonths(n))
       habitScore(h, () {

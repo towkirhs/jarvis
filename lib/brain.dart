@@ -270,7 +270,8 @@ class Brain {
     var local = c['image'] == null && AI.phoneOn(s)
         ? LocalParser.parse(
             note,
-            now: DateTime.now(),
+            // "today", "tomorrow" and habit days follow the day start: at 1 am "tomorrow" is the date that just began.
+            now: DayStart.now(),
             habits: s.list('habits').map((h) => h['name'] as String).toList(),
             accounts: s.list('accounts').map((a) => a['name'] as String).toList(),
           )
@@ -698,7 +699,7 @@ class Brain {
     if (type == 'habit_log') {
       final h = findHabit(s, p['habit'] as String?);
       if (h == null) return null;
-      final day = (p['date'] as String?) ?? dayKey(DateTime.now());
+      final day = (p['date'] as String?) ?? DayStart.today();
       final done = p['done'] != false;
       final before = s.streakPeriods(h);
       undo.add({'op': 'put', 'col': 'habits', 'rec': copyRec(h)});
@@ -884,13 +885,13 @@ class Brain {
     for (final c in s.list('captures')) {
       if (c['status'] != 'done') continue;
       final score = _words(c['cleaned'].toString()).intersection(q).length;
-      if (score > 0) scored.add(MapEntry('${dayKey(fromMs(c['ts'] as int))}: ${c['cleaned']}', score));
+      if (score > 0) scored.add(MapEntry('${DayStart.key(c['ts'] as int)}: ${c['cleaned']}', score));
     }
     for (final e in s.list('entries')) {
       final score = _words('${e['text']} ${((e['tags'] as List?) ?? []).join(' ')}').intersection(q).length;
       if (score > 0) {
         final mood = e['mood'] == null ? '' : ' (mood ${moodNames[e['mood'] as int]})';
-        scored.add(MapEntry('${dayKey(fromMs(e['ts'] as int))}$mood: ${e['text']}', score));
+        scored.add(MapEntry('${DayStart.key(e['ts'] as int)}$mood: ${e['text']}', score));
       }
     }
     if (scored.isEmpty) return 'I found nothing in your journal about that.';
@@ -966,7 +967,7 @@ class Brain {
   static String chatgptContext(Store s) {
     final now = DateTime.now();
     final facts = s.list('memories').map((m) => '- ${m['text']}').join('\n');
-    return 'JARVIS CONTEXT, ${_weekdays[now.weekday - 1]} ${dayKey(now)} ${two(now.hour)}:${two(now.minute)} (Asia/Dhaka)\n'
+    return 'JARVIS CONTEXT, ${_weekdays[now.weekday - 1]} ${dayKey(now)} ${two(now.hour)}:${two(now.minute)} (Asia/Dhaka)${dayStartNote(now)}\n'
         'What Jarvis remembers about me:\n${facts.isEmpty ? 'nothing yet' : facts}\n\n${world(s)}';
   }
 
@@ -976,7 +977,7 @@ class Brain {
   static String world(Store s) {
     final now = DateTime.now();
     final nowMs = now.millisecondsSinceEpoch;
-    final today = dayKey(now);
+    final today = dayKey(DayStart.of(now));
     String when(int? w, {bool allDay = false}) {
       if (w == null) return 'no date';
       final d = fromMs(w);
@@ -988,7 +989,7 @@ class Brain {
     final lines = <String>['Open items (id, kind, title, when):'];
     for (final i in open.take(40)) {
       final w = i['when'] as int?;
-      final late = w != null && w < nowMs && !(i['allDay'] == true && dayKey(fromMs(w)) == today);
+      final late = w != null && w < nowMs && !(i['allDay'] == true && DayStart.itemDay(i) == today);
       final p = (i['priority'] as int?) ?? 0;
       lines.add('#${i['id']} ${i['kind']} "${i['title']}" ${when(w, allDay: i['allDay'] == true)}'
           '${late ? ' OVERDUE' : ''}${p >= 3 ? ' high priority' : ''}${i['repeat'] == null ? '' : ' repeats ${i['repeat']}'}');
@@ -1011,9 +1012,9 @@ class Brain {
       lines.add('Habits (target, done this period, streak, today):');
       for (final h in habits) {
         final logs = (h['logs'] as Rec?) ?? {};
-        final t = HabitCore.target(h, now);
+        final t = HabitCore.target(h, DayStart.of(now));
         lines.add('"${h['name']}" (${HabitType.of(h).label}${t == null ? '' : ', target $t ${h['unit'] ?? ''}'}) '
-            '${HabitCore.describe(h)}, streak ${HabitCore.currentStreak(h, now)} ${HabitCore.unit(h)}s, '
+            '${HabitCore.describe(h)}, streak ${HabitCore.currentStreak(h, DayStart.of(now))} ${HabitCore.unit(h)}s, '
             'today ${logs[today] ?? 'not logged'}${h['archived'] == true ? ', archived' : ''}');
       }
     }
@@ -1040,7 +1041,7 @@ class Brain {
       final cat = (x['cat'] as String?) ?? 'Other';
       byCat[cat] = (byCat[cat] ?? 0) + a;
       if (ts >= weekStart) week += a;
-      if (dayKey(fromMs(ts)) == today) todaySpent += a;
+      if (DayStart.key(ts) == today) todaySpent += a;
     }
     final cats = byCat.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
     lines.add('Spent today ${s.money(todaySpent)}, this week ${s.money(week)}, this month '
@@ -1068,16 +1069,25 @@ class Brain {
     return lines.join('\n');
   }
 
+  /// For the AI: between midnight and 5 am (with "Day starts at 5 am") the person's day is still yesterday.
+  static String dayStartNote(DateTime now) {
+    if (now.hour * 60 >= DayStart.minutes) return '';
+    final d = DayStart.of(now);
+    return ' The person\'s day starts at 5 am, so it is still ${_weekdays[d.weekday - 1]} ${dayKey(d)} for them: '
+        '"today" means that day and "tomorrow" means ${dayKey(now)}.';
+  }
+
   static String _parserPrompt(Store s, String note,
       {bool photo = false, String? replyTo, bool web = false, String? dest, bool events = true}) {
     final now = DateTime.now();
+    final dayNote = dayStartNote(now);
     final places = [for (final p in s.list('places')) p['name'] as String];
     final moneyCats = [for (final u in Cats.used(s.list('tx').cast<Map<String, dynamic>>(), 'expense').take(12)) u.name].join(', ');
     final learn = s.settings['memory'] != false;
     final known = learn ? Memory.pick(s.list('memories'), note) : const <String>[];
     final profile = ProfileFiles.forPrompt(ProfileFiles.pick(s.list('profile'), note));
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-    return '''You are Jarvis, the person's personal assistant. You turn what they tell you into actions in their life system, and answer their questions from their data. Today is ${days[now.weekday - 1]} ${dayKey(now)}, local time ${two(now.hour)}:${two(now.minute)}.
+    return '''You are Jarvis, the person's personal assistant. You turn what they tell you into actions in their life system, and answer their questions from their data. Today is ${days[now.weekday - 1]} ${dayKey(now)}, local time ${two(now.hour)}:${two(now.minute)}.$dayNote
 
 What you know about their life right now:
 ${_safeWorld(s)}

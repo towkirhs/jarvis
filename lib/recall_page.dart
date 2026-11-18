@@ -112,7 +112,7 @@ class DeckPage extends StatelessWidget {
                   Card(
                     child: ListTile(
                       title: Text('${c['q']}'),
-                      subtitle: Text(Recall.isDue(c, DateTime.now()) ? 'Due today' : 'Next: ${dayKey(fromMs(c['due'] as int))}  ·  box ${c['box']}'),
+                      subtitle: Text(Recall.isDue(c, DateTime.now()) ? 'Due today' : 'Next: ${DayStart.key(c['due'] as int)}  ·  box ${c['box']}'),
                       onTap: () => editCard(context, s, card: c),
                     ),
                   ),

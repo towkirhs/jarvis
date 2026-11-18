@@ -15,7 +15,7 @@ const countdownKinds = {
 
 /// Days from today to the countdown's (next) date; negative when it has passed.
 int daysLeft(Store s, Rec c) {
-  final now = DateTime.now();
+  final now = DayStart.now();
   final today = DateTime(now.year, now.month, now.day);
   return s.countdownNext(c).difference(today).inDays;
 }

@@ -41,7 +41,7 @@ class Web {
       throw Exception('To search the web, add your Gemini key or a Groq API in Settings, AI models.');
     }
     final prompt = 'Search the web and answer in two to four short sentences, plain text, no markdown. '
-        'Today is ${dayKey(DateTime.now())}. Question: $question';
+        'Today is ${DayStart.today()}. Question: $question';
     final errors = <String>[];
     for (final p in list) {
       try {

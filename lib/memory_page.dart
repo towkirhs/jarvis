@@ -91,7 +91,7 @@ class _MemoryPageState extends State<MemoryPage> {
   String _seen(Rec m) {
     final n = (m['n'] as int?) ?? 1;
     final ms = (m['last'] as int?) ?? 0;
-    final day = dayKey(fromMs(ms)) == dayKey(DateTime.now()) ? 'today' : niceDay(ms).toLowerCase();
+    final day = DayStart.key(ms) == DayStart.today() ? 'today' : niceDay(ms).toLowerCase();
     return n <= 1 ? 'Noted $day' : 'Came up $n times, last $day';
   }
 

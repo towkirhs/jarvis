@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import 'ai_page.dart';
 import 'clash.dart';
+import 'day_start_menu.dart';
 import 'ics_page.dart';
 import 'phone_calendar_page.dart';
 import 'ai.dart';
@@ -365,7 +366,7 @@ class DecisionsPage extends StatelessWidget {
                   ListTile(
                     title: Text(d['decision'] as String),
                     subtitle: Text(
-                      '${dayKey(fromMs(d['ts'] as int))}${d['reason'] == null ? '' : '\nBecause ${d['reason']}'}',
+                      '${DayStart.key(d['ts'] as int)}${d['reason'] == null ? '' : '\nBecause ${d['reason']}'}',
                     ),
                     isThreeLine: d['reason'] != null,
                   ),
@@ -418,7 +419,7 @@ class InsightsPage extends StatelessWidget {
                 for (final h in store.list('habits'))
                   Text(
                     '${h['name']}: ${HabitCore.describe(h).toLowerCase()}, '
-                    '${HabitCore.consistency(h, DateTime.now())}% consistent, streak ${store.streakPeriods(h)} ${HabitCore.unit(h)}s',
+                    '${HabitCore.consistency(h, DayStart.now())}% consistent, streak ${store.streakPeriods(h)} ${HabitCore.unit(h)}s',
                   ),
                 const SizedBox(height: 16),
                 Text('How long things really take', style: style),
@@ -632,6 +633,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ]),
           _group('Everyday', [
+            DayStartSwitch(store: store),
             ListTile(
               leading: const Icon(Icons.notifications_active_outlined),
               title: const Text('Alarms and reminders'),

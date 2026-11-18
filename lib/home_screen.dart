@@ -148,7 +148,7 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Everything about today: what was the old Home, now a panel you pull up from the chat.
   List<Widget> _today(BuildContext context) {
     final now = DateTime.now();
-    final today = dayKey(now);
+    final today = dayKey(DayStart.of(now));
     final nowMs = now.millisecondsSinceEpoch;
     final scheme = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
@@ -156,11 +156,11 @@ class _HomeScreenState extends State<HomeScreen> {
     final behind = open.where((i) {
       final w = i['when'] as int?;
       // An all-day item is only behind once its day is over.
-      return w != null && w < nowMs && !(i['allDay'] == true && dayKey(fromMs(w)) == today);
+      return w != null && w < nowMs && !(i['allDay'] == true && DayStart.itemDay(i) == today);
     }).toList();
     final todays = open.where((i) {
       final w = i['when'] as int?;
-      return w != null && (w >= nowMs || i['allDay'] == true) && dayKey(fromMs(w)) == today;
+      return w != null && (w >= nowMs || i['allDay'] == true) && DayStart.itemDay(i) == today;
     }).toList()
       ..sort((a, b) => (a['when'] as int).compareTo(b['when'] as int));
     final habits = s.habitsDueToday();
@@ -255,10 +255,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   num _spentToday() {
-    final today = dayKey(DateTime.now());
+    final today = DayStart.today();
     num spent = 0;
     for (final t in s.list('tx').where((t) => t['type'] == 'expense')) {
-      if (dayKey(fromMs(t['ts'] as int)) == today) spent += t['amount'] as num;
+      if (DayStart.key(t['ts'] as int) == today) spent += t['amount'] as num;
     }
     return spent;
   }
@@ -290,12 +290,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _body(BuildContext context) {
     final now = DateTime.now();
-    final today = dayKey(now);
+    final today = dayKey(DayStart.of(now));
     final scheme = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
     final todays = s.list('items').where((i) {
       final w = i['when'] as int?;
-      return i['status'] == 'open' && w != null && dayKey(fromMs(w)) == today;
+      return i['status'] == 'open' && w != null && DayStart.itemDay(i) == today;
     }).toList();
     final inbox = s.list('inbox').length;
     final warn = _overbooked(todays.where((i) => (i['when'] as int) >= now.millisecondsSinceEpoch || i['allDay'] == true).toList());
@@ -347,7 +347,7 @@ class _HomeScreenState extends State<HomeScreen> {
               return w != null &&
                   i['allDay'] != true &&
                   (i['status'] == 'open' || i['status'] == 'done') &&
-                  dayKey(fromMs(w)) == today;
+                  DayStart.itemDay(i) == today;
             }).toList(),
             onTap: () => _openToday(context),
           ),
@@ -401,8 +401,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   itemBuilder: (context, i) {
                     final c = shown[shown.length - 1 - i];
                     final older = i + 1 < shown.length ? shown[shown.length - 2 - i] : null;
-                    final day = dayKey(fromMs(c['ts'] as int));
-                    final newDay = older == null || dayKey(fromMs(older['ts'] as int)) != day;
+                    final day = DayStart.key(c['ts'] as int);
+                    final newDay = older == null || DayStart.key(older['ts'] as int) != day;
                     return Column(children: [
                       if (newDay) _daySeparator(context, c['ts'] as int),
                       _message(context, c),
@@ -423,8 +423,8 @@ class _HomeScreenState extends State<HomeScreen> {
       );
 
   Widget _daySeparator(BuildContext context, int ts) {
-    final d = fromMs(ts);
-    final now = DateTime.now();
+    final d = DayStart.of(fromMs(ts));
+    final now = DayStart.now();
     final label = dayKey(d) == dayKey(now)
         ? 'Today'
         : dayKey(d) == dayKey(now.subtract(const Duration(days: 1)))
