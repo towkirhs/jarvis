@@ -650,6 +650,31 @@ class _HomeScreenState extends State<HomeScreen> {
                 if (text != null) const SizedBox(height: 8),
                 Wrap(spacing: 8, runSpacing: 8, children: results),
               ],
+              // The commands the AI turned the note into: tap one to fix it in the box and send it again.
+              if (c['commands'] is List && (c['commands'] as List).isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Wrap(spacing: 6, runSpacing: 6, children: [
+                  for (final cmd in (c['commands'] as List).cast<String>())
+                    ActionChip(
+                      avatar: const Icon(Icons.terminal, size: 16),
+                      label: Text(cmd, style: const TextStyle(fontFamily: 'monospace')),
+                      tooltip: 'Fix and send again',
+                      onPressed: () {
+                        Haptics.tap();
+                        _ctrl.text = cmd;
+                        _ctrl.selection = TextSelection.collapsed(offset: cmd.length);
+                      },
+                    ),
+                ]),
+              ],
+              if (c['nothing'] == true) ...[
+                const SizedBox(height: 6),
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.info_outline, size: 14, color: scheme.onSurfaceVariant),
+                  const SizedBox(width: 4),
+                  Text('Nothing changed', style: small?.copyWith(fontStyle: FontStyle.italic)),
+                ]),
+              ],
               if (sources.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Wrap(spacing: 8, runSpacing: 8, children: [

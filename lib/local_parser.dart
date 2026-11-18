@@ -33,6 +33,83 @@ class LocalParser {
 
   static String _two(int n) => n.toString().padLeft(2, '0');
   static String _day(DateTime d) => '${d.year}-${_two(d.month)}-${_two(d.day)}';
+  /// Command words the phone runs exactly, one per line, typed by you or written by the AI from your sentence:
+  ///   `cash: 1687 transport` (Cash now has 1687; the difference went to Transport; any account name works)
+  ///   `spent: 50 food [from bkash]`, `got: 8000 tuition Naomi [to bank]`, `delete: food 20`, `account: Oishi`.
+  /// The items for all the lines, or null if any line is not a command (then the note is read as usual).
+  static List<Map<String, dynamic>>? commands(String raw, List<String> accounts) {
+    final lines = raw.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
+    if (lines.isEmpty) return null;
+    final out = <Map<String, dynamic>>[];
+    for (final l in lines) {
+      final c = command(l, accounts);
+      if (c == null) return null;
+      out.add(c);
+    }
+    return out;
+  }
+
+  /// One command line (see [commands]), or null.
+  static Map<String, dynamic>? command(String line, List<String> accounts) {
+    final m = RegExp(r'^([a-z][a-z ]{0,24}?)\s*:\s*(.*)$', caseSensitive: false).firstMatch(line.trim());
+    if (m == null) return null;
+    final word = m[1]!.toLowerCase().trim();
+    final rest = m[2]!.trim();
+    String? acct(String name) => accounts.where((a) => a.toLowerCase() == name.toLowerCase()).firstOrNull;
+    if (word == 'account') {
+      if (rest.isEmpty) return null;
+      return {'type': 'account', 'title': rest[0].toUpperCase() + rest.substring(1), 'confidence': 1.0};
+    }
+    final n = RegExp(r'(?:৳\s*)?(\d[\d,]*(?:\.\d+)?)\s*(?:tk|taka|৳|bdt)?', caseSensitive: false).firstMatch(rest);
+    if (n == null) return null;
+    final amount = num.parse(n[1]!.replaceAll(',', ''));
+    var words = rest.replaceRange(n.start, n.end, ' ').trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    // "from bkash" / "to bank": the account, if it is one of yours.
+    String? named;
+    final at = words.indexWhere((w) => const {'from', 'to', 'in', 'into'}.contains(w.toLowerCase()));
+    if (at >= 0 && at + 1 < words.length && acct(words[at + 1]) != null) {
+      named = acct(words[at + 1]);
+      words = [...words.take(at), ...words.skip(at + 2)];
+    }
+    final what = words.join(' ');
+    String category(String fallback) {
+      final low = what.toLowerCase();
+      for (final e in _categories.entries) {
+        if (e.value.any((w) => RegExp('(^|[^a-z])${RegExp.escape(w)}').hasMatch(low))) return e.key;
+      }
+      return words.isEmpty ? fallback : words.first[0].toUpperCase() + words.first.substring(1).toLowerCase();
+    }
+
+    String title(String fallback) => what.isEmpty ? fallback : what[0].toUpperCase() + what.substring(1);
+    final account = acct(word);
+    if (account != null) {
+      final cat = what.isEmpty ? 'Balance correction' : category('Balance correction');
+      return {
+        'type': 'money', 'moneyType': 'expense', 'amount': amount, 'leaves': amount, 'account': account,
+        'category': cat, 'title': what.isEmpty ? cat : title(cat), 'confidence': 1.0,
+      };
+    }
+    switch (word) {
+      case 'spent' || 'spend' || 'expense' || 'paid':
+        final cat = category('Other');
+        return {
+          'type': 'money', 'moneyType': 'expense', 'amount': amount, 'category': cat, 'title': title(cat),
+          if (named != null) 'account': named,
+          'confidence': 1.0,
+        };
+      case 'got' || 'income' || 'received' || 'earned':
+        final cat = category('Income');
+        return {
+          'type': 'money', 'moneyType': 'income', 'amount': amount, 'category': cat, 'title': title(cat),
+          if (named != null) 'account': named,
+          'confidence': 1.0,
+        };
+      case 'delete' || 'remove':
+        return {'type': 'money_delete', 'amount': amount, 'title': words.isEmpty ? '' : words.first.toLowerCase(), 'confidence': 1.0};
+    }
+    return null;
+  }
+
   /// "I have 1877 taka in cash", "cash is 830", "make bKash 500", "bank balance 5200": what an account HAS now.
   /// The difference from Jarvis's balance is worked out by the app, never by an AI. The category is where the
   /// difference went, if said ("the rest on transport"). Null if [raw] does not state a balance.

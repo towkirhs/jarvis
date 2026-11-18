@@ -16,7 +16,7 @@ Put it at the end of your answer, inside one code block, with nothing after it:
 
 ```
 JARVIS v1
-{"reply": "...", "remember": ["..."], "items": [ {...}, {...} ]}
+{"reply": "...", "remember": ["..."], "commands": ["..."], "items": [ {...}, {...} ]}
 ```
 
 - `reply`: one short sentence Jarvis shows back to me (what was done).
@@ -55,6 +55,12 @@ Every item has `type` and `title`. Use only the fields that apply; leave the res
 
 - **task**: something to do. With a time, Jarvis reminds me then.
 - **event**: something on my calendar (meeting, class, appointment) with a start time.
+- **Money goes in `commands`, not items**: spending, income, a balance, deleting an entry, a new account. One line each; Jarvis runs them and does every sum itself:
+  - `cash: 1687 transport`: what an account HAS now, and where the rest went (no account named = cash)
+  - `spent: 630 juice` (add up "150+480" yourself), `spent: 50 food from bkash`
+  - `got: 8000 tuition Naomi`, `got: 500 gift to bank`
+  - `delete: food 20`, `account: Oishi`
+  Never do a balance sum. Don't say in `reply` that money was changed: Jarvis shows what really happened.
 - **money_delete**: deletes a money entry I ask to remove: `amount` and a one-word `title` (its category or note). **account**: a new money account, `title` is its name.
 - **alarm**: a loud alarm on Jarvis's Clock. Use it when I ask to be woken or for an alarm. A plain one ("Alarm", "Wake up") is only an alarm. One about something to do gets a linked task by itself, so never add a separate task for it. For an event in the same block, give the alarm the event's exact title and it is linked to the event. If I want just an alarm and no task, add `"alarmOnly": true`.
 - **delay** moves an existing item to a new `date`/`time`. **complete** = I did it. **cancel** = it is off.

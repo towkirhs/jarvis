@@ -96,4 +96,45 @@ void main() {
     await Brain.capture(s, 'delete food 999');
     expect(s.list('captures').last['msg'], contains('nothing was deleted'));
   });
+
+  test('command words: one per line, run exactly; anything else is not a command', () {
+    final c = LocalParser.command('cash: 1687 transport', _accounts)!;
+    expect([c['account'], c['leaves'], c['category']], ['Cash', 1687, 'Transport']);
+    expect(LocalParser.command('BKASH: 500', _accounts)!['account'], 'bKash');
+    expect(LocalParser.command('cash: 900', _accounts)!['category'], 'Balance correction');
+    final sp = LocalParser.command('spent: 630 juice from bkash', _accounts)!;
+    expect([sp['moneyType'], sp['amount'], sp['category'], sp['account'], sp['title']], ['expense', 630, 'Juice', 'bKash', 'Juice']);
+    expect(LocalParser.command('spent: 120 lunch', _accounts)!['category'], 'Food');
+    final got = LocalParser.command('got: 8000 tuition Naomi to bank', _accounts)!;
+    expect([got['moneyType'], got['amount'], got['account'], got['title']], ['income', 8000, 'Bank', 'Tuition Naomi']);
+    expect(LocalParser.command('delete: food 20', _accounts), {'type': 'money_delete', 'amount': 20, 'title': 'food', 'confidence': 1.0});
+    expect(LocalParser.command('account: oishi', _accounts)!['title'], 'Oishi');
+    expect(LocalParser.command('note: buy milk', _accounts), isNull);
+    expect(LocalParser.command('spent: a lot', _accounts), isNull);
+    expect(LocalParser.command('gym at 5:30', _accounts), isNull);
+    expect(LocalParser.commands('spent: 50 tea\ncash: 800', _accounts), hasLength(2));
+    expect(LocalParser.commands('spent: 50 tea\nand then gym', _accounts), isNull);
+  });
+
+  test('typed commands run on the phone with no AI', () async {
+    final s = await _store();
+    await Brain.capture(s, 'spent: 7 tea\ncash: 1800 transport');
+    final tx = s.list('tx');
+    expect([for (final t in tx) '${t['cat']} ${t['amount']}'], ['Food 7', 'Transport 100']);
+    expect(s.balance(s.list('accounts').firstWhere((a) => a['name'] == 'Cash')), 1800);
+    expect(s.list('captures').single['via'], 'phone');
+  });
+
+  test("the AI's commands run on the phone; an answer that changed nothing says so", () async {
+    final s = await _store();
+    await Brain.capture(s, 'JARVIS v1 {"reply": "Noted.", "commands": ["cash: 1687 transport", "fly: 5"]}');
+    final c = s.list('captures').single;
+    expect(s.balance(s.list('accounts').firstWhere((a) => a['name'] == 'Cash')), 1687);
+    expect(c['commands'], ['cash: 1687 transport', 'fly: 5']);
+    expect(c['msg'], contains('Could not run "fly: 5"'));
+    expect(c['nothing'], isNull);
+
+    await Brain.capture(s, 'JARVIS v1 {"reply": "Your cash is 1687."}');
+    expect(s.list('captures').last['nothing'], isTrue);
+  });
 }

@@ -152,6 +152,11 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    `Brain.claimsAction`: an AI reply that says it did something while no item was applied is replaced with "I couldn't do that…".
    `LocalParser.moneyCommand`: "create a money account named X" (item `account`) and "delete food 20" (item `money_delete`: the newest
    entry of that amount in 30 days whose category or note has the word; Undo puts it back), also usable by the AI and ChatGPT.
+   Command words (build after 262): `LocalParser.commands`/`command` run money lines exactly on the phone: `<account>: N [what]`
+   (balance, the difference goes to the category), `spent:`, `got:` (`from`/`to <account>`), `delete:`, `account:`. A note made only
+   of command lines skips the AI. The AI and ChatGPT write money as `"commands": [..]` (prompt rule "MONEY GOES IN commands"),
+   run by the same parser in `Brain._apply`; they show under the answer as chips (tap = put in the box to fix and resend).
+   An AI or ChatGPT answer that changed nothing (no items, no memory) gets `nothing: true` → "Nothing changed". Untested on a phone.
    Copy, edit and arrange (build after 258): the app root is a `SelectionArea` (hold any text to copy); hold a Jarvis answer to copy it;
    `lib/record_sheet.dart` (`showRecordSheet` with `Field`s: edit, copy, delete) for promises, decisions and Your day lines.
    `lib/arrange.dart`: More → Arrange screens orders or hides the middle tabs (`local('tabs')`, Home first and More last are fixed;
