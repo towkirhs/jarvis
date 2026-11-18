@@ -174,4 +174,30 @@ void main() {
     await t.pumpAndSettle();
     expect(s.list('items').single['title'], 'Buy milk');
   });
+
+  testWidgets('a time picked for a piece stays: 7:30 pm is 7:30 pm in the plan, and Apply keeps it', (t) async {
+    final s = await _store(t);
+    s.list('items').add(_task(1, 'Eti', est: 150));
+    await t.pumpWidget(MaterialApp(home: PlanDayPage(store: s, day: _day)));
+    await t.pumpAndSettle();
+    await t.tap(find.text('Eti'));
+    await t.pumpAndSettle();
+    await t.tap(find.textContaining('Starts '));
+    await t.pumpAndSettle();
+    await t.tap(find.byIcon(Icons.keyboard_outlined));
+    await t.pumpAndSettle();
+    await t.enterText(find.byType(TextField).at(0), '7');
+    await t.enterText(find.byType(TextField).at(1), '30');
+    await t.tap(find.text('PM'));
+    await t.tap(find.text('OK'));
+    await t.pumpAndSettle();
+    expect(find.text('Starts 7:30 pm'), findsOneWidget);
+    await t.tap(find.text('Done'));
+    await t.pumpAndSettle();
+    expect(find.textContaining('7:30 pm – 10:00 pm'), findsOneWidget);
+    await t.tap(find.text('Apply plan'));
+    await t.pumpAndSettle();
+    final w = DateTime.fromMillisecondsSinceEpoch(s.list('items').single['when'] as int);
+    expect([w.hour, w.minute], [19, 30]);
+  });
 }

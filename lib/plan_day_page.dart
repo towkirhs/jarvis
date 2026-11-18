@@ -418,15 +418,17 @@ class _PlanDayPageState extends State<PlanDayPage> {
                             },
                           ),
                         ),
+                        // Not next to the time: it undoes the time you just picked, so it must not look like "OK".
                         if (_edits[id]?.start != null || (it?['planned'] == dayKey(_day) && !_unpinned.contains(id) && !_replan)) ...[
                           const SizedBox(width: 8),
-                          TextButton(
+                          IconButton(
+                            tooltip: 'Forget this time; Jarvis places it',
+                            icon: const Icon(Icons.close),
                             onPressed: () {
                               _unpinned.add(id);
                               _change(id, (e) => e.copyWith(clearStart: true));
-                              Navigator.pop(ctx);
+                              setS(() => start = b.start);
                             },
-                            child: const Text('Let Jarvis place it'),
                           ),
                         ],
                       ]),
@@ -597,6 +599,8 @@ class _PlanDayPageState extends State<PlanDayPage> {
                         ),
                       ],
                     ]),
+                    const SizedBox(height: 16),
+                    SizedBox(width: double.infinity, child: FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('Done'))),
                     if (it != null && it['planHabit'] == null) ...[
                       const SizedBox(height: 12),
                       Wrap(spacing: 8, children: [
