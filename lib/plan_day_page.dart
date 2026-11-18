@@ -600,6 +600,18 @@ class _PlanDayPageState extends State<PlanDayPage> {
                         ),
                       ],
                     ]),
+                    // A habit: say once whether it takes time (it then gets a block every day it is due) or is quick.
+                    if (store.byId('habits', id < 0 ? -id : (it?['planHabit'] as int? ?? 0)) case final h?) ...[
+                      const SizedBox(height: 12),
+                      TextButton.icon(
+                        icon: Icon(timed ? Icons.bolt : Icons.hourglass_empty),
+                        label: Text(timed ? 'Quick, no time needed (every day)' : 'It takes time (30 min, every day)'),
+                        onPressed: () {
+                          store.updateRec('habits', h, '${h['name']}: ${timed ? 'quick' : 'takes time'}', (r) => r['planMin'] = timed ? 0 : 30);
+                          Navigator.pop(ctx);
+                        },
+                      ),
+                    ],
                     const SizedBox(height: 16),
                     SizedBox(width: double.infinity, child: FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('Done'))),
                     if (it != null && it['planHabit'] == null) ...[

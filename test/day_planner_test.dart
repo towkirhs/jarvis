@@ -117,9 +117,10 @@ void quickAndHabitTests() {
         {'id': 11, 'name': 'Gym', 'type': 'yesno', 'planMin': 60, 'sched': {'kind': 'days', 'days': [1]}, 'logs': {}},
         {'id': 12, 'name': 'Read', 'type': 'duration', 'target': 20, 'planMin': 0, 'logs': {}},
         {'id': 13, 'name': 'Old', 'type': 'yesno', 'planMin': 30, 'archived': true, 'logs': {}},
+        {'id': 14, 'name': 'Meditate', 'type': 'yesno', 'logs': {}},
       ];
       final t = DayPlanner.habitTasks([for (final h in habits) {...h, 'start': '2026-01-01'}], now);
-      expect(t.where((x) => x['quick'] != true).map((x) => '${x['title']} ${x['est']} ${x['id']}'), ['Tuition 60 -7', 'Study 90 -8']);
+      expect(t.where((x) => x['quick'] != true).map((x) => '${x['title']} ${x['est']} ${x['id']}'), ['Tuition 60 -7', 'Study 90 -8', 'Meditate 30 -14']);
       expect(t.where((x) => x['quick'] == true).map((x) => x['title']), ['Water', 'Read']);
     });
 

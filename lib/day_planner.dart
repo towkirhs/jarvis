@@ -117,8 +117,10 @@ class DayPlanner {
         i['when'] is int &&
         (i['when'] as int) >= today.millisecondsSinceEpoch &&
         (i['when'] as int) < tomorrow);
+    // A habit takes time unless you said it is quick (planMin 0) or it is a count spread over the day (water):
+    // its own length, else its duration target, else half an hour.
     int minutes(Map<String, dynamic> h) =>
-        ((h['planMin'] as num?) ?? (h['type'] == 'duration' ? (h['target'] as num?) : null) ?? 0).round();
+        ((h['planMin'] as num?) ?? (h['type'] == 'duration' ? (h['target'] as num?) : null) ?? (h['type'] == 'quantity' ? 0 : 30)).round();
     return [
       for (final h in habits)
         if (h['archived'] != true && !HabitCore.done(h, today) && !onCalendar(h))

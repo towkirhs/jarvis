@@ -138,7 +138,7 @@ void main() {
     test('habits are pieces: timed ones get a block on any day, the rest are quick, one added by hand gets 30 minutes', () {
       final habits = <Map<String, dynamic>>[
         {'id': 1, 'name': 'Gym', 'type': 'yesno', 'planMin': 60, 'start': '2026-01-01', 'sched': {'kind': 'daily'}, 'logs': <String, dynamic>{}},
-        {'id': 2, 'name': 'Vitamins', 'type': 'yesno', 'start': '2026-01-01', 'sched': {'kind': 'daily'}, 'logs': <String, dynamic>{}},
+        {'id': 2, 'name': 'Vitamins', 'type': 'yesno', 'planMin': 0, 'start': '2026-01-01', 'sched': {'kind': 'daily'}, 'logs': <String, dynamic>{}},
         {'id': 3, 'name': 'Read', 'type': 'yesno', 'start': '2026-01-01', 'sched': {'kind': 'once'}, 'logs': <String, dynamic>{}},
       ];
       final pieces = DayPlanner.habitTasks(habits, sat, extra: {-3});

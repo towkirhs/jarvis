@@ -84,7 +84,7 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    Habits from the calendar (`lib/habit_link.dart`): a habit's `link` words match finished events and done tasks (last 14 days);
    logs written with `cal: true`, run on every save and on resume; manual logs win. The other way, `toCal: true` adds an event (`habitId`, `habitDay`, list 'Habits') when you tick the habit,
    moved or removed with the log (`Store._habitBlock`). Plan my day: quick tasks (`DayPlanner.isQuick`, item `quick`) get no block;
-   habits with `planMin` (or duration target) get one, applied as a task with `planHabit` that logs the habit when done. Untested on a phone.
+   habits get one too (since build 289: `planMin`, else a duration target, else 30 min; `planMin: 0` or a quantity habit = quick; the piece sheet switches a habit between the two), applied as a task with `planHabit` that logs the habit when done. Untested on a phone.
    Web and sync (build after 176): records carry `_t` (set in `Store.save` via `Stamps`), deletions go to `_gone`;
    `SyncMerge.merge` keeps the newer record and applies deletions; any list of id'd maps is a collection. Sync pulls every
    minute, pushes 5 s after a change, and on resume. Setup code (`Sync.makeCode`, `JARVIS-SYNC1.`) joins a device.
