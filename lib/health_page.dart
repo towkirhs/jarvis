@@ -200,7 +200,7 @@ class _HealthPageState extends State<HealthPage> with WidgetsBindingObserver {
                         ),
                         title: Text(r.title),
                         subtitle: r.detail.isEmpty ? null : Text(r.detail),
-                        trailing: r.fix != null && r.state != 'ok' ? TextButton(onPressed: () => _fix(r.fix!), child: const Text('Fix')) : null,
+                        trailing: r.fix != null && r.state == 'fix' ? TextButton(onPressed: () => _fix(r.fix!), child: const Text('Fix')) : null,
                       ),
                   ]),
                 ),
