@@ -85,8 +85,12 @@ void main() {
     t.view.physicalSize = const Size(360, 720);
     t.view.devicePixelRatio = 1;
     addTearDown(t.view.reset);
-    await t.pumpWidget(MaterialApp(home: HealthPage(store: s)));
-    await t.pumpAndSettle();
+    // The page reads the backup folder with real file calls: let them finish outside the test clock.
+    await t.runAsync(() async {
+      await t.pumpWidget(MaterialApp(home: HealthPage(store: s)));
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+    });
+    await t.pump();
     expect(find.text('1 thing to fix'), findsOneWidget);
     expect(find.text('Exact alarms are not allowed'), findsOneWidget);
     expect(find.text('Fix'), findsOneWidget);
