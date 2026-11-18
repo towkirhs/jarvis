@@ -146,6 +146,10 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    task, unless `alarmOnly`. `Store._syncLinkedClock` turns it off when the item is finished and moves it with the item; when it
    rings at the item's own time the item's notice is skipped. Deleting the item removes its alarm. Alarms in a note are applied
    last. `untilDone`, place and monthly/yearly alarms stay items.
+   Balances and honest replies (build after 254): `LocalParser.balance` reads "I have 1877 in cash", "cash is 830", "make bKash 500",
+   "bank balance 5200" before any AI (`Brain` drain, also skips the prefilter) as a `money` item with `leaves`; the app works out the
+   difference both ways (less: an expense in the said category or "Balance correction"; more: income "Balance correction").
+   `Brain.claimsAction`: an AI reply that says it did something while no item was applied is replaced with "I couldn't do that…".
    Health and backups (build after 249): `lib/health_page.dart` (`HealthCheck.rows` pure) reads `Native.health()` (`Health` in
    Ring.kt: notifications, exact alarms, battery optimisation, overlay, full screen, usage access) and shows fixes; it also arms the
    nightly background test (`Health.BEAT_ID` 1.7e9, kind `beat`, 3:30 am, no sound; `AlarmReceiver` records `beatAt`/`beatDue`),

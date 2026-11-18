@@ -44,7 +44,7 @@ Every item has `type` and `title`. Use only the fields that apply; leave the res
 | `habit`, `done`, `amount` | For `habit_log`: habit name, true/false, measured amount |
 | `habit`, `times`, `per` | For `habit_new`: name, and a target like 3 per `week` |
 | `amount`, `moneyType`, `category`, `account`, `toAccount` | For `money`: number, `expense`/`income`/`transfer`, one word like Food, Transport, Bills; accounts only if named |
-| `leaves` | For money: when I say how much is LEFT and the rest was spent, put the left-over number in both `leaves` and `amount` |
+| `leaves` | For money: when I say how much is LEFT, or just how much an account has ("I have 1877 in cash"), put that number in both `leaves` and `amount`, with `account`. Jarvis works out the difference itself, spent or received: never do the sum |
 | `person`, `asked` | For `promise`: who it was made to (`date` is the deadline). No deadline given: leave `date` out and set `asked: true` |
 | `alarmOnly` | For `alarm`: `true` = only the alarm, no linked task |
 | `reason` | For `decision`: why I decided |

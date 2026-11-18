@@ -33,6 +33,48 @@ class LocalParser {
 
   static String _two(int n) => n.toString().padLeft(2, '0');
   static String _day(DateTime d) => '${d.year}-${_two(d.month)}-${_two(d.day)}';
+  /// "I have 1877 taka in cash", "cash is 830", "make bKash 500", "bank balance 5200": what an account HAS now.
+  /// The difference from Jarvis's balance is worked out by the app, never by an AI. The category is where the
+  /// difference went, if said ("the rest on transport"). Null if [raw] does not state a balance.
+  static Map<String, dynamic>? balance(String raw, List<String> accounts) {
+    final t = raw.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (accounts.isEmpty) return null;
+    final names = [...accounts]..sort((a, b) => b.length.compareTo(a.length));
+    final acct = names.map((a) => RegExp.escape(a.toLowerCase())).join('|');
+    const n = r'(?:৳\s*)?(\d[\d,]*(?:\.\d+)?)\s*(?:tk|taka|৳|bdt|/-)?';
+    final patterns = [
+      RegExp('\\b(?:i\\s+)?(?:have|got|has)\\s+(?:only\\s+)?$n\\s*(?:left\\s+|remaining\\s+)?(?:in|on)\\s+(?:my\\s+|the\\s+)?($acct)\\b'),
+      RegExp('\\b($acct)\\s+(?:balance\\s+)?(?:is|=|now|has|shows|becomes?)\\s+(?:now\\s+|only\\s+)?$n'),
+      RegExp('\\b(?:make|set|update|change)\\s+(?:my\\s+|the\\s+)?($acct)(?:\\s+balance)?\\s+(?:to\\s+)?$n'),
+      RegExp('\\b($acct)\\s+balance\\s+(?:to\\s+)?$n'),
+    ];
+    for (final (i, p) in patterns.indexed) {
+      final m = p.firstMatch(t);
+      if (m == null) continue;
+      final said = i == 0 ? m[2]! : m[1]!;
+      final amount = num.parse((i == 0 ? m[1]! : m[2]!).replaceAll(',', ''));
+      final account = accounts.firstWhere((a) => a.toLowerCase() == said);
+      var category = 'Other';
+      for (final e in _categories.entries) {
+        if (e.value.any((w) => RegExp('(^|[^a-z])${RegExp.escape(w)}').hasMatch(t))) {
+          category = e.key;
+          break;
+        }
+      }
+      return {
+        'type': 'money',
+        'moneyType': 'expense',
+        'amount': amount,
+        'leaves': amount,
+        'account': account,
+        'category': category == 'Other' ? 'Balance correction' : category,
+        'title': category == 'Other' ? 'Balance correction' : category,
+        'confidence': 1.0,
+      };
+    }
+    return null;
+  }
+
   static bool _hasWord(String text, String w) => RegExp('(^|[^a-z])${RegExp.escape(w)}([^a-z]|\$)').hasMatch(text);
 
   /// A time like "4:30 pm", "4.30", "4 pm", "at 7", "7 tay", "sokal 7". Returns (hour, minute, matched text).

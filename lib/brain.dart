@@ -47,6 +47,7 @@ class Brain {
         Web.asked(raw) == null &&
         // "started gym" is logged on the phone; it never goes to the AI anyway.
         NowLog.parse(raw) == null &&
+        LocalParser.balance(raw, [for (final a in s.list('accounts')) a['name'] as String]) == null &&
         Destination.of(raw)?.type != 'now';
     s.list('captures').add({
       'id': s.nextId(),
@@ -188,6 +189,14 @@ class Brain {
           {'type': 'decision', 'title': (m?[1] ?? note).trim(), 'reason': m?[2]?.trim(), 'confidence': 1},
         ],
       });
+    }
+    // "I have 1877 in cash", "make bKash 500": a balance, worked out on the phone (the AI is not trusted with sums).
+    if (c['image'] == null && dest == null) {
+      final bal = LocalParser.balance(note, [for (final a in s.list('accounts')) a['name'] as String]);
+      if (bal != null) {
+        c['via'] = 'phone';
+        return _apply(s, c, {'items': [bal], 'cleaned': note});
+      }
     }
     // "started gym", "back home", "now: reading": a line in today's log, read on the phone.
     if (c['image'] == null && (dest == null || dest.type == 'now')) {
@@ -388,7 +397,11 @@ class Brain {
         return 'Past you decided: ${d['decision']}${reason == null ? '' : ' (because $reason)'}';
       }).toList();
 
-      final reply = (data['reply'] as String?)?.trim().isEmpty ?? true ? null : (data['reply'] as String).trim();
+      var reply = (data['reply'] as String?)?.trim().isEmpty ?? true ? null : (data['reply'] as String).trim();
+      // The AI says it did something, but nothing changed: say so, instead of a false "Got it".
+      if (c['via'] == 'ai' && msgs.isEmpty && reply != null && claimsAction(reply)) {
+        reply = "I couldn't do that, so nothing was changed. Try saying it another way, or do it in the app.";
+      }
       final cleaned = (data['cleaned'] as String?)?.trim() ?? '';
       c['cleaned'] = cleaned.isNotEmpty ? cleaned : c['raw'];
       c['topics'] = topics;
@@ -410,6 +423,14 @@ class Brain {
     s.save();
     return true;
   }
+
+  /// Whether a reply says something was done ("I've updated your cash", "the alarm has been set"). Saving to the
+  /// journal ("I've noted that") does not count: every note is kept there anyway.
+  static bool claimsAction(String reply) => RegExp(
+        r"\b(?:i(?:'ve| have)?|i've just|i just)\s+(?:also\s+)?(?:updated|set|added|created|logged|recorded|scheduled|moved|deleted|removed|cancell?ed|marked|changed|booked|put|adjusted|made)\b"
+        r"|\b(?:has|have) been (?:updated|set|added|created|logged|recorded|scheduled|moved|deleted|removed|cancell?ed|marked|changed|adjusted)\b",
+        caseSensitive: false,
+      ).hasMatch(reply);
 
   // ---------- review rules ----------
 
@@ -724,7 +745,7 @@ class Brain {
       return amount != null && type != 'yesno' ? 'Logged ${h['name']}: +$amount $unit'.trim() : 'Logged ${h['name']}';
     }
     if (type == 'money') {
-      final kind = ['income', 'transfer'].contains(p['moneyType']) ? p['moneyType'] as String : 'expense';
+      var kind = ['income', 'transfer'].contains(p['moneyType']) ? p['moneyType'] as String : 'expense';
       String pickAccount(String? said, String fallback) {
         if (said == null) return fallback;
         for (final a in s.list('accounts')) {
@@ -745,21 +766,25 @@ class Brain {
         final have = s.balance(acct);
         final spend = have - leaves;
         if (spend == 0) return '$account already has ${s.money(have)}. Nothing to record';
-        if (spend < 0) return '$account has ${s.money(have)}, less than the ${s.money(leaves)} you say is left. Nothing recorded; fix the balance in Money first';
-        amount = spend;
+        // More than Jarvis has recorded: the difference came in from somewhere, as income.
+        if (spend < 0) kind = 'income';
+        amount = spend.abs();
       }
       s.addTx(
         type: kind,
         amount: amount,
-        category: kind == 'transfer' ? 'Transfer' : ((p['category'] as String?) ?? 'Other'),
+        category: kind == 'transfer' ? 'Transfer' : (leaves is num && kind == 'income' ? 'Balance correction' : ((p['category'] as String?) ?? 'Other')),
         account: account,
         toAccount: kind == 'transfer' ? pickAccount(p['toAccount'] as String?, first) : null,
-        note: title.isEmpty ? null : title,
+        note: leaves is num && kind == 'income' ? 'Balance correction' : (title.isEmpty ? null : title),
         tags: ((p['tags'] as List?) ?? []).map((e) => e.toString()).toList(),
         ts: when,
         captureId: capId,
         undo: undo,
       );
+      if (leaves is num && kind == 'income') {
+        return '$account now ${s.money(leaves)}: ${s.money(amount)} more than recorded, added as income (Balance correction)';
+      }
       if (leaves is num) return '$account now ${s.money(leaves)}. Spent ${s.money(amount)}: $title';
       return '${kind == 'income' ? 'Income' : (kind == 'transfer' ? 'Transfer' : 'Spent')}: ${s.money(amount)} $title';
     }
