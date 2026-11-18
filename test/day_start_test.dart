@@ -69,7 +69,7 @@ void main() {
 
     await t.tap(find.byTooltip('Options'));
     await t.pumpAndSettle();
-    await t.tap(find.text('Day starts at 5 am'));
+    await t.tap(find.byType(CheckedPopupMenuItem<String>));
     await t.pumpAndSettle();
     expect([s.dayShift, DayStart.minutes], [0, 0]);
 
