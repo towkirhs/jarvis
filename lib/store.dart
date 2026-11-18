@@ -214,9 +214,12 @@ class Store extends ChangeNotifier {
   int get dayShift => local('dayStart5') == '1' ? 300 : 0;
 
   /// Saves how the screens are arranged (see `Arrange`) and redraws them.
-  Future<void> setArrange({String? tabs, String? homeHide}) async {
+  Future<void> setArrange({String? tabs, String? homeHide, String? homeOrder, String? moreOrder, String? moreHide}) async {
     if (tabs != null) await setLocal('tabs', tabs);
     if (homeHide != null) await setLocal('homeHide', homeHide);
+    if (homeOrder != null) await setLocal('homeOrder', homeOrder);
+    if (moreOrder != null) await setLocal('moreOrder', moreOrder);
+    if (moreHide != null) await setLocal('moreHide', moreHide);
     notifyListeners();
   }
 

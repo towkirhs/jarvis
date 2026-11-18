@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:jarcis/arrange.dart';
 import 'package:jarcis/haptics.dart';
 import 'package:jarcis/item_moves.dart';
+import 'package:jarcis/pages.dart';
 import 'package:jarcis/store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -20,28 +21,60 @@ Future<Store> _store() async {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('the saved tab order: unknown or repeated names are dropped, nothing saved means all four', () {
+  test('the saved tab order: any screen can be a tab, unknown or repeated names are dropped, at most five', () {
     expect(Arrange.tabs(null), ['plan', 'money', 'journal', 'habits']);
     expect(Arrange.tabs('money,plan,money,shop'), ['money', 'plan']);
+    expect(Arrange.tabs('day,clock'), ['day', 'clock']);
+    expect(Arrange.tabs('plan,money,journal,habits,day,clock'), hasLength(5));
     expect(Arrange.tabs(''), isEmpty);
     expect(Arrange.hidden('ribbon,chips,nope'), {'ribbon', 'chips'});
+    expect(Arrange.homeOrder('chips,ribbon'), ['chips', 'ribbon', 'now']);
+    final more = Arrange.moreOrder('settings,day', ['plan', 'money']);
+    expect(more.take(2), ['settings', 'day']);
+    expect(more, isNot(contains('plan')));
+    expect(more, contains('journal'));
+    expect(Arrange.moreHidden('day,settings,arrange,nope'), {'day'});
   });
 
-  testWidgets('Arrange screens fits a phone; hiding a tab and a Home part is saved', (t) async {
+  testWidgets('Arrange fits a phone: remove a tab, add Your day as a tab, hide a Home part', (t) async {
     final s = await _store();
     t.view.physicalSize = const Size(360, 720);
     t.view.devicePixelRatio = 1;
     addTearDown(t.view.reset);
     await t.pumpWidget(MaterialApp(home: ArrangePage(store: s)));
     await t.pumpAndSettle();
-    // The first switch belongs to Plan.
-    await t.tap(find.byType(Switch).first);
+    await t.tap(find.byTooltip('Remove the tab').first);
     await t.pumpAndSettle();
     expect(s.local('tabs'), 'money,journal,habits');
+    await t.tap(find.text('Add a tab'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('Your day').last);
+    await t.pumpAndSettle();
+    expect(s.local('tabs'), 'money,journal,habits,day');
     await t.scrollUntilVisible(find.text('Day strip'), 100, scrollable: find.byType(Scrollable).first);
-    await t.tap(find.text('Day strip'));
+    await t.tap(find.descendant(of: find.ancestor(of: find.text('Day strip'), matching: find.byType(ListTile)), matching: find.byType(Switch)));
     await t.pumpAndSettle();
     expect(Arrange.hidden(s.local('homeHide')), {'ribbon'});
+  });
+
+  testWidgets('More is a grid in your order; hidden tiles fold away; tabs are not repeated', (t) async {
+    final s = await _store();
+    await s.setArrange(tabs: 'plan,day', moreOrder: 'settings', moreHide: 'drive,voice');
+    t.view.physicalSize = const Size(360, 720);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.reset);
+    await t.pumpWidget(MaterialApp(home: Scaffold(body: MoreScreen(store: s))));
+    await t.pumpAndSettle();
+    expect(find.text('Settings'), findsOneWidget);
+    expect(find.text('Your day'), findsNothing);
+    expect(find.text('Money'), findsOneWidget);
+    expect(t.getTopLeft(find.text('Settings')).dy, lessThan(t.getTopLeft(find.text('Money')).dy));
+    await t.scrollUntilVisible(find.text('Hidden (2)'), 200, scrollable: find.byType(Scrollable).first);
+    expect(find.text('Google Drive'), findsNothing);
+    await t.tap(find.text('Hidden (2)'));
+    await t.pumpAndSettle();
+    await t.scrollUntilVisible(find.text('Google Drive'), 200, scrollable: find.byType(Scrollable).first);
+    expect(find.text('Google Drive'), findsOneWidget);
   });
 
   test('a task moves to another day keeping its time, gets copied, and turns into a habit with Undo', () async {

@@ -6,106 +6,112 @@ import 'package:flutter/services.dart';
 
 import 'ai_page.dart';
 import 'clash.dart';
-import 'data_page.dart';
 import 'day_start_menu.dart';
 import 'health_page.dart';
 import 'record_sheet.dart';
-import 'ics_page.dart';
-import 'phone_calendar_page.dart';
 import 'ai.dart';
 import 'shapes.dart';
 import 'haptics.dart';
-import 'memory_page.dart';
 import 'brain.dart';
-import 'countdown_screen.dart';
-import 'plan_day_page.dart';
-import 'recall_page.dart';
-import 'clock_screen.dart';
 import 'habit_core.dart';
 import 'habits_screen.dart';
 import 'native.dart';
-import 'drive_page.dart';
-import 'voice_page.dart';
-import 'about_me_page.dart';
 import 'alarm_settings_page.dart';
 import 'arrange.dart';
+import 'screen_pages.dart';
 import 'backups.dart';
-import 'day_page.dart';
-import 'rules_page.dart';
 import 'store.dart';
 import 'sync.dart';
 import 'sync_page.dart';
 import 'theme.dart';
 import 'updater.dart';
 
-class MoreScreen extends StatelessWidget {
+class MoreScreen extends StatefulWidget {
   const MoreScreen({super.key, required this.store});
   final Store store;
+
+  @override
+  State<MoreScreen> createState() => _MoreScreenState();
+}
+
+/// Every screen that is not a bottom tab, as a grid of tiles in your order (More → Arrange).
+class _MoreScreenState extends State<MoreScreen> {
+  Store get store => widget.store;
+  bool _showHidden = false;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
         listenable: store,
         builder: (context, _) {
-          void open(Widget page) =>
-              Navigator.push(context, MaterialPageRoute(builder: (_) => page));
-          final inbox = store.list('inbox').length;
-          final promises = store.list('promises').where((p) => p['status'] == 'open').length;
-          Widget tile(IconData icon, String title, String? sub, Widget page, {int badge = 0}) => ListTile(
-                leading: Badge(isLabelVisible: badge > 0, label: Text('$badge'), child: ShapeIcon(icon)),
-                title: Text(title),
-                subtitle: sub == null ? null : Text(sub),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => open(page),
-              );
-          Widget group(String name, List<Widget> tiles) => Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(8, 16, 8, 4),
-                    child: Text(name, style: Theme.of(context).textTheme.titleSmall?.copyWith(color: Theme.of(context).colorScheme.primary)),
-                  ),
-                  Card(child: Column(children: tiles)),
-                ],
-              );
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(12, 16, 12, 24),
-            children: [
-              Text('More', style: Theme.of(context).textTheme.headlineSmall),
-              group('Plan', [
-                tile(Icons.auto_awesome_motion, 'Plan my day', 'Tasks, habits and links, placed for you', PlanDayPage(store: store)),
-                tile(Icons.timeline, 'Your day', 'What really happened: your log, check-ins, app time', DayPage(store: store)),
-                tile(Icons.style_outlined, 'Flashcards', '${dueCards(store)} due', RecallPage(store: store)),
-                tile(Icons.inbox_outlined, 'Review inbox', inbox == 0 ? 'All clear' : '$inbox waiting', InboxPage(store: store), badge: inbox),
-                tile(
-                  Icons.alarm,
-                  'Clock',
-                  store.focusActive == null ? 'Alarms, place alarms, focus timer' : 'Focus running now',
-                  ClockScreen(store: store),
+          final tt = Theme.of(context).textTheme;
+          final scheme = Theme.of(context).colorScheme;
+          final tabs = Arrange.tabs(store.local('tabs'));
+          final order = [for (final k in Arrange.moreOrder(store.local('moreOrder'), tabs)) if (!(kIsWeb && k == 'phoneCal')) k];
+          final hidden = Arrange.moreHidden(store.local('moreHide'));
+          final shown = order.where((k) => !hidden.contains(k)).toList();
+          final tucked = order.where(hidden.contains).toList();
+          final cols = MediaQuery.sizeOf(context).width >= 600 ? 5 : 3;
+
+          Widget tile(String k) {
+            final x = Arrange.of(k)!;
+            final note = screenNote(k, store);
+            final badge = k == 'inbox' ? store.list('inbox').length : 0;
+            return Card(
+              margin: EdgeInsets.zero,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: () {
+                  Haptics.tap();
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => pageFor(k, store)));
+                },
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(6, 12, 6, 8),
+                  child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Badge(isLabelVisible: badge > 0, label: Text('$badge'), child: ShapeIcon(x.icon)),
+                    const SizedBox(height: 8),
+                    Text(x.name, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: tt.bodyMedium),
+                    if (note != null)
+                      Text(note, maxLines: 1, overflow: TextOverflow.ellipsis, style: tt.labelSmall?.copyWith(color: scheme.primary)),
+                  ]),
                 ),
-                tile(Icons.handshake_outlined, 'Promises', '$promises open', PromisesPage(store: store)),
-                if (!kIsWeb)
-                  tile(Icons.event_repeat_outlined, 'Phone calendar', 'Google Calendar on this phone', PhoneCalendarPage(store: store)),
-                tile(Icons.event_note_outlined, 'Calendar file (.ics)', 'Import and export', IcsPage(store: store)),
-                tile(Icons.hourglass_bottom, 'Countdowns', '${store.list('countdowns').length} saved', CountdownPage(store: store)),
+              ),
+            );
+          }
+
+          Widget grid(List<String> keys) => GridView.count(
+                crossAxisCount: cols,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 0.92,
+                children: [for (final k in keys) tile(k)],
+              );
+
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            children: [
+              Row(children: [
+                Expanded(child: Text('More', style: tt.headlineSmall)),
+                IconButton(
+                  tooltip: 'Arrange tabs, Home and this page',
+                  icon: const Icon(Icons.edit_outlined),
+                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ArrangePage(store: store))),
+                ),
               ]),
-              group('Think', [
-                tile(Icons.history_edu_outlined, 'Decisions', 'Type "decide:" in the chat. ${store.list('decisions').length} recorded', DecisionsPage(store: store)),
-                tile(Icons.insights, 'Insights', 'How your week went', InsightsPage(store: store)),
-                tile(Icons.record_voice_over, 'About me', '${store.list('words').length} words, ${store.list('profile').length} profile files', AboutMePage(store: store)),
-                tile(Icons.psychology_outlined, 'Memory', '${store.list('memories').length} remembered', MemoryPage(store: store)),
-              ]),
-              group('Connections', [
-                tile(Icons.account_tree_outlined, 'Rules and links', '${store.list('rules').where((r) => r['on'] == true).length} on', RulesPage(store: store)),
-                tile(Icons.record_voice_over_outlined, 'Hey Jarvis', 'Wake word and phone actions', VoicePage(store: store)),
-                tile(Icons.add_to_drive, 'Google Drive', 'Ask your files', DrivePage(store: store)),
-              ]),
-              group('App', [
-                tile(Icons.health_and_safety_outlined, 'Health check', 'Will alarms and backups work?', HealthPage(store: store)),
-                tile(Icons.dashboard_customize_outlined, 'Arrange screens', 'Order or hide tabs; choose what Home shows', ArrangePage(store: store)),
-                tile(Icons.swap_horiz, 'Move data', 'Copy, save or add one part: money, habits, journal…', DataPage(store: store)),
-                tile(Icons.undo, 'Activity and undo', null, ActivityPage(store: store)),
-                tile(Icons.settings_outlined, 'Settings', null, SettingsPage(store: store)),
-              ]),
+              const SizedBox(height: 8),
+              grid(shown),
+              if (tucked.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Center(
+                  child: TextButton.icon(
+                    icon: Icon(_showHidden ? Icons.expand_less : Icons.expand_more),
+                    label: Text(_showHidden ? 'Hide' : 'Hidden (${tucked.length})'),
+                    onPressed: () => setState(() => _showHidden = !_showHidden),
+                  ),
+                ),
+                if (_showHidden) grid(tucked),
+              ],
             ],
           );
         },

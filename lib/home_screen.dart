@@ -342,8 +342,11 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ]),
         ),
-        if (!hide.contains('ribbon'))
-        Padding(
+        // Home's parts, in your order (More → Arrange).
+        for (final part in Arrange.homeOrder(s.local('homeOrder')))
+          if (!hide.contains(part))
+            if (part == 'ribbon')
+              Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: DayRibbon(
             now: now,
@@ -356,9 +359,9 @@ class _HomeScreenState extends State<HomeScreen> {
             }).toList(),
             onTap: () => _openToday(context),
           ),
-        ),
-        if ((nowPick != null || next != null) && !hide.contains('now'))
-          Padding(
+        )
+            else if (part == 'now' && (nowPick != null || next != null))
+              Padding(
             padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
             child: Card(
               margin: EdgeInsets.zero,
@@ -383,9 +386,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
-          ),
-        if (chips.isNotEmpty && !hide.contains('chips'))
-          SizedBox(
+          )
+            else if (part == 'chips' && chips.isNotEmpty)
+              SizedBox(
             height: 44,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,

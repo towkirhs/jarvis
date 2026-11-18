@@ -160,8 +160,10 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    Past notes on the same thing (`Memory.pickNotes`, 2+ shared words) go into the AI prompt; the reply tells what they say first. Untested on a phone.
    Copy, edit and arrange (build after 258): the app root is a `SelectionArea` (hold any text to copy); hold a Jarvis answer to copy it;
    `lib/record_sheet.dart` (`showRecordSheet` with `Field`s: edit, copy, delete) for promises, decisions and Your day lines.
-   `lib/arrange.dart`: More → Arrange screens orders or hides the middle tabs (`local('tabs')`, Home first and More last are fixed;
-   `Shell._tabs`) and Home's parts (`local('homeHide')`: ribbon, now, chips). Task form ⋮ (`lib/item_moves.dart`): move to another
+   `lib/arrange.dart` (build after 272): `Arrange.all` lists every screen; `lib/screen_pages.dart` `pageFor(key)` builds it. Any screen
+   can be a bottom tab (`local('tabs')`, up to 5 between Home and More; 7 tabs show only the open one's name). Home's parts are
+   ordered (`homeOrder`) and hidden (`homeHide`). More is a 3-column grid (5 on wide screens) in your order (`moreOrder`), without
+   the screens that are tabs; hidden tiles (`moreHide`) fold under "Hidden (n)"; Arrange and Settings never hide. More's ✏️ opens Arrange. Task form ⋮ (`lib/item_moves.dart`): move to another
    day (keeps the time), turn into a daily habit (task cancelled, one Undo), make a copy, copy as text. Untested on a phone.
    Move data (`lib/sections.dart` pure, `lib/data_page.dart`, More → Move data): any one section (`Sections.all`: items, habits,
    money = accounts+tx+goals, journal, rent, loans…) copied or saved as {"jarvisSection", "data"}; `Store.importSection` adds it with

@@ -13,14 +13,11 @@ import 'haptics.dart';
 import 'brain.dart';
 import 'capture_page.dart';
 import 'money.dart';
-import 'habits_screen.dart';
 import 'home_screen.dart';
-import 'items_screen.dart';
-import 'journal_screen.dart';
 import 'about_me_page.dart';
 import 'main_nav.dart';
 import 'native.dart';
-import 'pages.dart';
+import 'screen_pages.dart';
 import 'phone_sync.dart';
 import 'store.dart';
 import 'sync.dart';
@@ -268,8 +265,10 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     if (now == _arrangedAs) return;
     _arrangedAs = now;
     if (!mounted) return;
-    setState(() => _tab = 0);
-    if (_pages.hasClients) _pages.jumpToPage(0);
+    // You arrange from More, so stay on More (always the last tab).
+    final more = _tabs.length - 1;
+    setState(() => _tab = more);
+    if (_pages.hasClients) WidgetsBinding.instance.addPostFrameCallback((_) => _pages.hasClients ? _pages.jumpToPage(more) : null);
   }
 
   void _goTo(int i) {
@@ -280,28 +279,19 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     }
   }
 
-  static const _tabInfo = {
-    'home': (Icons.home_outlined, Icons.home, 'Home'),
-    'plan': (Icons.checklist, Icons.checklist, 'Plan'),
-    'money': (Icons.account_balance_wallet_outlined, Icons.account_balance_wallet, 'Money'),
-    'journal': (Icons.menu_book_outlined, Icons.menu_book, 'Journal'),
-    'habits': (Icons.local_fire_department_outlined, Icons.local_fire_department, 'Habits'),
-    'more': (Icons.more_horiz, Icons.more_horiz, 'More'),
-  };
-
-  /// The tabs, as arranged (More → Arrange screens): Home first, More last.
+  /// The tabs, as arranged (More → Arrange): Home first, More last, any screen between.
   List<String> get _tabs => ['home', ...Arrange.tabs(s.local('tabs')), 'more'];
 
-  List<(IconData, IconData, String)> get _destinations => [for (final k in _tabs) _tabInfo[k]!];
+  List<(IconData, IconData, String)> get _destinations => [
+        for (final k in _tabs)
+          switch (k) {
+            'home' => (Icons.home_outlined, Icons.home, 'Home'),
+            'more' => (Icons.more_horiz, Icons.more_horiz, 'More'),
+            _ => (Arrange.of(k)!.icon, Arrange.of(k)!.icon, Arrange.of(k)!.tabName),
+          },
+      ];
 
-  Widget _page(String k) => switch (k) {
-        'plan' => ItemsScreen(store: s),
-        'money' => MoneyPage(store: s),
-        'journal' => JournalScreen(store: s),
-        'habits' => HabitsScreen(store: s),
-        'more' => MoreScreen(store: s),
-        _ => HomeScreen(store: s),
-      };
+  Widget _page(String k) => k == 'home' ? HomeScreen(store: s) : pageFor(k, s);
 
   @override
   Widget build(BuildContext context) {
@@ -336,6 +326,8 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
         body: SafeArea(child: _pagesView()),
         bottomNavigationBar: NavigationBar(
           selectedIndex: _tab,
+          // Seven tabs: only the open one keeps its name, so none is cut off.
+          labelBehavior: _tabs.length > 6 ? NavigationDestinationLabelBehavior.onlyShowSelected : null,
           onDestinationSelected: _goTo,
           destinations: [
             for (final (icon, selected, label) in _destinations)
