@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'about_me.dart';
 import 'ai.dart';
 import 'categories.dart';
+import 'bugs.dart';
 import 'chatgpt_block.dart';
 import 'clash.dart';
 import 'clock.dart';
@@ -181,6 +182,18 @@ class Brain {
     if (dest?.type == 'note') {
       c['via'] = 'phone';
       return _apply(s, c, {'items': <dynamic>[], 'cleaned': note});
+    }
+    // "bug: it should have set cash to 1187": caught with the message before it, for fixing later. No AI.
+    if (dest?.type == 'bug') {
+      final b = Bugs.fromChat(s, Bugs.lastChat(s, before: c['id'] as int), note);
+      Bugs.add(s, b);
+      c['via'] = 'phone';
+      final open = s.list('bugs').where((x) => x['fixed'] != true).length;
+      return _apply(s, c, {
+        'items': <dynamic>[],
+        'cleaned': c['raw'],
+        'reply': 'Bug caught${b['said'] == null ? '' : ' about "${b['said']}"'}. $open open: More → Bugs → Copy to send them.',
+      });
     }
     // "decided: take the job because it pays more": kept as written, no AI.
     if (dest?.type == 'decision') {

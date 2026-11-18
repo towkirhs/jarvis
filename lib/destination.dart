@@ -44,7 +44,7 @@ class Destination {
 
   /// Words that need a colon after them: "decide: tea or coffee", "decided: take the job because …",
   /// "promise: send Rahim the notes by Friday".
-  static const _colon = {'decide': 'decide', 'decided': 'decision', 'decision': 'decision', 'promise': 'promise', 'promised': 'promise', 'now': 'now'};
+  static const _colon = {'decide': 'decide', 'decided': 'decision', 'decision': 'decision', 'promise': 'promise', 'promised': 'promise', 'now': 'now', 'bug': 'bug'};
   static final _colonRe = RegExp('^(${_alt(_colon.keys)})\\s*:\\s*', caseSensitive: false);
   static final _addRe = RegExp(
       '^(?:add|put|save|write)(?: (?:this|it))? (?:to|in|into|on) (?:my |the )?(${_alt(_place.keys)})\\b\\s*[:,\\-–]?\\s*',

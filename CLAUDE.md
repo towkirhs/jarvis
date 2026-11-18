@@ -217,6 +217,10 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    phone's recogniser as hints (`speech_hints`, EXTRA_BIASING_STRINGS, Android 13+). Hold a message → "Fix a word"; editing a message
    that changes 1-3 words offers to add them. Profile files ({name, keys, always, text}) go into the AI prompt only when a key word is
    in the note (`ProfileFiles.pick`, 2400 chars max); ChatGPT writes them as `profile` items; "Copy for ChatGPT to update". Untested on a phone.
+   Bug catch (build after 278; `lib/bugs.dart`, collection `bugs` {at, note, screen, said, reply, did, via, commands, fixed}):
+   "bug: …" in the chat (Destination `bug`, no AI) keeps the message before it; hold a message or an answer → Catch a bug;
+   More → Bugs (copy all open bugs as text, tick fixed). `test/sentences_test.dart` holds real sentences and what the phone must
+   do with them: add a line for every misread one the phone should handle.
 5. Groq web answers show no source links (response shape unconfirmed).
 6. Calendar, deferred: custom repeats, find free time, global search, weekly review, what-if planning.
 7. Known limits: imported times with a named time zone are read as local.

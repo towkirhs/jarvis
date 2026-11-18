@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'arrange.dart';
+import 'bugs.dart';
 import 'native.dart';
 import 'about_me.dart';
 import 'about_me_page.dart';
@@ -618,12 +619,29 @@ class _HomeScreenState extends State<HomeScreen> {
         const Padding(padding: EdgeInsets.only(top: 4, right: 8), child: ShapeIcon(Icons.auto_awesome, size: 28)),
         Flexible(
           child: GestureDetector(
-          // Hold Jarvis's answer to copy it, with what it did.
+          // Hold Jarvis's answer: copy it (with what it did), or catch a bug about it.
           onLongPress: () async {
+            Haptics.tick();
+            final choice = await showModalBottomSheet<String>(
+              context: context,
+              builder: (ctx) => SafeArea(
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  ListTile(leading: const Icon(Icons.copy), title: const Text('Copy answer'), onTap: () => Navigator.pop(ctx, 'copy')),
+                  ListTile(
+                    leading: const Icon(Icons.bug_report_outlined),
+                    title: const Text('Catch a bug'),
+                    subtitle: const Text('Say what it should have done'),
+                    onTap: () => Navigator.pop(ctx, 'bug'),
+                  ),
+                ]),
+              ),
+            );
+            if (!context.mounted) return;
+            if (choice == 'bug') return catchBug(context, s, chat: c);
+            if (choice != 'copy') return;
             final copy = [if (text != null) text, if (results.isNotEmpty && msg.isNotEmpty) msg].join('\n');
             if (copy.isEmpty) return;
             await Clipboard.setData(ClipboardData(text: copy));
-            Haptics.tick();
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Answer copied.')));
             }
@@ -783,6 +801,7 @@ class _HomeScreenState extends State<HomeScreen> {
             onTap: () => Navigator.pop(ctx, 'fix'),
           ),
           ListTile(leading: const Icon(Icons.copy), title: const Text('Copy'), onTap: () => Navigator.pop(ctx, 'copy')),
+          ListTile(leading: const Icon(Icons.bug_report_outlined), title: const Text('Catch a bug'), onTap: () => Navigator.pop(ctx, 'bug')),
           ListTile(leading: const Icon(Icons.delete_outline), title: const Text('Delete'), onTap: () => Navigator.pop(ctx, 'delete')),
         ]),
       ),
@@ -790,6 +809,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!context.mounted) return;
     final action = s.byId('actions', c['actionId'] as int?);
     switch (choice) {
+      case 'bug':
+        await catchBug(context, s, chat: c);
       case 'copy':
         await Clipboard.setData(ClipboardData(text: '${c['raw']}'));
       case 'delete':

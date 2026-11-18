@@ -42,6 +42,7 @@ class Arrange {
     Screen('health', 'Health check', Icons.health_and_safety_outlined, short: 'Health'),
     Screen('data', 'Move data', Icons.swap_horiz, short: 'Data'),
     Screen('activity', 'Activity and undo', Icons.undo, short: 'Activity'),
+    Screen('bugs', 'Bugs', Icons.bug_report_outlined),
     Screen('arrange', 'Arrange', Icons.dashboard_customize_outlined),
     Screen('settings', 'Settings', Icons.settings_outlined),
   ];
