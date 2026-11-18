@@ -48,12 +48,23 @@ class LocalParser {
       RegExp('\\b(?:make|set|update|change)\\s+(?:my\\s+|the\\s+)?($acct)(?:\\s+balance)?\\s+(?:to\\s+)?$n'),
       RegExp('\\b($acct)\\s+balance\\s+(?:to\\s+)?$n'),
     ];
+    // "I have 1687, the rest went on transport": no account named means Cash (or the first account), but only
+    // when the rest of the note says it is a balance (the rest, left, remaining) or names the currency.
+    final unnamed = RegExp('^(?:i\\s+)?(?:have|got)\\s+(?:only\\s+)?$n(?:\\s+(?:left|now|remaining))?(?:\\s|,|\$)');
+    if (!patterns.any((p) => p.hasMatch(t)) &&
+        unnamed.hasMatch(t) &&
+        RegExp(r'\b(?:rest|remaining|left|else|balance|tk|taka|bdt)\b|৳').hasMatch(t)) {
+      patterns.add(unnamed); // index 4
+    }
     for (final (i, p) in patterns.indexed) {
       final m = p.firstMatch(t);
       if (m == null) continue;
-      final said = i == 0 ? m[2]! : m[1]!;
-      final amount = num.parse((i == 0 ? m[1]! : m[2]!).replaceAll(',', ''));
-      final account = accounts.firstWhere((a) => a.toLowerCase() == said);
+      final noName = i == 4;
+      final said = noName ? '' : (i == 0 ? m[2]! : m[1]!);
+      final amount = num.parse((i == 0 || noName ? m[1]! : m[2]!).replaceAll(',', ''));
+      final account = noName
+          ? accounts.firstWhere((a) => a.toLowerCase() == 'cash', orElse: () => accounts.first)
+          : accounts.firstWhere((a) => a.toLowerCase() == said);
       var category = 'Other';
       for (final e in _categories.entries) {
         if (e.value.any((w) => RegExp('(^|[^a-z])${RegExp.escape(w)}').hasMatch(t))) {

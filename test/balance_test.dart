@@ -30,6 +30,12 @@ void main() {
     expect(LocalParser.balance('spent 200 on food from cash', _accounts), isNull);
     expect(LocalParser.balance('I have 3 tuitions tomorrow', _accounts), isNull);
     expect(LocalParser.balance('cashback is 50', _accounts), isNull);
+    // No account named: Cash, but only when the note says it is a balance.
+    final plain = LocalParser.balance('I have 1687 rest is expenses transport', _accounts)!;
+    expect([plain['account'], plain['leaves'], plain['category']], ['Cash', 1687, 'Transport']);
+    expect(LocalParser.balance('I have 500 taka left', _accounts)!['account'], 'Cash');
+    expect(LocalParser.balance('I have 3 tuitions tomorrow', _accounts), isNull);
+    expect(LocalParser.balance('I have 2 exams', _accounts), isNull);
   });
 
   test('"I have 1877 in cash, the rest on transport" records the ৳30 and leaves Cash at 1877', () async {
@@ -56,6 +62,9 @@ void main() {
     expect(Brain.claimsAction('What would you like to call it?'), isFalse);
     expect(Brain.claimsAction('Your next alarm is at 6 am.'), isFalse);
     expect(Brain.claimsAction("I've noted that. Enjoy the movie!"), isFalse);
+    expect(Brain.claimsAction("Got it, I've noted you have ৳1,687 cash, with the remainder recorded as transport expenses."), isTrue);
+    expect(Brain.claimsAction("I've adjusted your cash balance."), isTrue);
+    expect(Brain.claimsAction('You spent ৳170 today, mostly on transport.'), isFalse);
   });
 
   test('"create a money manager account named Oishi" and "delete food 20" are read on the phone', () {

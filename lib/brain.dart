@@ -430,7 +430,10 @@ class Brain {
   /// journal ("I've noted that") does not count: every note is kept there anyway.
   static bool claimsAction(String reply) => RegExp(
         r"\b(?:i(?:'ve| have)?|i've just|i just)\s+(?:also\s+)?(?:updated|set|added|created|logged|recorded|scheduled|moved|deleted|removed|cancell?ed|marked|changed|booked|put|adjusted|made)\b"
-        r"|\b(?:has|have) been (?:updated|set|added|created|logged|recorded|scheduled|moved|deleted|removed|cancell?ed|marked|changed|adjusted)\b",
+        r"|\b(?:has|have) been (?:updated|set|added|created|logged|recorded|scheduled|moved|deleted|removed|cancell?ed|marked|changed|adjusted)\b"
+        // "I've noted you have ৳1,687, with the rest recorded as transport": a money change described as done.
+        r"|\b(?:recorded|logged|added|saved|counted) as (?:an? )?(?:expense|income|spending|transport|food|\w+ expenses?)\b"
+        r"|\b(?:updated|set|adjusted|changed) (?:your |the )?(?:\w+ )?(?:balance|cash|account)\b",
         caseSensitive: false,
       ).hasMatch(reply);
 
