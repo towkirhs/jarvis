@@ -167,7 +167,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final habits = s.habitsDueToday();
     final countdowns = s.list('countdowns').where((c) => c['kind'] != 'countup' && daysLeft(s, c) >= 0).toList()
       ..sort((a, b) => daysLeft(s, a).compareTo(daysLeft(s, b)));
-    final now0 = Decide.whatNow(s.list('items'), now);
+    final now0 = Decide.whatNow(s.list('items'), now, ready: s.needsMet);
     final nowPick = now0.pick == 'nothing' ? null : s.byId('items', int.parse(now0.pick));
     final spentToday = _spentToday();
     // The next alarm that is on, for the Clock card.
@@ -300,7 +300,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }).toList();
     final inbox = s.list('inbox').length;
     final warn = _overbooked(todays.where((i) => (i['when'] as int) >= now.millisecondsSinceEpoch || i['allDay'] == true).toList());
-    final now0 = Decide.whatNow(s.list('items'), now);
+    final now0 = Decide.whatNow(s.list('items'), now, ready: s.needsMet);
     final nowPick = now0.pick == 'nothing' ? null : s.byId('items', int.parse(now0.pick));
     final chats = s.list('captures').where((c) => c['source'] != 'journal').toList();
     final shown = chats.length > 200 ? chats.sublist(chats.length - 200) : chats;

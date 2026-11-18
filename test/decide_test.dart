@@ -1,5 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/services.dart';
 import 'package:jarcis/decide.dart';
+import 'package:jarcis/store.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   group('reading answers', () {
@@ -74,6 +77,23 @@ void main() {
 
     test('nothing to do', () {
       expect(Decide.whatNow([], now).pick, 'nothing');
+    });
+
+    test('a task waiting on "Only if" (cash at least 2000) is not "do this now" until it holds', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      SharedPreferences.setMockInitialValues({});
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(const MethodChannel('jarcis/native'), (_) async => null);
+      final s = Store();
+      await s.load();
+      final cash = s.list('accounts').firstWhere((a) => a['name'] == 'Cash')..['initial'] = 1187;
+      final items = [
+        {...task(1, priority: 3), 'title': 'Buy lotion', 'needs': {'any': false, 'if': [{'check': 'balance', 'account': 'Cash', 'atLeast': 2000}]}},
+        task(2),
+      ];
+      expect(Decide.whatNow(items, now, ready: s.needsMet).pick, '2');
+      cash['initial'] = 2500;
+      expect(Decide.whatNow(items, now, ready: s.needsMet).pick, '1');
     });
   });
 }

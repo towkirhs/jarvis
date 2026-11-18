@@ -145,7 +145,8 @@ $state''';
 
   /// "What should I do now?" decided on the phone from your own tasks: a choice with probabilities.
   /// Favours overdue, due-soon and high-priority tasks, and ones that fit before your next fixed event.
-  static Answer whatNow(List<Map<String, dynamic>> items, DateTime now) {
+  /// [ready]: whether a task can be done now (its "Only if" holds); tasks still waiting are never "do this now".
+  static Answer whatNow(List<Map<String, dynamic>> items, DateTime now, {bool Function(Map<String, dynamic>)? ready}) {
     final nowMs = now.millisecondsSinceEpoch;
     final endOfDay = DateTime(now.year, now.month, now.day + 1).millisecondsSinceEpoch;
     final nextFixed = items
@@ -158,7 +159,7 @@ $state''';
 
     final scores = <String, double>{};
     for (final i in items) {
-      if (i['status'] != 'open' || i['kind'] != 'task') continue;
+      if (i['status'] != 'open' || i['kind'] != 'task' || (ready != null && !ready(i))) continue;
       final w = i['when'] as int?;
       if (w != null && w >= endOfDay) continue; // later this week: not now
       var score = ((i['priority'] as int?) ?? 0).toDouble();

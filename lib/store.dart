@@ -153,7 +153,8 @@ class Store extends ChangeNotifier {
 
   // ---------- links between pieces ----------
 
-  bool _needsMet(Rec it) {
+  /// Whether [it]'s "Only if" holds now (true when it has none).
+  bool needsMet(Rec it) {
     final f = PieceFacts(this);
     final needs = f.needsOf(it);
     return !Needs.has(needs) || f.stateOf(needs).state == NeedState.met;
@@ -167,7 +168,7 @@ class Store extends ChangeNotifier {
     for (final it in list('items')) {
       if (it['status'] != 'open' || it['nid'] == null || it['when'] == null) continue;
       if (!Needs.has(PieceFacts(this).needsOf(it))) continue;
-      final met = _needsMet(it);
+      final met = needsMet(it);
       if (_needWas[it['id']] == met) continue;
       _needWas[it['id'] as int] = met;
       unawaited(syncRecord('items', it));
@@ -373,7 +374,7 @@ class Store extends ChangeNotifier {
       return;
     }
     // A linked piece stays quiet until what it depends on has happened.
-    if (col == 'items' && !_needsMet(r)) {
+    if (col == 'items' && !needsMet(r)) {
       await Native.cancel(nid);
       await Native.cancel(Lead.id(nid));
       return;
