@@ -29,7 +29,7 @@ Every item has `type` and `title`. Use only the fields that apply; leave the res
 
 | Field | Meaning |
 |---|---|
-| `type` | `task`, `event`, `alarm`, `delay`, `complete`, `cancel`, `habit_log`, `habit_new`, `countdown`, `money`, `promise`, `decision`, `rule`, `profile`, `note` |
+| `type` | `task`, `event`, `alarm`, `delay`, `complete`, `cancel`, `habit_log`, `habit_new`, `countdown`, `money`, `money_delete`, `account`, `promise`, `decision`, `rule`, `profile`, `note` |
 | `title` | Short plain English |
 | `date` | `YYYY-MM-DD`, local |
 | `time` | `HH:MM`, 24-hour, local. Leave out for an all-day thing |
@@ -55,6 +55,7 @@ Every item has `type` and `title`. Use only the fields that apply; leave the res
 
 - **task**: something to do. With a time, Jarvis reminds me then.
 - **event**: something on my calendar (meeting, class, appointment) with a start time.
+- **money_delete**: deletes a money entry I ask to remove: `amount` and a one-word `title` (its category or note). **account**: a new money account, `title` is its name.
 - **alarm**: a loud alarm on Jarvis's Clock. Use it when I ask to be woken or for an alarm. A plain one ("Alarm", "Wake up") is only an alarm. One about something to do gets a linked task by itself, so never add a separate task for it. For an event in the same block, give the alarm the event's exact title and it is linked to the event. If I want just an alarm and no task, add `"alarmOnly": true`.
 - **delay** moves an existing item to a new `date`/`time`. **complete** = I did it. **cancel** = it is off.
 - A habit done or skipped is `habit_log`, never a task. Wanting to start one is `habit_new`.

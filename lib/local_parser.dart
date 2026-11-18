@@ -75,6 +75,35 @@ class LocalParser {
     return null;
   }
 
+  /// "create a money account named Oishi", "add account Savings": a new money account (`account` item).
+  /// "delete food 20", "remove the 20 taka food entry": a money entry to delete (`money_delete` item).
+  static Map<String, dynamic>? moneyCommand(String raw) {
+    final t = raw.trim().replaceAll(RegExp(r'[.!]+$'), '').replaceAll(RegExp(r'\s+'), ' ');
+    final acct = RegExp(
+      r'^(?:please\s+)?(?:create|add|make|open)\s+(?:a\s+|an\s+|new\s+|one\s+)*(?:money(?:\s+manager)?\s+)?account\s+(?:named\s+|called\s+|for\s+|as\s+)?(.{1,30})$',
+      caseSensitive: false,
+    ).firstMatch(t);
+    if (acct != null) {
+      final name = acct[1]!.replaceAll(RegExp('["\']'), '').trim();
+      if (name.isEmpty) return null;
+      return {'type': 'account', 'title': name[0].toUpperCase() + name.substring(1), 'confidence': 1.0};
+    }
+    const skip = {'the', 'that', 'my', 'last', 'entry', 'expense', 'spend', 'spent', 'income', 'transaction', 'taka', 'tk'};
+    final del = RegExp(
+      r'^(?:please\s+)?(?:delete|remove|erase)\s+((?:[a-z]+\s+){0,3})(?:৳\s*)?(\d[\d,]*(?:\.\d+)?)\s*((?:\s*[a-z]+){0,3})$',
+      caseSensitive: false,
+    ).firstMatch(t);
+    if (del == null) return null;
+    final words = '${del[1]} ${del[3]}'.toLowerCase().split(RegExp(r'\s+')).where((w) => w.isNotEmpty && !skip.contains(w));
+    final word = words.where((w) => !const {'of', 'for', 'on'}.contains(w)).firstOrNull;
+    return {
+      'type': 'money_delete',
+      'amount': num.parse(del[2]!.replaceAll(',', '')),
+      'title': word ?? '',
+      'confidence': 1.0,
+    };
+  }
+
   static bool _hasWord(String text, String w) => RegExp('(^|[^a-z])${RegExp.escape(w)}([^a-z]|\$)').hasMatch(text);
 
   /// A time like "4:30 pm", "4.30", "4 pm", "at 7", "7 tay", "sokal 7". Returns (hour, minute, matched text).

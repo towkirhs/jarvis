@@ -57,4 +57,34 @@ void main() {
     expect(Brain.claimsAction('Your next alarm is at 6 am.'), isFalse);
     expect(Brain.claimsAction("I've noted that. Enjoy the movie!"), isFalse);
   });
+
+  test('"create a money manager account named Oishi" and "delete food 20" are read on the phone', () {
+    expect(LocalParser.moneyCommand('Create a money manager account named Oishi'), {'type': 'account', 'title': 'Oishi', 'confidence': 1.0});
+    expect(LocalParser.moneyCommand('add account savings')!['title'], 'Savings');
+    final d = LocalParser.moneyCommand('Delete food 20')!;
+    expect([d['type'], d['amount'], d['title']], ['money_delete', 20, 'food']);
+    expect(LocalParser.moneyCommand('remove the 20 taka food entry')!['title'], 'food');
+    expect(LocalParser.moneyCommand('delete 150')!['title'], '');
+    expect(LocalParser.moneyCommand('delete the gym task'), isNull);
+    expect(LocalParser.moneyCommand('spent 20 on food'), isNull);
+  });
+
+  test('in the chat: a new account, and deleting the latest matching entry (with Undo)', () async {
+    final s = await _store();
+    await Brain.capture(s, 'Create a money manager account named Oishi');
+    expect(s.list('accounts').where((a) => a['name'] == 'Oishi'), hasLength(1));
+    await Brain.capture(s, 'create account oishi');
+    expect(s.list('captures').last['msg'], 'You already have an account named Oishi');
+
+    s.addTx(type: 'expense', amount: 20, category: 'Food', account: 'Cash', ts: DateTime.now().subtract(const Duration(hours: 2)).millisecondsSinceEpoch);
+    s.addTx(type: 'expense', amount: 20, category: 'Transport', account: 'Cash');
+    await Brain.capture(s, 'Delete food 20');
+    expect(s.list('tx').single['cat'], 'Transport');
+    expect(s.list('captures').last['msg'], startsWith('Deleted: '));
+    await s.undo(s.list('captures').last['actionId'] as int);
+    expect(s.list('tx'), hasLength(2));
+
+    await Brain.capture(s, 'delete food 999');
+    expect(s.list('captures').last['msg'], contains('nothing was deleted'));
+  });
 }

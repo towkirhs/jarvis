@@ -48,6 +48,7 @@ class Brain {
         // "started gym" is logged on the phone; it never goes to the AI anyway.
         NowLog.parse(raw) == null &&
         LocalParser.balance(raw, [for (final a in s.list('accounts')) a['name'] as String]) == null &&
+        LocalParser.moneyCommand(raw) == null &&
         Destination.of(raw)?.type != 'now';
     s.list('captures').add({
       'id': s.nextId(),
@@ -191,8 +192,9 @@ class Brain {
       });
     }
     // "I have 1877 in cash", "make bKash 500": a balance, worked out on the phone (the AI is not trusted with sums).
+    // "create an account named Oishi", "delete food 20": done on the phone too.
     if (c['image'] == null && dest == null) {
-      final bal = LocalParser.balance(note, [for (final a in s.list('accounts')) a['name'] as String]);
+      final bal = LocalParser.balance(note, [for (final a in s.list('accounts')) a['name'] as String]) ?? LocalParser.moneyCommand(note);
       if (bal != null) {
         c['via'] = 'phone';
         return _apply(s, c, {'items': [bal], 'cleaned': note});
@@ -744,6 +746,32 @@ class Brain {
       final unit = h['unit'] ?? '';
       return amount != null && type != 'yesno' ? 'Logged ${h['name']}: +$amount $unit'.trim() : 'Logged ${h['name']}';
     }
+    if (type == 'account') {
+      if (title.isEmpty) return null;
+      if (s.list('accounts').any((a) => (a['name'] as String).toLowerCase() == title.toLowerCase())) {
+        return 'You already have an account named $title';
+      }
+      final a = {'id': s.nextId(), 'name': title, 'group': 'Other', 'initial': 0};
+      s.list('accounts').add(a);
+      undo.add({'op': 'rm', 'col': 'accounts', 'id': a['id']});
+      return 'New money account: $title';
+    }
+    if (type == 'money_delete') {
+      final amount = p['amount'];
+      if (amount is! num) return null;
+      final word = title.toLowerCase();
+      final since = DateTime.now().subtract(const Duration(days: 30)).millisecondsSinceEpoch;
+      bool fits(Rec t) =>
+          t['amount'] == amount &&
+          (t['ts'] as int) >= since &&
+          (word.isEmpty || '${t['cat'] ?? ''} ${t['note'] ?? ''}'.toLowerCase().contains(word));
+      final t = (s.list('tx').where(fits).toList()..sort((a, b) => (b['ts'] as int).compareTo(a['ts'] as int))).firstOrNull;
+      final what = '${s.money(amount)}${word.isEmpty ? '' : ' $word'}';
+      if (t == null) return "Couldn't find a $what entry in the last 30 days, so nothing was deleted";
+      undo.add({'op': 'put', 'col': 'tx', 'rec': copyRec(t)});
+      s.list('tx').removeWhere((x) => x['id'] == t['id']);
+      return 'Deleted: ${s.money(amount)} ${t['cat'] ?? ''} (${niceDay(t['ts'] as int)})';
+    }
     if (type == 'money') {
       var kind = ['income', 'transfer'].contains(p['moneyType']) ? p['moneyType'] as String : 'expense';
       String pickAccount(String? said, String fallback) {
@@ -1127,7 +1155,7 @@ Return ONLY JSON in this shape:
 "topics": 1 to 4 lowercase single words about what the note covers.
 "reply": what you say back to the person, one or two short sentences, warm and direct, like a real assistant. If they asked a question, answer it using ONLY the data above (say so if the data does not tell). Otherwise say what you did and connect it to the rest of their life when it helps: what is next today, a clash with something already planned, a streak, how much they have spent on that this week, a promise or countdown it relates to. Never invent facts.
 "mood": 1 (awful) to 5 (great) if the note says how they feel, otherwise null.
-"type" is one of: task, event, alarm, delay, complete, cancel, habit_log, habit_new, countdown, money, promise, decision, rule, note, ignore.
+"type" is one of: task, event, alarm, delay, complete, cancel, habit_log, habit_new, countdown, money, money_delete, account, promise, decision, rule, note, ignore.
 "date" is YYYY-MM-DD and "time" is HH:MM in 24 hours, both local. For a promise, "date" is the deadline.
 "target" is, for delay, complete and cancel, the existing open item or promise it refers to, written as its id like "#123". "habit" is, for habit_log, the tracked habit name, and for habit_new, a short name for the new habit. "done" is, for habit_log, true if they did it and false if they say they skipped it; "amount" is, for habit_log of a measured habit, how much they did (litres, km, minutes, reps, a rating), in the habit's unit. "times" and "per" are, for habit_new, the target, like 3 per week or 12 per month ("daily" = 7 per week); "time" is its reminder time if one was said. "person" is, for a promise, who it was made to. "reason" is, for a decision, why the person decided.
 "category" is one lowercase word for the kind of work, such as report, email, call, errand.
@@ -1140,6 +1168,7 @@ ${events ? '- A meeting or appointment at a time is "event".' : '- Never use "ev
 - "priority": "high" for urgent or important things the person stresses, otherwise only if they say it. "tags" and "list" only if they name them (like "add to my study list", "tag it exam"). "repeat" only for things said to repeat ("every day", "every Monday" = weekly). "durationMinutes" is how long an event lasts. "description" holds extra details that do not fit the title.
 - "countdown" is a date to count down to or remember every year: a birthday, an anniversary, a holiday, or an exam or trip the person wants a countdown for. "category" is "birthday", "anniversary", "holiday" or "countdown", and "date" is required.
 - "money" is money spent, received or moved: "spent 250 on lunch", "got 5000 tuition fee", "sent 1000 from bank to bKash", or a receipt in a photo. "amount" is the number, "moneyType" is expense, income or transfer, "title" is a short note (what it was for), "category" is one of the categories they already use${moneyCats.isEmpty ? '' : ' ($moneyCats)'} when one fits (groceries is Food if they use Food), otherwise one word like Food, Transport, Shopping, Bills, Education, Health, Entertainment, Gifts, Salary, Tuition. "account" and "toAccount" only if named. "date"/"time" only if it was not today. If they say how much is LEFT in an account and that the rest was spent ("500 remains in cash, spent the rest on transport"), put that left-over number in both "leaves" and "amount", moneyType expense: the app works out the spend from the account's balance. "leaves" is otherwise null. "date"/"time" only if it was not today.
+- "money_delete" removes a money entry they ask to delete ("delete food 20"): "amount" is its amount, "title" one word for what it was (its category or note). "account" adds a money account they ask for: "title" is its name.
 ${places.isEmpty ? '' : '- "place" is, for a task tied to a place ("buy milk when I reach Shwapno", "call Ammu when I leave the office"), one of their saved places: ${places.join(', ')}. "placeWhen" is "arrive" or "leave". Otherwise null. A task with a place needs no date.\n'}${Rules.aiSpec}
 - A promise is a commitment made to another person. A decision is a choice the person made.
 - A deadline ("before Friday", "by the 20th", "within 3 days") is NOT the reminder time: the thing must be finished before it. Remind at the time they named, on the first day that time is still ahead, and write the deadline in "description" (like "Before Friday 13 Nov"). Only when they give a deadline and no other time, use the deadline as "date".

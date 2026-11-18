@@ -150,6 +150,8 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    "bank balance 5200" before any AI (`Brain` drain, also skips the prefilter) as a `money` item with `leaves`; the app works out the
    difference both ways (less: an expense in the said category or "Balance correction"; more: income "Balance correction").
    `Brain.claimsAction`: an AI reply that says it did something while no item was applied is replaced with "I couldn't do that…".
+   `LocalParser.moneyCommand`: "create a money account named X" (item `account`) and "delete food 20" (item `money_delete`: the newest
+   entry of that amount in 30 days whose category or note has the word; Undo puts it back), also usable by the AI and ChatGPT.
    Health and backups (build after 249): `lib/health_page.dart` (`HealthCheck.rows` pure) reads `Native.health()` (`Health` in
    Ring.kt: notifications, exact alarms, battery optimisation, overlay, full screen, usage access) and shows fixes; it also arms the
    nightly background test (`Health.BEAT_ID` 1.7e9, kind `beat`, 3:30 am, no sound; `AlarmReceiver` records `beatAt`/`beatDue`),
