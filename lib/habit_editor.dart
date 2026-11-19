@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'app_alarms.dart' show showAppPicker;
 import 'habit_core.dart';
 import 'habit_stats.dart';
 import 'habit_widgets.dart';
@@ -46,6 +47,7 @@ class _HabitEditorState extends State<HabitEditor> {
   );
   late int? _after = old?['after'] as int?;
   late String? _remind = old?['remind'] as String?;
+  late Map<String, dynamic>? _app = (old?['app'] as Map?)?.cast<String, dynamic>();
   late bool _toCal = old?['toCal'] == true;
   late int? _planMin = (old?['planMin'] as num?)?.toInt();
   late final _link = TextEditingController(text: ((old?['link'] as List?) ?? const []).join(', '));
@@ -128,6 +130,7 @@ class _HabitEditorState extends State<HabitEditor> {
       r['toCal'] = _toCal ? true : null;
       r['planMin'] = _planMin;
       r['remind'] = _remind;
+      r['app'] = _type == 'limit' || _type == 'duration' ? _app : null;
       if (_remind != null) r['rid'] ??= s.nextId();
       r['color'] = _color;
       r['icon'] = _icon;
@@ -378,6 +381,20 @@ class _HabitEditorState extends State<HabitEditor> {
               onChanged: (v) => setState(() => _after = v),
             ),
           ],
+          if (_type == 'limit' || _type == 'duration') ...[
+            label('Time in an app'),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.phone_android),
+              title: Text(_app == null ? 'Count time in an app' : 'Counts time in ${_app!['name']}'),
+              subtitle: const Text('From your phone\'s app usage, every 15 minutes'),
+              trailing: _app == null ? null : IconButton(tooltip: 'Stop counting', icon: const Icon(Icons.close), onPressed: () => setState(() => _app = null)),
+              onTap: () async {
+                final picked = await showAppPicker(context);
+                if (picked != null) setState(() => _app = {'pkg': picked.pkg, 'name': picked.name});
+              },
+            ),
+          ],
           label('Calendar'),
           TextField(
             controller: _link,
@@ -433,7 +450,11 @@ class _HabitEditorState extends State<HabitEditor> {
           label('Reminder'),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            title: Text(_remind == null ? 'No reminder' : 'Every day at ${time12(_remind!)}'),
+            title: Text(_remind == null
+                ? 'No reminder'
+                : _remind == 'auto'
+                    ? 'At my usual time (${old == null ? 'learnt as you go' : time12(HabitCore.remindAt({...old!, 'remind': 'auto'})!)})'
+                    : 'Every day at ${time12(_remind!)}'),
             value: _remind != null,
             onChanged: (on) async {
                 Haptics.toggle(on);
@@ -442,6 +463,22 @@ class _HabitEditorState extends State<HabitEditor> {
               if (t != null) setState(() => _remind = '${two(t.hour)}:${two(t.minute)}');
             },
           ),
+          if (_remind != null)
+            Wrap(spacing: 8, children: [
+              ChoiceChip(
+                label: const Text('At my usual time'),
+                selected: _remind == 'auto',
+                onSelected: (_) => setState(() => _remind = 'auto'),
+              ),
+              ChoiceChip(
+                label: Text(_remind == 'auto' ? 'At a set time' : time12(_remind!)),
+                selected: _remind != 'auto',
+                onSelected: (_) async {
+                  final t = await showTimePicker(context: context, initialTime: const TimeOfDay(hour: 20, minute: 0));
+                  if (t != null) setState(() => _remind = '${two(t.hour)}:${two(t.minute)}');
+                },
+              ),
+            ]),
           label('Look'),
           Wrap(spacing: 8, runSpacing: 8, children: [
             for (var i = 0; i < habitColors.length; i++)

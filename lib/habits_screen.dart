@@ -142,8 +142,24 @@ class HabitsScreen extends StatelessWidget {
                   for (final g in groups.entries)
                     if (g.value.isNotEmpty) ...[
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(4, 20, 4, 8),
-                        child: Text(g.key, style: tt.titleSmall?.copyWith(color: scheme.onSurfaceVariant)),
+                        padding: const EdgeInsets.fromLTRB(4, 12, 0, 0),
+                        child: Row(children: [
+                          Expanded(child: Text(g.key, style: tt.titleSmall?.copyWith(color: scheme.onSurfaceVariant))),
+                          // A routine with two or more habits still to do today: go through them one by one.
+                          if (g.value.where((h) => HabitCore.dueToday(h, now)).length >= 2)
+                            TextButton.icon(
+                              icon: const Icon(Icons.play_arrow, size: 18),
+                              label: const Text('Start'),
+                              onPressed: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => RoutinePage(store: store, name: g.key, ids: [for (final h in g.value) h['id'] as int]),
+                                ),
+                              ),
+                            )
+                          else
+                            const SizedBox(height: 40),
+                        ]),
                       ),
                       Card(
                         child: Padding(
@@ -503,7 +519,7 @@ class HabitPage extends StatelessWidget {
                       if (h['by'] != null) 'by ${time12(h['by'] as String)}',
                       HabitCore.describe(h).toLowerCase(),
                       if (h['goal'] != null) goals[h['goal']]!.toLowerCase(),
-                      if (h['remind'] != null) 'reminder ${time12(h['remind'] as String)}',
+                      if (h['remind'] != null) 'reminder ${h['remind'] == 'auto' ? 'at your usual time' : time12(h['remind'] as String)}',
                       if (paused) 'paused',
                       if (archived) 'archived',
                     ].join(', '),
@@ -892,3 +908,81 @@ class _LinePainter extends CustomPainter {
   @override
   bool shouldRepaint(_LinePainter old) => old.values != values || old.color != color;
 }
+
+/// A routine, one habit at a time: Done, Skip for now, or Rest day, then the next one still due today.
+class RoutinePage extends StatefulWidget {
+  const RoutinePage({super.key, required this.store, required this.name, required this.ids});
+  final Store store;
+  final String name;
+  final List<int> ids;
+
+  @override
+  State<RoutinePage> createState() => _RoutinePageState();
+}
+
+class _RoutinePageState extends State<RoutinePage> {
+  final _passed = <int>{};
+  int _done = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.store;
+    final tt = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    final now = DayStart.now();
+    final left = [
+      for (final id in widget.ids)
+        if (s.byId('habits', id) case final h? when HabitCore.dueToday(h, now) && !_passed.contains(id)) h,
+    ];
+    final h = left.firstOrNull;
+    final total = widget.ids.where((id) => s.byId('habits', id) != null).length;
+    Future<void> log(Object? value) async {
+      Haptics.success();
+      _passed.add(h!['id'] as int);
+      if (value != null) {
+        await s.logHabit(h, DayStart.today(), value);
+        if (value != 'skip') _done++;
+      }
+      setState(() {});
+    }
+
+    return Scaffold(
+      appBar: AppBar(title: Text(widget.name)),
+      body: Padding(
+        padding: const EdgeInsets.all(24),
+        child: h == null
+            ? Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                Icon(Icons.check_circle_outline, size: 64, color: scheme.primary),
+                const SizedBox(height: 16),
+                Text('${widget.name} done', style: tt.headlineSmall, textAlign: TextAlign.center),
+                const SizedBox(height: 4),
+                Text('$_done done now · nothing left for today', textAlign: TextAlign.center, style: TextStyle(color: scheme.onSurfaceVariant)),
+                const SizedBox(height: 24),
+                FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
+              ])
+            : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                LinearProgressIndicator(value: total == 0 ? 0 : (total - left.length) / total),
+                const SizedBox(height: 8),
+                Text('${left.length} left', style: TextStyle(color: scheme.onSurfaceVariant)),
+                const Spacer(),
+                Text('${h['name']}', style: tt.headlineMedium, textAlign: TextAlign.center),
+                const SizedBox(height: 8),
+                Text(HabitCore.describe(h), textAlign: TextAlign.center, style: TextStyle(color: scheme.onSurfaceVariant)),
+                const Spacer(),
+                FilledButton(
+                  style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56)),
+                  onPressed: () => log((h['type'] ?? 'yesno') == 'yesno' ? 'yes' : {'v': HabitCore.target(h, now) ?? 1}),
+                  child: const Text('Done'),
+                ),
+                const SizedBox(height: 8),
+                Row(children: [
+                  Expanded(child: OutlinedButton(onPressed: () => log(null), child: const Text('Skip for now'))),
+                  const SizedBox(width: 8),
+                  Expanded(child: OutlinedButton(onPressed: () => log('skip'), child: const Text('Rest day'))),
+                ]),
+              ]),
+      ),
+    );
+  }
+}
+

@@ -372,6 +372,21 @@ class HabitCore {
     return sum;
   }
 
+  /// When [h]'s reminder rings, 'HH:MM', or null: its set time, or the usual time for `remind: 'auto'`.
+  static String? remindAt(Map<String, dynamic> h) =>
+      h['remind'] == 'auto' ? (usualTime(h) ?? '20:00') : h['remind'] as String?;
+
+  /// The time of day you usually do [h]: the middle of the last times you ticked it (needs 3), as 'HH:MM'.
+  static String? usualTime(Map<String, dynamic> h) {
+    final times = [
+      for (final t in ((h['doneTimes'] as List?) ?? const []).reversed.take(21))
+        if (RegExp(r'^\d{1,2}:\d{2}$').hasMatch('$t')) int.parse('$t'.split(':')[0]) * 60 + int.parse('$t'.split(':')[1]),
+    ]..sort();
+    if (times.length < 3) return null;
+    final m = times[times.length ~/ 2];
+    return '${(m ~/ 60).toString().padLeft(2, '0')}:${(m % 60).toString().padLeft(2, '0')}';
+  }
+
   static const milestones = [1, 7, 21, 30, 50, 66, 100, 150, 200, 365, 500, 1000];
 
   /// Milestones reached (total days done), and the next one to aim for.

@@ -237,6 +237,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     await Clock.drainVoiceAlarms(s);
     await Clock.sync(s);
     await s.noteAppDay();
+    await s.appHabits();
     try {
       await Backups.daily(s);
     } catch (_) {

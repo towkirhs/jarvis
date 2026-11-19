@@ -22,12 +22,23 @@ class HabitLink {
   static String _hm(DateTime d) => '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 
   /// The day logs the calendar gives [habit] over the last [days] days, by 'YYYY-MM-DD'.
-  static Map<String, Map<String, dynamic>> compute(Map<String, dynamic> habit, Iterable<Map<String, dynamic>> items, DateTime now) {
+  ///
+  /// [did] are finished stretches from Your day (your own buttons, "started gym" … "finished gym", check-ins):
+  /// they count when their name has one of the words, or is the habit's own name.
+  static Map<String, Map<String, dynamic>> compute(Map<String, dynamic> habit, Iterable<Map<String, dynamic>> items, DateTime now,
+      {List<({String title, int start, int end})> did = const []}) {
     final words = (habit['link'] as List?) ?? const [];
     final from = DateTime(now.year, now.month, now.day - days);
     final minutes = <String, int>{};
     final count = <String, int>{};
     final ends = <String, DateTime>{};
+    void add(DateTime end, int mins) {
+      final d = _day(end);
+      minutes[d] = (minutes[d] ?? 0) + mins;
+      count[d] = (count[d] ?? 0) + 1;
+      if (ends[d] == null || end.isBefore(ends[d]!)) ends[d] = end;
+    }
+
     for (final i in items) {
       if (i['habitId'] != null && i['habitId'] == habit['id']) continue; // a block this habit made itself
       // A task Plan my day made for this habit always counts; anything else counts by its title.
@@ -46,10 +57,13 @@ class HabitLink {
         continue;
       }
       if (end.isAfter(now) || end.isBefore(from)) continue;
-      final d = _day(end);
-      minutes[d] = (minutes[d] ?? 0) + mins;
-      count[d] = (count[d] ?? 0) + 1;
-      if (ends[d] == null || end.isBefore(ends[d]!)) ends[d] = end;
+      add(end, mins);
+    }
+    for (final x in did) {
+      if (!matches(x.title, [...words, habit['name'] ?? ''])) continue;
+      final end = DateTime.fromMillisecondsSinceEpoch(x.end);
+      if (end.isAfter(now) || end.isBefore(from)) continue;
+      add(end, ((x.end - x.start) / 60000).round());
     }
     final type = (habit['type'] as String?) ?? 'yesno';
     return {

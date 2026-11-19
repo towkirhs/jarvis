@@ -235,6 +235,12 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    cash check switch and time). Evening cash check: `Store.syncCashCheck` (on every save, re-armed when the text changes)
    schedules kind `cash` (id 1.6e9, `settings.cashCheck`/`cashAt`, default 21:30); `CashCheck` in AlarmReceiver.kt shows
    Right / Fix (Fix opens TypeActivity with `prefill` "cash: "). Spending shows on Your day (`DayLog.timeline(tx:)`). Untested on a phone.
+   Habits more (build after 291): `RoutinePage` (habits_screen.dart; "Start" on a routine group with 2+ due) goes through it
+   one at a time (Done / Skip for now / Rest day). `HabitLink.compute(did:)`: finished Your day stretches (`DayLog.blocks`,
+   your buttons, started…finished, check-ins) log a habit by its link words or its own name. App habits (`app` {pkg, name}
+   on limit/duration habits, editor "Time in an app"): `Store.appHabits` every 15 min → `applyAppTime` writes today's minutes
+   `{v, app: true}` unless you logged the day. Usual-time reminders: `remind: 'auto'`, `doneTimes` (last 30 ticks today, in
+   `logHabit`), `HabitCore.usualTime` (median of the last 21, needs 3) / `remindAt` (else 20:00). Untested on a phone.
 5. Groq web answers show no source links (response shape unconfirmed).
 6. Calendar, deferred: custom repeats, find free time, global search, weekly review, what-if planning.
 7. Known limits: imported times with a named time zone are read as local.

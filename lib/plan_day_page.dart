@@ -165,7 +165,7 @@ class _PlanDayPageState extends State<PlanDayPage> {
   }
 
   DateTime? _remindAt(Rec? h, DateTime day, DateTime now) {
-    final r = h?['remind'] as String?;
+    final r = h == null ? null : HabitCore.remindAt(h);
     if (r == null) return null;
     final p = r.split(':');
     final at = DateTime(day.year, day.month, day.day, int.parse(p[0]), int.parse(p[1]));

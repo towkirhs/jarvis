@@ -341,10 +341,19 @@ class Store extends ChangeNotifier {
   bool _linkHabits() {
     final now = DateTime.now();
     final items = list('items').cast<Map<String, dynamic>>();
+    // What you did, from Your day: finished stretches only (something still running counts once you stop it).
+    final did = [
+      for (final b in DayLog.blocks(list('log'), now.subtract(const Duration(days: HabitLink.days + 1)), now, now: now))
+        if (!b.running && (b.kind == 'act' || b.kind == 'check')) (title: b.title, start: b.start, end: b.end),
+    ];
     var changed = false;
     for (final h in list('habits')) {
-      if (((h['link'] as List?) ?? const []).isEmpty && !items.any((i) => i['planHabit'] == h['id'])) continue;
-      if (HabitLink.apply(h['logs'] as Rec, HabitLink.compute(h, items, now), now)) changed = true;
+      if (((h['link'] as List?) ?? const []).isEmpty &&
+          !items.any((i) => i['planHabit'] == h['id']) &&
+          !did.any((x) => HabitLink.matches(x.title, [h['name'] ?? '']))) {
+        continue;
+      }
+      if (HabitLink.apply(h['logs'] as Rec, HabitLink.compute(h, items, now, did: did), now)) changed = true;
     }
     return changed;
   }
@@ -491,7 +500,8 @@ class Store extends ChangeNotifier {
   Future<void> _syncHabitReminder(Rec h) async {
     final rid = h['rid'] as int?;
     if (rid == null) return;
-    final t = h['remind'] as String?;
+    // "At my usual time": when you have done it lately (20:00 until there is enough to go by).
+    final t = HabitCore.remindAt(h);
     if (t == null) {
       await Native.cancel(rid);
       return;
@@ -990,6 +1000,41 @@ class Store extends ChangeNotifier {
   }
 
   /// Once a day: yesterday's most used apps, kept in the log (Android forgets app history after about a week).
+  /// Habits that count time in an app (`app`: {pkg, name}, a limit or duration habit) take today's minutes
+  /// from Android's usage access, every 15 minutes and on opening. A day you logged yourself is left alone.
+  Future<void> appHabits({bool force = false}) async {
+    final hs = [for (final h in list('habits')) if (h['app'] is Map && h['archived'] != true) h];
+    if (kIsWeb || hs.isEmpty) return;
+    final now = DateTime.now();
+    if (!force && _appHabitsAt != null && now.difference(_appHabitsAt!).inMinutes < 15) return;
+    _appHabitsAt = now;
+    if (!await Native.usageAccess()) return;
+    final day = DayStart.now();
+    final start = DateTime(day.year, day.month, day.day).add(Duration(minutes: DayStart.minutes));
+    final sessions = (await Native.appSessions(start, now)).map(AppSession.from).whereType<AppSession>().toList();
+    if (applyAppTime(sessions, DayStart.today())) save();
+  }
+
+  DateTime? _appHabitsAt;
+
+  /// Writes each app habit's minutes in [sessions] as [day]'s log. Returns whether anything changed.
+  bool applyAppTime(List<AppSession> sessions, String day) {
+    var changed = false;
+    for (final h in list('habits')) {
+      final app = h['app'];
+      if (app is! Map || h['archived'] == true) continue;
+      final logs = h['logs'] as Rec;
+      final old = logs[day];
+      if (old != null && !(old is Map && old['app'] == true)) continue; // you logged it yourself
+      final mins = AppSession.merge(sessions.where((x) => x.pkg == app['pkg']).toList()).fold<int>(0, (a, x) => a + x.minutes);
+      final v = {'v': mins, 'app': true};
+      if (old is Map && old['v'] == mins) continue;
+      logs[day] = v;
+      changed = true;
+    }
+    return changed;
+  }
+
   Future<void> noteAppDay() async {
     if (kIsWeb) return;
     final y = DayStart.now().subtract(const Duration(days: 1));
@@ -1092,6 +1137,12 @@ class Store extends ChangeNotifier {
       logs[day] = value;
     }
     final d = DateTime.parse(day);
+    // When you do it today, for "remind me at my usual time".
+    final real = value != null && value != 'no' && value != 'skip' && !(value is Map && (value['skip'] == true || value['miss'] == true));
+    if (real && day == DayStart.today()) {
+      final n = DateTime.now();
+      h['doneTimes'] = [...((h['doneTimes'] as List?) ?? const []), '${two(n.hour)}:${two(n.minute)}'].reversed.take(30).toList().reversed.toList();
+    }
     final calendar = <Rec>[];
     if (h['toCal'] == true) _habitBlock(h, day, calendar);
     final verb = value == null
@@ -1104,6 +1155,7 @@ class Store extends ChangeNotifier {
       ...calendar,
     ]);
     save();
+    if (h['remind'] == 'auto') await _syncHabitReminder(h);
     final after = streakPeriods(h);
     if (HabitCore.done(h, d) && after > before) {
       await boost('${h['name']}: $after ${HabitCore.unit(h)} streak');

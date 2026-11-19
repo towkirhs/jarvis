@@ -18,7 +18,7 @@ class WebReminders {
     }
     final today = DateTime(to.year, to.month, to.day);
     for (final h in s.list('habits')) {
-      final r = h['remind'] as String?;
+      final r = HabitCore.remindAt(h);
       if (r == null || h['archived'] == true) continue;
       final p = r.split(':');
       final at = DateTime(to.year, to.month, to.day, int.parse(p[0]), int.parse(p[1])).millisecondsSinceEpoch;
