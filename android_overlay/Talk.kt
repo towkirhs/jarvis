@@ -285,6 +285,11 @@ open class ListenActivity : Activity() {
         card()
         // Jarvis's answers to typed notes come to this card while it is open, instead of a notification.
         Chat.card = onAnswer
+        // Opened with text to finish (the cash check's Fix: "cash: ").
+        intent.getStringExtra("prefill")?.let {
+            box.setText(it)
+            box.setSelection(it.length)
+        }
         if (listenFirst) listen() else typing()
     }
 

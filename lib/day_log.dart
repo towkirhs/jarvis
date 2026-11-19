@@ -169,7 +169,8 @@ class DayLog {
   }
 
   /// [day]'s timeline, oldest first: your log, finished tasks and app stretches of 5 minutes or more.
-  static List<Moment> timeline(DateTime day, {required List<Rec> log, required List<Rec> items, List<AppSession> apps = const []}) {
+  static List<Moment> timeline(DateTime day,
+      {required List<Rec> log, required List<Rec> items, List<AppSession> apps = const [], List<Rec> tx = const []}) {
     final out = <Moment>[];
     final entries = log.where((e) => e['at'] is int && _sameDay(DateTime.fromMillisecondsSinceEpoch(e['at'] as int), day)).toList()
       ..sort((a, b) => (a['at'] as int).compareTo(b['at'] as int));
@@ -209,6 +210,16 @@ class DayLog {
     }
     for (final s in AppSession.merge(apps)) {
       if (s.minutes >= 5 && _sameDay(s.start, day)) out.add(Moment(s.start, s.name, 'app', end: s.end));
+    }
+    // Money spent or received, where it happened in the day.
+    for (final t in tx) {
+      final ts = t['ts'];
+      if (ts is! int || (t['type'] != 'expense' && t['type'] != 'income')) continue;
+      final d = DateTime.fromMillisecondsSinceEpoch(ts);
+      if (!_sameDay(d, day)) continue;
+      final note = '${t['note'] ?? ''}'.trim();
+      final what = note.isEmpty || note == t['cat'] ? '${t['cat']}' : '${t['cat']} · $note';
+      out.add(Moment(d, '${t['type'] == 'income' ? 'Got' : 'Spent'} ৳${(t['amount'] as num).round()} · $what', 'money'));
     }
     out.sort((a, b) => a.at.compareTo(b.at));
     return out;

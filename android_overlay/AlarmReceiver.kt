@@ -47,6 +47,13 @@ class AlarmReceiver : BroadcastReceiver() {
             return
         }
 
+        // The evening cash check: "Cash ৳1187, right?" with Right and Fix.
+        if (kind == "cash") {
+            AlarmScheduler.schedule(context, id, AlarmScheduler.nextDaily(entry.getLong("millis")), kind, label, true)
+            CashCheck.show(context, id, label)
+            return
+        }
+
         if (entry.getBoolean("repeat")) {
             AlarmScheduler.schedule(context, id, AlarmScheduler.nextDaily(entry.getLong("millis")), kind, label, true)
         } else {
@@ -120,4 +127,35 @@ class AlarmReceiver : BroadcastReceiver() {
                 .putExtra("label", label),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+}
+
+/** The evening cash check notification. Fix opens the talk-or-type card with "cash: " ready to finish. */
+object CashCheck {
+    fun show(context: Context, id: Int, label: String) {
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (Build.VERSION.SDK_INT >= 26) {
+            manager.createNotificationChannel(NotificationChannel("notice", "Reminders", NotificationManager.IMPORTANCE_DEFAULT))
+        }
+        val right = PendingIntent.getBroadcast(
+            context, id, Intent(context, ActionReceiver::class.java).setAction(ActionReceiver.ACTION_CASH_OK).putExtra("id", id),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val fix = PendingIntent.getActivity(
+            context, id + 1,
+            Intent(context, TypeActivity::class.java).putExtra("prefill", "cash: ").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(context, "notice") else Notification.Builder(context)
+        manager.notify(
+            id,
+            builder.setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setContentTitle("Cash check")
+                .setContentText(label)
+                .setContentIntent(fix)
+                .setAutoCancel(true)
+                .addAction(0, "Right", right)
+                .addAction(0, "Fix", fix)
+                .build()
+        )
+    }
 }

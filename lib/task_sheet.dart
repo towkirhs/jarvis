@@ -56,6 +56,7 @@ class _TaskFormPageState extends State<TaskFormPage> {
   late final title = TextEditingController(text: item?['title'] as String? ?? widget.presetTitle ?? '');
   late final desc = TextEditingController(text: item?['desc'] as String? ?? '');
   late final location = TextEditingController(text: item?['location'] as String? ?? '');
+  late final cost = TextEditingController(text: item?['cost'] is num ? '${(item!['cost'] as num).round()}' : '');
   late final tags = TextEditingController(text: ((item?['tags'] as List?) ?? []).join(', '));
   late final listCtrl = TextEditingController(text: (item?['list'] as String?) ?? 'Inbox');
   late final TextEditingController minutes;
@@ -184,6 +185,7 @@ class _TaskFormPageState extends State<TaskFormPage> {
       'place': placeId,
       'placeWhen': placeId == null ? null : placeWhen,
       if (isTask && quick != null) 'quick': quick,
+      if (isTask) 'cost': num.tryParse(cost.text.trim()),
       'chunk': isTask && !_quick && chunk > 0 && (mins ?? 0) > chunk ? chunk : null,
       'needs': needs,
       'doneIf': isTask ? doneIf : null,
@@ -302,6 +304,18 @@ class _TaskFormPageState extends State<TaskFormPage> {
   List<Widget> _moreOptions(ColorScheme scheme) => [
         _title('Details'),
         TextField(controller: desc, maxLines: 4, minLines: 1, textCapitalization: TextCapitalization.sentences, decoration: const InputDecoration(labelText: 'Notes')),
+        if (kind == 'task') ...[
+          const SizedBox(height: 12),
+          TextField(
+            controller: cost,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'Costs (to buy or pay)',
+              prefixText: '৳ ',
+              helperText: 'When you tick it done, Jarvis asks whether to log it as spent',
+            ),
+          ),
+        ],
         const SizedBox(height: 12),
         Row(children: [
           Expanded(

@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'about_me.dart';
 import 'ai.dart';
 import 'categories.dart';
+import 'budgets.dart';
 import 'bugs.dart';
 import 'chatgpt_block.dart';
 import 'clash.dart';
@@ -627,6 +628,8 @@ class Brain {
       // Rings at this time every day until it is marked done.
       'untilDone': p['untilDone'] == true && when != null && p['time'] != null,
     };
+    // A task that costs money ("buy lotion 450"): its price, so ticking it done offers to log the expense.
+    if (type == 'task' && p['amount'] is num && (p['amount'] as num) > 0) extra['cost'] = p['amount'];
     final nag = extra['untilDone'] == true ? ', every day until done' : '';
     // "buy milk when I reach Shwapno": a saved place, by name.
     final placeName = ((p['place'] as String?) ?? '').trim().toLowerCase();
@@ -1114,6 +1117,14 @@ class Brain {
     final accounts = s.list('accounts');
     lines.add('Money accounts and balances: '
         '${accounts.map((a) => '${a['name']} ${s.money(s.balance(a))}').join(', ')}');
+    final budgets = Budgets.month(s.list('tx'), Budgets.of(s.settings), now);
+    if (budgets.isNotEmpty) {
+      lines.add('Budgets this month: ${budgets.map((b) => '${b.category} ${s.money(b.spent)} of ${s.money(b.limit)}').join(', ')}');
+    }
+    final buy = Budgets.toBuy(s.list('items'));
+    if (buy.isNotEmpty) {
+      lines.add('Still to buy: ${buy.take(10).map((i) => '${i['title']}${i['cost'] is num ? ' ${s.money(i['cost'] as num)}' : ''}').join(', ')}');
+    }
     final monthStart = DateTime(now.year, now.month).millisecondsSinceEpoch;
     final weekStart = DateTime(now.year, now.month, now.day - (now.weekday - 1)).millisecondsSinceEpoch;
     final byCat = <String, num>{};
@@ -1199,6 +1210,7 @@ ${events ? '- A meeting or appointment at a time is "event".' : '- Never use "ev
 - A habit is something repeated over weeks (gym, reading, praying, studying). Reporting that it was done or skipped is "habit_log" with the day it happened, never a task. Saying they want to start doing something regularly is "habit_new". A one-off thing to do is a task.
 - "priority": "high" for urgent or important things the person stresses, otherwise only if they say it. "tags" and "list" only if they name them (like "add to my study list", "tag it exam"). "repeat" only for things said to repeat ("every day", "every Monday" = weekly). "durationMinutes" is how long an event lasts. "description" holds extra details that do not fit the title.
 - "countdown" is a date to count down to or remember every year: a birthday, an anniversary, a holiday, or an exam or trip the person wants a countdown for. "category" is "birthday", "anniversary", "holiday" or "countdown", and "date" is required.
+- A thing still TO BUY or pay ("buy lotion 450", "need to pay internet 1200") is a "task" with "amount": its price. It is not money yet: do not add a command for it; Jarvis asks when it is done.
 - MONEY GOES IN "commands", not items: spending, income, a balance, deleting an entry or a new account. One line each, and Jarvis does every sum itself: "<account>: <what the account HAS now> [where the rest went]" ("I have 1687, rest on transport" → "cash: 1687 transport"; no account named means cash), "spent: <amount> <what> [from <account>]" ("juice 150+480" → "spent: 630 juice"), "got: <amount> <what> [to <account>]" ("8000 tuition fee from Naomi" → "got: 8000 tuition Naomi"), "delete: <what> <amount>", "account: <name>". Never do a balance sum yourself. Your "reply" must not say a money change was made: Jarvis shows what really happened under it.
 - "money" is money spent, received or moved: "spent 250 on lunch", "got 5000 tuition fee", "sent 1000 from bank to bKash", or a receipt in a photo. "amount" is the number, "moneyType" is expense, income or transfer, "title" is a short note (what it was for), "category" is one of the categories they already use${moneyCats.isEmpty ? '' : ' ($moneyCats)'} when one fits (groceries is Food if they use Food), otherwise one word like Food, Transport, Shopping, Bills, Education, Health, Entertainment, Gifts, Salary, Tuition. "account" and "toAccount" only if named. "date"/"time" only if it was not today. If they say how much is LEFT in an account and that the rest was spent ("500 remains in cash, spent the rest on transport"), put that left-over number in both "leaves" and "amount", moneyType expense: the app works out the spend from the account's balance. "leaves" is otherwise null. "date"/"time" only if it was not today.
 - "money_delete" removes a money entry they ask to delete ("delete food 20"): "amount" is its amount, "title" one word for what it was (its category or note). "account" adds a money account they ask for: "title" is its name.

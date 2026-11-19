@@ -7,10 +7,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'categories.dart';
 import 'clash.dart';
 import 'clock.dart';
+import 'budgets.dart';
 import 'day_log.dart';
 import 'day_start.dart';
 import 'habit_core.dart';
 import 'habit_link.dart';
+import 'local_parser.dart';
 import 'native.dart';
 import 'needs.dart';
 import 'piece_facts.dart';
@@ -208,6 +210,67 @@ class Store extends ChangeNotifier {
     notifyListeners();
     _runRules();
     syncNeeds();
+    syncCashCheck();
+  }
+
+  /// A money line to show as a SnackBar: a budget warning, or "Paid ৳450 for X?" with [payFor] the task.
+  final moneyNotice = ValueNotifier<({String text, Rec? payFor})?>(null);
+
+  static const cashCheckId = 1600000000;
+  String? _cashArmed;
+
+  /// The evening cash check: a daily notification "Cash ৳X, right?" (Fix opens the card with "cash: ").
+  /// Its text follows the cash balance, so it is armed again whenever that changes. Off with settings.cashCheck false.
+  void syncCashCheck() {
+    final cash = list('accounts').where((a) => '${a['name']}'.toLowerCase() == 'cash').firstOrNull;
+    final at = (settings['cashAt'] as String?) ?? '21:30';
+    final on = settings['cashCheck'] != false && cash != null;
+    final label = on ? 'Cash ৳${balance(cash).round()}, right?' : null;
+    final key = '$label|$at';
+    if (key == _cashArmed) return;
+    _cashArmed = key;
+    if (label == null) {
+      Native.cancel(cashCheckId).catchError((Object _) {});
+      return;
+    }
+    final p = at.split(':');
+    final now = DateTime.now();
+    var t = DateTime(now.year, now.month, now.day, int.parse(p[0]), int.parse(p[1]));
+    if (!t.isAfter(now)) t = t.add(const Duration(days: 1));
+    // Not awaited: save() stays quick, and a phone without the native side (tests, web) just skips it.
+    Native.schedule(id: cashCheckId, millis: t.millisecondsSinceEpoch, kind: 'cash', label: label, repeatDaily: true)
+        .catchError((Object _) {});
+  }
+
+  /// Logs what a task with a `cost` cost, as an expense, and remembers it on the task.
+  void payFor(Rec it) {
+    final cost = it['cost'];
+    if (cost is! num || it['paidTx'] != null) return;
+    final accounts = list('accounts');
+    final acct = it['costAcct'] as String? ??
+        (accounts.where((a) => '${a['name']}'.toLowerCase() == 'cash').firstOrNull ?? accounts.firstOrNull)?['name'] as String?;
+    if (acct == null) return;
+    final category = it['costCat'] as String? ??
+        (LocalParser.command('spent: $cost ${it['title']}'.replaceFirst(RegExp(r'\bbuy\b', caseSensitive: false), ''),
+                [for (final a in accounts) '${a['name']}'])?['category'] as String? ??
+            'Other');
+    final undo = <Rec>[];
+    final old = copyRec(it);
+    final tx = addTx(type: 'expense', amount: cost, category: category, account: acct, note: '${it['title']}', undo: undo);
+    it['paidTx'] = tx['id'];
+    logAction('Paid ৳${cost.round()} for ${it['title']}', [...undo, {'op': 'put', 'col': 'items', 'rec': old}]);
+    save();
+  }
+
+  Future<void> setBudget(String category, num? amount) async {
+    final b = Map<String, dynamic>.from((settings['budgets'] as Map?) ?? {});
+    if (amount == null || amount <= 0) {
+      b.remove(category);
+    } else {
+      b[category] = amount;
+    }
+    settings['budgets'] = b;
+    save();
   }
 
   /// Minutes after midnight a day starts, everywhere in Jarvis: 300 (5 am) when "Day starts at 5 am" is on, else 0
@@ -715,6 +778,14 @@ class Store extends ChangeNotifier {
   }
 
   Future<void> markDone(Rec it) async {
+    await _markDone(it);
+    // A task that costs money: offer to log what was paid.
+    if (it['cost'] is num && it['paidTx'] == null) {
+      moneyNotice.value = (text: 'Paid ৳${(it['cost'] as num).round()} for ${it['title']}?', payFor: it);
+    }
+  }
+
+  Future<void> _markDone(Rec it) async {
     final when = it['when'] as int?;
     final repeat = it['repeat'] as String?;
     if (repeat != null && when != null) {
@@ -1199,6 +1270,10 @@ class Store extends ChangeNotifier {
     };
     list('tx').add(r);
     undo?.add({'op': 'rm', 'col': 'tx', 'id': r['id']});
+    if (type == 'expense') {
+      final warn = Budgets.crossed(list('tx'), Budgets.of(settings), '${r['cat']}', amount, DateTime.fromMillisecondsSinceEpoch(r['ts'] as int));
+      if (warn != null) moneyNotice.value = (text: warn, payFor: null);
+    }
     save();
     return r;
   }

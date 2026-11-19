@@ -107,6 +107,7 @@ class _DayPageState extends State<DayPage> with WidgetsBindingObserver {
         'other' => Icons.swap_horiz,
         'app' => Icons.phone_android,
         'apps' => Icons.bar_chart,
+        'money' => Icons.payments_outlined,
         _ => Icons.play_circle_outline,
       };
 
@@ -116,7 +117,7 @@ class _DayPageState extends State<DayPage> with WidgetsBindingObserver {
         builder: (context, _) {
           final scheme = Theme.of(context).colorScheme;
           final tt = Theme.of(context).textTheme;
-          final moments = DayLog.timeline(_day, log: store.list('log'), items: store.list('items'), apps: _apps);
+          final moments = DayLog.timeline(_day, log: store.list('log'), items: store.list('items'), apps: _apps, tx: store.list('tx'));
           return Scaffold(
             appBar: AppBar(
               titleSpacing: 0,

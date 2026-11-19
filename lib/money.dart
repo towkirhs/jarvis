@@ -8,6 +8,7 @@ import 'day_start_menu.dart';
 import 'haptics.dart';
 import 'income_tab.dart';
 import 'items_screen.dart' show EdgeSwipe;
+import 'money_plan.dart';
 import 'money_stats.dart';
 import 'money_io.dart';
 import 'money_sms.dart';
@@ -439,7 +440,13 @@ class _MoneyPageState extends State<MoneyPage> {
   Widget _empty() => const Center(child: Text('No data. Tap + or tell Jarvis "spent 200 on lunch".'));
 
   Widget _daily(BuildContext context, List<Rec> txs) {
-    if (txs.isEmpty) return _empty();
+    if (txs.isEmpty) {
+      return ListView(padding: const EdgeInsets.only(bottom: 80), children: [
+        MoneyPlanCards(store: s),
+        const SizedBox(height: 48),
+        _empty(),
+      ]);
+    }
     final days = <String, List<Rec>>{};
     for (final t in txs) {
       days.putIfAbsent(DayStart.key(t['ts'] as int), () => []).add(t);
@@ -447,6 +454,8 @@ class _MoneyPageState extends State<MoneyPage> {
     return ListView(
       padding: const EdgeInsets.only(bottom: 80),
       children: [
+        MoneyPlanCards(store: s),
+        const SizedBox(height: 12),
         for (final e in days.entries) ...[
           Container(
             color: Theme.of(context).colorScheme.surfaceContainer,

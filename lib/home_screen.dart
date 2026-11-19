@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'arrange.dart';
+import 'budgets.dart';
 import 'bugs.dart';
 import 'native.dart';
 import 'about_me.dart';
@@ -323,6 +324,10 @@ class _HomeScreenState extends State<HomeScreen> {
       if (warn != null) _chip(context, Icons.warning_amber_rounded, 'Busy day', scheme.error, () => _open(context, PlanDayPage(store: s))),
       if (s.list('tx').isNotEmpty)
         _chip(context, Icons.account_balance_wallet_outlined, '${s.money(_spentToday())} today', null, () => _open(context, MoneyPage(store: s))),
+      // The fullest budget once it passes 80%.
+      if (Budgets.month(s.list('tx'), Budgets.of(s.settings), DayStart.now()).firstOrNull case final b? when b.ratio >= 0.8)
+        _chip(context, Icons.pie_chart_outline, b.ratio >= 1 ? '${b.category} over budget' : '${b.category} ${(b.ratio * 100).round()}% of budget',
+            b.ratio >= 1 ? scheme.error : scheme.tertiary, () => _open(context, MoneyPage(store: s))),
     ];
 
     return Column(

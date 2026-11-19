@@ -54,6 +54,8 @@ class ActionReceiver : BroadcastReceiver() {
         const val ACTION_DONE = "com.towkirhs.jarcis.DONE"
         const val ACTION_SNOOZE = "com.towkirhs.jarcis.SNOOZE"
         const val ACTION_CHECK = "com.towkirhs.jarcis.CHECK"
+        /** "Right" on the cash check: the notification just goes away. */
+        const val ACTION_CASH_OK = "com.towkirhs.jarcis.CASH_OK"
         const val SNOOZE_OFFSET = 1_000_000_000
     }
 }

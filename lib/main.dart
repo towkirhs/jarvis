@@ -118,6 +118,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     _timer = Timer.periodic(const Duration(minutes: 1), (_) => _tick());
     s.addListener(_soonSync);
     s.ruleNotice.addListener(_ruleDid);
+    s.moneyNotice.addListener(_moneySaid);
     MainNav.step = (d) {
       if (!_pages.hasClients) return;
       _pages.animateToPage((_tab + d).clamp(0, _destinations.length - 1), duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
@@ -137,6 +138,19 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     ));
   }
 
+  /// A budget warning, or "Paid ৳450 for X?" after ticking off a task that costs money.
+  void _moneySaid() {
+    final n = s.moneyNotice.value;
+    if (n == null || !mounted) return;
+    final it = n.payFor;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(n.text),
+      duration: Duration(seconds: it == null ? 5 : 8),
+      persist: false,
+      action: it == null ? null : SnackBarAction(label: 'Log it', onPressed: () => s.payFor(it)),
+    ));
+  }
+
   /// Sends a change to your other devices a few seconds after you make it (several changes go together).
   Timer? _syncSoon;
   void _soonSync() {
@@ -152,6 +166,7 @@ class _ShellState extends State<Shell> with WidgetsBindingObserver {
     s.removeListener(_soonSync);
     s.removeListener(_arranged);
     s.ruleNotice.removeListener(_ruleDid);
+    s.moneyNotice.removeListener(_moneySaid);
     _pages.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();

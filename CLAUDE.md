@@ -227,6 +227,14 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    "bug: …" in the chat (Destination `bug`, no AI) keeps the message before it; hold a message or an answer → Catch a bug;
    More → Bugs (copy all open bugs as text, tick fixed). `test/sentences_test.dart` holds real sentences and what the phone must
    do with them: add a line for every misread one the phone should handle.
+   Money connected (build after 291): tasks may carry `cost` (task form "Costs", or the AI's "amount" on a task to buy/pay);
+   `Store.markDone` then sets `moneyNotice` "Paid ৳X for Y?" → Log it = `Store.payFor` (expense, category guessed by the
+   command parser, `paidTx` on the task, one Undo). Budgets (`lib/budgets.dart` pure, `settings.budgets` {category: monthly}):
+   `addTx` warns at 80% and over (`moneyNotice`), Home chip, AI context. Money's Daily tab starts with `MoneyPlanCards`
+   (lib/money_plan.dart: To buy = open tasks with a cost or "buy …", total vs cash; budgets with bars; sheet with the evening
+   cash check switch and time). Evening cash check: `Store.syncCashCheck` (on every save, re-armed when the text changes)
+   schedules kind `cash` (id 1.6e9, `settings.cashCheck`/`cashAt`, default 21:30); `CashCheck` in AlarmReceiver.kt shows
+   Right / Fix (Fix opens TypeActivity with `prefill` "cash: "). Spending shows on Your day (`DayLog.timeline(tx:)`). Untested on a phone.
 5. Groq web answers show no source links (response shape unconfirmed).
 6. Calendar, deferred: custom repeats, find free time, global search, weekly review, what-if planning.
 7. Known limits: imported times with a named time zone are read as local.
