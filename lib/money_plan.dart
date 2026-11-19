@@ -129,7 +129,7 @@ Future<void> showBudgetsSheet(BuildContext context, Store s) => showModalBottomS
           final tt = Theme.of(ctx).textTheme;
           final scheme = Theme.of(ctx).colorScheme;
           final budgets = Budgets.of(s.settings);
-          final cats = {...budgets.keys, for (final u in Categories.used(s.list('tx'), 'expense')) u.name}.toList();
+          final cats = {...budgets.keys, for (final u in Cats.used(s.list('tx'), 'expense')) u.name}.toList();
           final at = (s.settings['cashAt'] as String?) ?? '21:30';
           return Padding(
             padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
