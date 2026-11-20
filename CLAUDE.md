@@ -246,6 +246,10 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    adds a money goal. Built-in rent/loan links take the account from the payment `method` (RuleRunner). Movies and books
    (`lib/media_page.dart`, collection `media`, item `media`, More tile `media`). More is quick access (first 3 in your order),
    collapsible groups (`_MoreScreenState._groups`) and a search. Untested on a phone.
+   One Plan screen (build after 295): the Plan tab (`ItemsScreen`) has List · Calendar · Plan · Day log · Matrix (scrollable
+   tabs); Plan and Day log are `PlanDayPage`/`DayPage` with `embedded: true` (their own buttons, no outer FAB). Plan my day
+   gives a task without a length the usual one (`Store.usualMinutes`: median of the last 10 from finished tasks' `actual` and
+   Your day stretches with the same name). Untested on a phone.
 5. Groq web answers show no source links (response shape unconfirmed).
 6. Calendar, deferred: custom repeats, find free time, global search, weekly review, what-if planning.
 7. Known limits: imported times with a named time zone are read as local.

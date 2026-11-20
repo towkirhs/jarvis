@@ -242,6 +242,33 @@ class Store extends ChangeNotifier {
         .catchError((Object _) {});
   }
 
+  /// How long things usually take you, by name (lower case): the middle of the last 10 times, from finished
+  /// tasks with a real length and from Your day (your buttons, started … finished). Plan my day uses it for tasks
+  /// without a length of their own.
+  Map<String, int> usualMinutes() {
+    final now = DateTime.now();
+    final seen = <String, List<int>>{};
+    void add(String name, int mins) {
+      if (mins < 5 || mins > 12 * 60) return;
+      (seen[name.toLowerCase().trim()] ??= []).add(mins);
+    }
+
+    for (final i in list('items')) {
+      if (i['kind'] == 'task' && i['status'] == 'done' && i['actual'] is int) add('${i['title']}', i['actual'] as int);
+    }
+    for (final b in DayLog.blocks(list('log'), now.subtract(const Duration(days: 60)), now, now: now)) {
+      if (!b.running && b.kind == 'act') add(b.title, ((b.end - b.start) / 60000).round());
+    }
+    return {
+      for (final e in seen.entries)
+        e.key: () {
+          final last = e.value.length > 10 ? e.value.sublist(e.value.length - 10) : [...e.value];
+          last.sort();
+          return last[last.length ~/ 2];
+        }(),
+    };
+  }
+
   /// Logs what a task with a `cost` cost, as an expense, and remembers it on the task.
   void payFor(Rec it) {
     final cost = it['cost'];

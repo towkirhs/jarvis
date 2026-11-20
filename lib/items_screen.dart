@@ -12,6 +12,7 @@ import 'habits_screen.dart';
 import 'month_view.dart';
 import 'journal_screen.dart' show DayPage, openEntryEditor;
 import 'main_nav.dart';
+import 'day_page.dart';
 import 'plan_day_page.dart';
 import 'store.dart';
 import 'task_sheet.dart';
@@ -63,14 +64,15 @@ class ItemsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => DefaultTabController(
-        length: 3,
+        length: 5,
         child: Scaffold(
           // On the calendar the button opens the small add sheet, on the other tabs the full form.
           floatingActionButton: Builder(builder: (ctx) {
             final tabs = DefaultTabController.of(ctx);
             return AnimatedBuilder(
               animation: tabs,
-              builder: (ctx, _) => FloatingActionButton(
+              // Plan and Day log have their own buttons.
+              builder: (ctx, _) => tabs.index == 2 || tabs.index == 3 ? const SizedBox.shrink() : FloatingActionButton(
                 onPressed: () {
                   if (tabs.index != 1) {
                     showTaskSheet(ctx, store);
@@ -85,7 +87,12 @@ class ItemsScreen extends StatelessWidget {
           }),
           body: Column(
             children: [
-              const TabBar(tabs: [Tab(text: 'List'), Tab(text: 'Calendar'), Tab(text: 'Matrix')]),
+              // Everything about your days in one place: the list, the calendar, the plan, what you really did, and the matrix.
+              const TabBar(
+                isScrollable: true,
+                tabAlignment: TabAlignment.start,
+                tabs: [Tab(text: 'List'), Tab(text: 'Calendar'), Tab(text: 'Plan'), Tab(text: 'Day log'), Tab(text: 'Matrix')],
+              ),
               Expanded(
                 child: EdgeSwipe(
                   // Swipe between List, Calendar and Matrix; past the first or last, on to the app's next tab.
@@ -95,6 +102,8 @@ class ItemsScreen extends StatelessWidget {
                     children: [
                       _ListView(store: store),
                       _CalendarView(store: store),
+                      PlanDayPage(store: store, embedded: true),
+                      DayPage(store: store, embedded: true),
                       _MatrixView(store: store),
                     ],
                   ),

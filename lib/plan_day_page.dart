@@ -21,8 +21,11 @@ import 'task_sheet.dart';
 /// Tap a piece for its time, length, blocks, importance for the day, links, or another day.
 /// Apply gives each piece its time, so the day is on the calendar and can be edited there.
 class PlanDayPage extends StatefulWidget {
-  const PlanDayPage({super.key, required this.store, this.day, this.replan = false});
+  const PlanDayPage({super.key, required this.store, this.day, this.replan = false, this.embedded = false});
   final Store store;
+
+  /// Shown as a tab of the Plan screen, not as a page of its own.
+  final bool embedded;
 
   /// Opened to place the rest of the day again (from "You're behind").
   final bool replan;
@@ -104,7 +107,13 @@ class _PlanDayPageState extends State<PlanDayPage> {
     final added = extra ?? _extra;
     final all = store.list('items').cast<Map<String, dynamic>>();
     // A habit's planned task from an earlier day is stale: the day gets a fresh one.
-    final open = all.where((i) => i['status'] == 'open' && (i['planHabit'] == null || i['habitDay'] == key)).toList();
+    // A task with no length of its own takes as long as it usually does (from Your day and finished tasks).
+    final learnt = store.usualMinutes();
+    final open = [
+      for (final i in all)
+        if (i['status'] == 'open' && (i['planHabit'] == null || i['habitDay'] == key))
+          if (i['est'] == null && i['quick'] != true && learnt['${i['title']}'.toLowerCase().trim()] case final m?) {...i, 'est': m, 'estLearnt': true} else i,
+    ];
     final parts = all.where((i) => i['partOf'] != null && i['status'] == 'done').toList();
     final habits = DayPlanner.habitTasks(store.list('habits').cast<Map<String, dynamic>>(), d, items: all, extra: added);
     // A habit with a reminder time (later today, or on another day) starts at that time, unless you moved it.
@@ -1178,7 +1187,8 @@ class _PlanDayPageState extends State<PlanDayPage> {
           final nothing = mine == 0 && plan.overflow.isEmpty && plan.quick.isEmpty && plan.standby.isEmpty && plan.off.isEmpty;
           return Scaffold(
             appBar: AppBar(
-              titleSpacing: 0,
+              automaticallyImplyLeading: !widget.embedded,
+              titleSpacing: widget.embedded ? 8 : 0,
               title: Row(mainAxisSize: MainAxisSize.min, children: [
                 IconButton(tooltip: 'Previous day', icon: const Icon(Icons.chevron_left), onPressed: () => _goTo(DateTime(_day.year, _day.month, _day.day - 1))),
                 Flexible(

@@ -12,8 +12,11 @@ import 'store.dart';
 
 /// Your day as it really went: how the plan is going, what you are doing now, a timeline, and time in apps.
 class DayPage extends StatefulWidget {
-  const DayPage({super.key, required this.store, this.day});
+  const DayPage({super.key, required this.store, this.day, this.embedded = false});
   final Store store;
+
+  /// Shown as a tab of the Plan screen, not as a page of its own.
+  final bool embedded;
   final DateTime? day;
 
   @override
@@ -120,7 +123,8 @@ class _DayPageState extends State<DayPage> with WidgetsBindingObserver {
           final moments = DayLog.timeline(_day, log: store.list('log'), items: store.list('items'), apps: _apps, tx: store.list('tx'));
           return Scaffold(
             appBar: AppBar(
-              titleSpacing: 0,
+              automaticallyImplyLeading: !widget.embedded,
+              titleSpacing: widget.embedded ? 8 : 0,
               title: Row(mainAxisSize: MainAxisSize.min, children: [
                 IconButton(tooltip: 'Previous day', icon: const Icon(Icons.chevron_left), onPressed: () => _goTo(-1)),
                 Flexible(child: Text(_dayName(_day), style: tt.titleMedium, maxLines: 1, overflow: TextOverflow.ellipsis)),
