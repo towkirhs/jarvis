@@ -12,7 +12,7 @@ import 'habits_screen.dart';
 import 'month_view.dart';
 import 'journal_screen.dart' show DayPage, openEntryEditor;
 import 'main_nav.dart';
-import 'day_page.dart';
+import 'day_page.dart' as daylog;
 import 'plan_day_page.dart';
 import 'store.dart';
 import 'task_sheet.dart';
@@ -103,7 +103,7 @@ class ItemsScreen extends StatelessWidget {
                       _ListView(store: store),
                       _CalendarView(store: store),
                       PlanDayPage(store: store, embedded: true),
-                      DayPage(store: store, embedded: true),
+                      daylog.DayPage(store: store, embedded: true),
                       _MatrixView(store: store),
                     ],
                   ),

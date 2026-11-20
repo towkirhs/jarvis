@@ -112,7 +112,10 @@ class _PlanDayPageState extends State<PlanDayPage> {
     final open = [
       for (final i in all)
         if (i['status'] == 'open' && (i['planHabit'] == null || i['habitDay'] == key))
-          if (i['est'] == null && i['quick'] != true && learnt['${i['title']}'.toLowerCase().trim()] case final m?) {...i, 'est': m, 'estLearnt': true} else i,
+          if (i['est'] == null && i['quick'] != true && learnt.containsKey('${i['title']}'.toLowerCase().trim()))
+            {...i, 'est': learnt['${i['title']}'.toLowerCase().trim()], 'estLearnt': true}
+          else
+            i,
     ];
     final parts = all.where((i) => i['partOf'] != null && i['status'] == 'done').toList();
     final habits = DayPlanner.habitTasks(store.list('habits').cast<Map<String, dynamic>>(), d, items: all, extra: added);
