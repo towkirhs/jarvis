@@ -179,6 +179,12 @@ class LocalParser {
       if (name.isEmpty) return null;
       return {'type': 'account', 'title': name[0].toUpperCase() + name.substring(1), 'confidence': 1.0};
     }
+    // "Turn off all alarms", "cancel all my alarms", "alarms off": every Clock alarm, done on the phone.
+    if (RegExp(r'^(?:please\s+)?(?:turn|switch|shut)\s+off\s+(?:all|every)\s+(?:of\s+)?(?:my\s+|the\s+)?alarms?\b|^(?:please\s+)?(?:cancel|disable|stop|delete)\s+(?:all|every)\s+(?:of\s+)?(?:my\s+|the\s+)?alarms?\b|^all\s+alarms?\s+off\b',
+            caseSensitive: false)
+        .hasMatch(t)) {
+      return {'type': 'alarms_off', 'title': 'All alarms', 'confidence': 1.0};
+    }
     const skip = {'the', 'that', 'my', 'last', 'entry', 'expense', 'spend', 'spent', 'income', 'transaction', 'taka', 'tk'};
     final del = RegExp(
       r'^(?:please\s+)?(?:delete|remove|erase)\s+((?:[a-z]+\s+){0,3})(?:৳\s*)?(\d[\d,]*(?:\.\d+)?)\s*((?:\s*[a-z]+){0,3})$',

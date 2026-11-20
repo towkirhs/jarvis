@@ -57,7 +57,7 @@ void main() {
     expect(Arrange.hidden(s.local('homeHide')), {'ribbon'});
   });
 
-  testWidgets('More is a grid in your order; hidden tiles fold away; tabs are not repeated', (t) async {
+  testWidgets('More: quick access in your order, groups that open, hidden ones folded, search', (t) async {
     final s = await _store();
     await s.setArrange(tabs: 'plan,day', moreOrder: 'settings', moreHide: 'drive,voice');
     t.view.physicalSize = const Size(360, 720);
@@ -65,15 +65,19 @@ void main() {
     addTearDown(t.view.reset);
     await t.pumpWidget(MaterialApp(home: Scaffold(body: MoreScreen(store: s))));
     await t.pumpAndSettle();
-    expect(find.text('Settings'), findsOneWidget);
-    expect(find.text('Your day'), findsNothing);
+    expect(find.text('Quick access'), findsOneWidget);
+    expect(find.text('Settings'), findsOneWidget); // first in your order
+    expect(find.text('Your day'), findsNothing); // a tab, so not repeated
+    expect(find.text('Money'), findsNothing); // inside a closed group
+    await t.tap(find.text('Money and habits'));
+    await t.pumpAndSettle();
     expect(find.text('Money'), findsOneWidget);
-    expect(t.getTopLeft(find.text('Settings')).dy, lessThan(t.getTopLeft(find.text('Money')).dy));
     await t.scrollUntilVisible(find.text('Hidden (2)'), 200, scrollable: find.byType(Scrollable).first);
     expect(find.text('Google Drive'), findsNothing);
-    await t.tap(find.text('Hidden (2)'));
+    await t.tap(find.byTooltip('Find a screen'));
     await t.pumpAndSettle();
-    await t.scrollUntilVisible(find.text('Google Drive'), 200, scrollable: find.byType(Scrollable).first);
+    await t.enterText(find.byType(TextField), 'drive');
+    await t.pumpAndSettle();
     expect(find.text('Google Drive'), findsOneWidget);
   });
 

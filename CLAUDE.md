@@ -241,6 +241,11 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    on limit/duration habits, editor "Time in an app"): `Store.appHabits` every 15 min → `applyAppTime` writes today's minutes
    `{v, app: true}` unless you logged the day. Usual-time reminders: `remind: 'auto'`, `doneTimes` (last 30 ticks today, in
    `logHabit`), `HabitCore.usualTime` (median of the last 21, needs 3) / `remindAt` (else 20:00). Untested on a phone.
+   Fixes 5 (build after 295): "turn off all alarms" (`LocalParser.moneyCommand` → item `alarms_off`, also for the AI/ChatGPT,
+   Undo); `claimsAction` catches turned/switched off. Item `goal` (AI/ChatGPT: title, amount, date or countdown + daysBefore)
+   adds a money goal. Built-in rent/loan links take the account from the payment `method` (RuleRunner). Movies and books
+   (`lib/media_page.dart`, collection `media`, item `media`, More tile `media`). More is quick access (first 3 in your order),
+   collapsible groups (`_MoreScreenState._groups`) and a search. Untested on a phone.
 5. Groq web answers show no source links (response shape unconfirmed).
 6. Calendar, deferred: custom repeats, find free time, global search, weekly review, what-if planning.
 7. Known limits: imported times with a named time zone are read as local.

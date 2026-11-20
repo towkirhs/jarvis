@@ -13,6 +13,7 @@ import 'health_page.dart';
 import 'ics_page.dart';
 import 'items_screen.dart';
 import 'journal_screen.dart' show JournalScreen;
+import 'media_page.dart';
 import 'memory_page.dart';
 import 'money.dart';
 import 'pages.dart';
@@ -51,6 +52,7 @@ Widget pageFor(String key, Store s) => switch (key) {
       'arrange' => ArrangePage(store: s),
       'settings' => SettingsPage(store: s),
       'bugs' => BugsPage(store: s),
+      'media' => MediaPage(store: s),
       'more' => MoreScreen(store: s),
       _ => const SizedBox.shrink(),
     };
@@ -61,6 +63,7 @@ String? screenNote(String key, Store s) => switch (key) {
       'promises' => switch (s.list('promises').where((p) => p['status'] == 'open').length) { 0 => null, final n => '$n open' },
       'cards' => switch (dueCards(s)) { 0 => null, final n => '$n due' },
       'clock' => s.focusActive == null ? null : 'Focus on',
+      'media' => switch (s.list('media').where((m) => m['status'] == 'now').length) { 0 => null, final n => '$n on now' },
       'bugs' => switch (s.list('bugs').where((b) => b['fixed'] != true).length) { 0 => null, final n => '$n open' },
       _ => null,
     };

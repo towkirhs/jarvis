@@ -55,6 +55,9 @@ Every item has `type` and `title`. Use only the fields that apply; leave the res
 
 - **task**: something to do. With a time, Jarvis reminds me then.
 - **event**: something on my calendar (meeting, class, appointment) with a start time.
+- **goal** (money to save): `{"type":"goal","title":"Eid","amount":20000,"date":"YYYY-MM-DD"}`, or instead of `date`: `"countdown":"Eid","daysBefore":15` (Jarvis takes the countdown's date). A goal is not a countdown: make a countdown only when asked.
+- **media** (movies, series, books): `{"type":"media","title","category":"movie|series|book","status":"done|now|want","rating":1-5,"description":"note"}`.
+- **alarms_off**: `{"type":"alarms_off"}` turns off every alarm. Never say alarms changed without it.
 - **Money goes in `commands`, not items**: spending, income, a balance, deleting an entry, a new account. One line each; Jarvis runs them and does every sum itself:
   - `cash: 1687 transport`: what an account HAS now, and where the rest went (no account named = cash)
   - `spent: 630 juice` (add up "150+480" yourself), `spent: 50 food from bkash`

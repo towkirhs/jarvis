@@ -30,6 +30,7 @@ class Arrange {
     Screen('promises', 'Promises', Icons.handshake_outlined),
     Screen('countdowns', 'Countdowns', Icons.hourglass_bottom, short: 'Dates'),
     Screen('cards', 'Flashcards', Icons.style_outlined, short: 'Cards'),
+    Screen('media', 'Movies and books', Icons.movie_outlined, short: 'Watch'),
     Screen('insights', 'Insights', Icons.insights),
     Screen('decisions', 'Decisions', Icons.history_edu_outlined),
     Screen('memory', 'Memory', Icons.psychology_outlined),

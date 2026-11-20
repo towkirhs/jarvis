@@ -171,7 +171,13 @@ class RuleRunner {
           final amount = a['amount'] is num ? a['amount'] as num : e.data['amount'];
           if (amount is! num || amount <= 0) break;
           final type = (a['moneyType'] as String?) ?? 'expense';
-          final account = (a['account'] as String?) ?? 'Cash';
+          var account = (a['account'] as String?) ?? 'Cash';
+          // The built-in links follow how it was paid: a loan paid by bKash comes out of bKash, not Cash.
+          final method = e.data['method'];
+          if (rule['builtin'] != null && method is String) {
+            final named = s.list('accounts').where((x) => '${x['name']}'.toLowerCase() == method.toLowerCase()).firstOrNull;
+            if (named != null) account = '${named['name']}';
+          }
           s.addTx(
             type: type,
             amount: amount,

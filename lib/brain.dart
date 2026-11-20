@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
@@ -17,6 +18,7 @@ import 'decide.dart';
 import 'destination.dart';
 import 'habit_core.dart';
 import 'local_parser.dart';
+import 'media_page.dart' show Media;
 import 'memory.dart';
 import 'native.dart';
 import 'quick_answers.dart';
@@ -458,8 +460,8 @@ class Brain {
   /// Whether a reply says something was done ("I've updated your cash", "the alarm has been set"). Saving to the
   /// journal ("I've noted that") does not count: every note is kept there anyway.
   static bool claimsAction(String reply) => RegExp(
-        r"\b(?:i(?:'ve| have)?|i've just|i just)\s+(?:also\s+)?(?:updated|set|added|created|logged|recorded|scheduled|moved|deleted|removed|cancell?ed|marked|changed|booked|put|adjusted|made)\b"
-        r"|\b(?:has|have) been (?:updated|set|added|created|logged|recorded|scheduled|moved|deleted|removed|cancell?ed|marked|changed|adjusted)\b"
+        r"\b(?:i(?:'ve| have)?|i've just|i just)\s+(?:also\s+)?(?:updated|set|added|created|logged|recorded|scheduled|moved|deleted|removed|cancell?ed|marked|changed|booked|put|adjusted|made|turned|switched|disabled|enabled|stopped|silenced|paused)\b"
+        r"|\b(?:has|have) been (?:updated|set|added|created|logged|recorded|scheduled|moved|deleted|removed|cancell?ed|marked|changed|adjusted|turned (?:off|on)|switched (?:off|on)|disabled|enabled|stopped|silenced|paused)\b"
         // "I've noted you have ৳1,687, with the rest recorded as transport": a money change described as done.
         r"|\b(?:recorded|logged|added|saved|counted) as (?:an? )?(?:expense|income|spending|transport|food|\w+ expenses?)\b"
         r"|\b(?:updated|set|adjusted|changed) (?:your |the )?(?:\w+ )?(?:balance|cash|account)\b",
@@ -790,6 +792,16 @@ class Brain {
       undo.add({'op': 'rm', 'col': 'accounts', 'id': a['id']});
       return 'New money account: $title';
     }
+    if (type == 'alarms_off') {
+      final on = s.list('clocks').where((c) => c['on'] == true).toList();
+      if (on.isEmpty) return 'No alarms were on';
+      for (final c in on) {
+        undo.add({'op': 'put', 'col': 'clocks', 'rec': copyRec(c)});
+        c['on'] = false;
+      }
+      unawaited(Clock.sync(s));
+      return 'Turned off ${on.length} alarm${on.length == 1 ? '' : 's'}';
+    }
     if (type == 'money_delete') {
       final amount = p['amount'];
       if (amount is! num) return null;
@@ -849,6 +861,51 @@ class Brain {
       }
       if (leaves is num) return '$account now ${s.money(leaves)}. Spent ${s.money(amount)}: $title';
       return '${kind == 'income' ? 'Income' : (kind == 'transfer' ? 'Transfer' : 'Spent')}: ${s.money(amount)} $title';
+    }
+    if (type == 'media') {
+      if (title.isEmpty) return null;
+      final kind = const ['movie', 'series', 'book'].contains(p['category']) ? p['category'] as String : 'movie';
+      final status = const ['want', 'now', 'done'].contains(p['status']) ? p['status'] as String : 'done';
+      final old = s.list('media').where((m) => '${m['title']}'.toLowerCase() == title.toLowerCase()).firstOrNull;
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final fields = <String, dynamic>{
+        'title': title, 'kind': kind, 'status': status,
+        if (p['rating'] is num) 'rating': (p['rating'] as num).round().clamp(1, 5),
+        if (status == 'done') 'doneAt': now,
+        if ((p['description'] as String?)?.isNotEmpty ?? false) 'note': p['description'],
+      };
+      if (old != null) {
+        undo.add({'op': 'put', 'col': 'media', 'rec': copyRec(old)});
+        old.addAll(fields);
+      } else {
+        final r = {'id': s.nextId(), 'at': now, ...fields};
+        s.list('media').add(r);
+        undo.add({'op': 'rm', 'col': 'media', 'id': r['id']});
+      }
+      return '${Media.verb(kind, status)}: $title${p['rating'] is num ? ' ${'★' * (p['rating'] as num).round().clamp(1, 5)}' : ''}';
+    }
+    if (type == 'goal') {
+      final target = p['amount'];
+      if (title.isEmpty || target is! num || target <= 0) return null;
+      // "15 days before the Eid countdown": the countdown's date, less the days.
+      DateTime? due = p['date'] is String ? DateTime.tryParse(p['date'] as String) : null;
+      final cdName = '${p['countdown'] ?? ''}'.toLowerCase().trim();
+      if (cdName.isNotEmpty) {
+        final cd = s.list('countdowns').where((c) => '${c['title']}'.toLowerCase() == cdName).firstOrNull ??
+            s.list('countdowns').where((c) => '${c['title']}'.toLowerCase().contains(cdName)).firstOrNull;
+        final d = cd == null ? null : DateTime.tryParse('${cd['date']}');
+        if (d != null) due = d.subtract(Duration(days: (p['daysBefore'] as num?)?.round() ?? 0));
+      }
+      final accounts = [for (final a in s.list('accounts')) '${a['name']}'];
+      final acct = accounts.where((a) => a.toLowerCase() == '${p['account'] ?? ''}'.toLowerCase()).firstOrNull;
+      final g = <String, dynamic>{
+        'id': s.nextId(), 'name': title, 'target': target, 'due': due?.millisecondsSinceEpoch, 'account': acct,
+        'start': DateTime.now().millisecondsSinceEpoch, 'adds': <dynamic>[], 'startSaved': 0,
+      };
+      if (acct != null) g['startSaved'] = s.balance(s.list('accounts').firstWhere((a) => a['name'] == acct));
+      s.list('goals').add(g);
+      undo.add({'op': 'rm', 'col': 'goals', 'id': g['id']});
+      return 'Money goal: $title, ${s.money(target)}${due == null ? '' : ' by ${niceDay(due.millisecondsSinceEpoch)}'}';
     }
     if (type == 'countdown') {
       final kind = ['birthday', 'anniversary', 'holiday'].contains(p['category']) ? p['category'] as String : 'countdown';
@@ -1211,6 +1268,9 @@ ${events ? '- A meeting or appointment at a time is "event".' : '- Never use "ev
 - "priority": "high" for urgent or important things the person stresses, otherwise only if they say it. "tags" and "list" only if they name them (like "add to my study list", "tag it exam"). "repeat" only for things said to repeat ("every day", "every Monday" = weekly). "durationMinutes" is how long an event lasts. "description" holds extra details that do not fit the title.
 - "countdown" is a date to count down to or remember every year: a birthday, an anniversary, a holiday, or an exam or trip the person wants a countdown for. "category" is "birthday", "anniversary", "holiday" or "countdown", and "date" is required.
 - A thing still TO BUY or pay ("buy lotion 450", "need to pay internet 1200") is a "task" with "amount": its price. It is not money yet: do not add a command for it; Jarvis asks when it is done.
+- A money goal to save for ("save 20000 for Eid"): {"type":"goal","title","amount": target, "date": due YYYY-MM-DD}; or instead of "date", "countdown": a countdown's title and "daysBefore": days before it. Make a countdown only if they ask for one.
+- A movie, series or book watched, being read/watched, or wanted: {"type":"media","title","category": "movie"|"series"|"book","status": "done"|"now"|"want","rating": 1-5 if given,"description": a short note}.
+- "Turn off all alarms": {"type":"alarms_off"}. Never say alarms were changed without this item.
 - MONEY GOES IN "commands", not items: spending, income, a balance, deleting an entry or a new account. One line each, and Jarvis does every sum itself: "<account>: <what the account HAS now> [where the rest went]" ("I have 1687, rest on transport" → "cash: 1687 transport"; no account named means cash), "spent: <amount> <what> [from <account>]" ("juice 150+480" → "spent: 630 juice"), "got: <amount> <what> [to <account>]" ("8000 tuition fee from Naomi" → "got: 8000 tuition Naomi"), "delete: <what> <amount>", "account: <name>". Never do a balance sum yourself. Your "reply" must not say a money change was made: Jarvis shows what really happened under it.
 - "money" is money spent, received or moved: "spent 250 on lunch", "got 5000 tuition fee", "sent 1000 from bank to bKash", or a receipt in a photo. "amount" is the number, "moneyType" is expense, income or transfer, "title" is a short note (what it was for), "category" is one of the categories they already use${moneyCats.isEmpty ? '' : ' ($moneyCats)'} when one fits (groceries is Food if they use Food), otherwise one word like Food, Transport, Shopping, Bills, Education, Health, Entertainment, Gifts, Salary, Tuition. "account" and "toAccount" only if named. "date"/"time" only if it was not today. If they say how much is LEFT in an account and that the rest was spent ("500 remains in cash, spent the rest on transport"), put that left-over number in both "leaves" and "amount", moneyType expense: the app works out the spend from the account's balance. "leaves" is otherwise null. "date"/"time" only if it was not today.
 - "money_delete" removes a money entry they ask to delete ("delete food 20"): "amount" is its amount, "title" one word for what it was (its category or note). "account" adds a money account they ask for: "title" is its name.

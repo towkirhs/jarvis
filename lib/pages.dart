@@ -10,7 +10,6 @@ import 'day_start_menu.dart';
 import 'health_page.dart';
 import 'record_sheet.dart';
 import 'ai.dart';
-import 'shapes.dart';
 import 'haptics.dart';
 import 'brain.dart';
 import 'habit_core.dart';
@@ -38,6 +37,23 @@ class MoreScreen extends StatefulWidget {
 class _MoreScreenState extends State<MoreScreen> {
   Store get store => widget.store;
   bool _showHidden = false;
+  final _open = <String>{};
+  String _find = '';
+  bool _finding = false;
+
+  /// More's groups: each screen sits in one; inside, they keep your order (More → Arrange).
+  static const _groups = [
+    ('Plan and time', Icons.event_note_outlined, ['plan', 'planDay', 'day', 'clock', 'countdowns', 'promises', 'phoneCal', 'ics']),
+    ('Money and habits', Icons.savings_outlined, ['money', 'habits', 'media']),
+    ('Notes and learning', Icons.menu_book_outlined, ['journal', 'inbox', 'cards', 'decisions', 'insights']),
+    ('You and Jarvis', Icons.psychology_outlined, ['memory', 'aboutMe', 'rules', 'voice', 'drive']),
+    ('App', Icons.settings_outlined, ['health', 'data', 'activity', 'bugs', 'arrange', 'settings']),
+  ];
+
+  void _go(String k) {
+    Haptics.tap();
+    Navigator.push(context, MaterialPageRoute(builder: (_) => pageFor(k, store)));
+  }
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -50,67 +66,123 @@ class _MoreScreenState extends State<MoreScreen> {
           final hidden = Arrange.moreHidden(store.local('moreHide'));
           final shown = order.where((k) => !hidden.contains(k)).toList();
           final tucked = order.where(hidden.contains).toList();
-          final cols = MediaQuery.sizeOf(context).width >= 600 ? 5 : 3;
 
-          Widget tile(String k) {
+          // Quick access: the first three in your order.
+          Widget quick(String k) {
             final x = Arrange.of(k)!;
-            final note = screenNote(k, store);
             final badge = k == 'inbox' ? store.list('inbox').length : 0;
-            return Card(
-              margin: EdgeInsets.zero,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(20),
-                onTap: () {
-                  Haptics.tap();
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => pageFor(k, store)));
-                },
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(6, 12, 6, 8),
-                  child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Badge(isLabelVisible: badge > 0, label: Text('$badge'), child: ShapeIcon(x.icon)),
-                    const SizedBox(height: 8),
-                    Text(x.name, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: tt.bodyMedium),
-                    if (note != null)
-                      Text(note, maxLines: 1, overflow: TextOverflow.ellipsis, style: tt.labelSmall?.copyWith(color: scheme.primary)),
-                  ]),
+            return Expanded(
+              child: Card(
+                margin: EdgeInsets.zero,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(20),
+                  onTap: () => _go(k),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
+                    child: Column(children: [
+                      Badge(isLabelVisible: badge > 0, label: Text('$badge'), child: Icon(x.icon, color: scheme.primary)),
+                      const SizedBox(height: 8),
+                      Text(x.name, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: tt.bodyMedium),
+                    ]),
+                  ),
                 ),
               ),
             );
           }
 
-          Widget grid(List<String> keys) => GridView.count(
-                crossAxisCount: cols,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 10,
-                crossAxisSpacing: 10,
-                childAspectRatio: 0.92,
-                children: [for (final k in keys) tile(k)],
-              );
+          Widget row(String k) {
+            final x = Arrange.of(k)!;
+            final note = screenNote(k, store);
+            return ListTile(
+              leading: Icon(x.icon),
+              title: Text(x.name),
+              trailing: note == null ? const Icon(Icons.chevron_right) : Text(note, style: tt.labelMedium?.copyWith(color: scheme.primary)),
+              onTap: () => _go(k),
+            );
+          }
+
+          Widget group(String name, IconData icon, List<String> keys) {
+            final open = _open.contains(name);
+            final notes = keys.where((k) => screenNote(k, store) != null).length;
+            return Card(
+              margin: const EdgeInsets.only(bottom: 10),
+              clipBehavior: Clip.antiAlias,
+              child: Column(children: [
+                ListTile(
+                  leading: Icon(icon, color: scheme.primary),
+                  title: Text(name, style: tt.titleMedium),
+                  subtitle: Text('${keys.length} ${keys.length == 1 ? 'screen' : 'screens'}${notes > 0 ? ' · $notes need you' : ''}'),
+                  trailing: Icon(open ? Icons.expand_less : Icons.chevron_right),
+                  onTap: () => setState(() => open ? _open.remove(name) : _open.add(name)),
+                ),
+                if (open) ...[const Divider(height: 1), for (final k in keys) row(k)],
+              ]),
+            );
+          }
+
+          final found = _find.isEmpty
+              ? const <String>[]
+              : [for (final k in [...shown, ...tucked]) if (Arrange.of(k)!.name.toLowerCase().contains(_find.toLowerCase())) k];
 
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
             children: [
               Row(children: [
-                Expanded(child: Text('More', style: tt.headlineSmall)),
+                Expanded(
+                  child: _finding
+                      ? TextField(
+                          autofocus: true,
+                          decoration: const InputDecoration(hintText: 'Find a screen', isDense: true),
+                          onChanged: (v) => setState(() => _find = v.trim()),
+                        )
+                      : Text('More', style: tt.headlineSmall),
+                ),
+                IconButton(
+                  tooltip: _finding ? 'Close search' : 'Find a screen',
+                  icon: Icon(_finding ? Icons.close : Icons.search),
+                  onPressed: () => setState(() {
+                    _finding = !_finding;
+                    _find = '';
+                  }),
+                ),
                 IconButton(
                   tooltip: 'Arrange tabs, Home and this page',
                   icon: const Icon(Icons.edit_outlined),
                   onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ArrangePage(store: store))),
                 ),
               ]),
-              const SizedBox(height: 8),
-              grid(shown),
-              if (tucked.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Center(
-                  child: TextButton.icon(
-                    icon: Icon(_showHidden ? Icons.expand_less : Icons.expand_more),
-                    label: Text(_showHidden ? 'Hide' : 'Hidden (${tucked.length})'),
-                    onPressed: () => setState(() => _showHidden = !_showHidden),
+              if (_find.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Card(margin: EdgeInsets.zero, child: Column(children: [for (final k in found) row(k)])),
+                if (found.isEmpty) Padding(padding: const EdgeInsets.all(16), child: Text('No screen called that.', style: TextStyle(color: scheme.onSurfaceVariant))),
+              ] else ...[
+                if (shown.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text('Quick access', style: tt.labelLarge?.copyWith(color: scheme.onSurfaceVariant)),
+                  const SizedBox(height: 8),
+                  Row(children: [
+                    for (final (i, k) in shown.take(3).indexed) ...[if (i > 0) const SizedBox(width: 10), quick(k)],
+                    for (var i = shown.take(3).length; i < 3; i++) ...[const SizedBox(width: 10), const Expanded(child: SizedBox())],
+                  ]),
+                ],
+                const SizedBox(height: 20),
+                Text('Everything', style: tt.labelLarge?.copyWith(color: scheme.onSurfaceVariant)),
+                const SizedBox(height: 8),
+                for (final (name, icon, keys) in _groups)
+                  if ([for (final k in shown) if (keys.contains(k)) k] case final ks when ks.isNotEmpty) group(name, icon, ks),
+                // Anything not in a group (new screens) still shows.
+                if ([for (final k in shown) if (!_groups.any((g) => g.$3.contains(k))) k] case final rest when rest.isNotEmpty)
+                  group('Other', Icons.apps, rest),
+                if (tucked.isNotEmpty) ...[
+                  Center(
+                    child: TextButton.icon(
+                      icon: Icon(_showHidden ? Icons.expand_less : Icons.expand_more),
+                      label: Text(_showHidden ? 'Hide' : 'Hidden (${tucked.length})'),
+                      onPressed: () => setState(() => _showHidden = !_showHidden),
+                    ),
                   ),
-                ),
-                if (_showHidden) grid(tucked),
+                  if (_showHidden) Card(margin: EdgeInsets.zero, child: Column(children: [for (final k in tucked) row(k)])),
+                ],
               ],
             ],
           );
