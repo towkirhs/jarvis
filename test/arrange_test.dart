@@ -68,10 +68,11 @@ void main() {
     expect(find.text('Quick access'), findsOneWidget);
     expect(find.text('Settings'), findsOneWidget); // first in your order
     expect(find.text('Your day'), findsNothing); // a tab, so not repeated
-    expect(find.text('Money'), findsNothing); // inside a closed group
+    expect(find.text('Money'), findsOneWidget); // second in your order: quick access
+    expect(find.text('Habits'), findsNothing); // inside a closed group
     await t.tap(find.text('Money and habits'));
     await t.pumpAndSettle();
-    expect(find.text('Money'), findsOneWidget);
+    expect(find.text('Habits'), findsOneWidget);
     await t.scrollUntilVisible(find.text('Hidden (2)'), 200, scrollable: find.byType(Scrollable).first);
     expect(find.text('Google Drive'), findsNothing);
     await t.tap(find.byTooltip('Find a screen'));
