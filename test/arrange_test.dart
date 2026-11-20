@@ -76,6 +76,7 @@ void main() {
     expect(find.text('Habits'), findsOneWidget);
     await t.scrollUntilVisible(find.text('Hidden (2)'), 200, scrollable: find.byType(Scrollable).first);
     expect(find.text('Google Drive'), findsNothing);
+    await t.scrollUntilVisible(find.byTooltip('Find a screen'), -200, scrollable: find.byType(Scrollable).first);
     await t.tap(find.byTooltip('Find a screen'));
     await t.pumpAndSettle();
     await t.enterText(find.byType(TextField), 'drive');
