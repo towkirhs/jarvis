@@ -70,6 +70,7 @@ void main() {
     expect(find.text('Your day'), findsNothing); // a tab, so not repeated
     expect(find.text('Money'), findsOneWidget); // second in your order: quick access
     expect(find.text('Habits'), findsNothing); // inside a closed group
+    await t.scrollUntilVisible(find.text('Money and habits'), 200, scrollable: find.byType(Scrollable).first);
     await t.tap(find.text('Money and habits'));
     await t.pumpAndSettle();
     expect(find.text('Habits'), findsOneWidget);
