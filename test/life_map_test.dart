@@ -111,13 +111,13 @@ void main() {
     expect(s.list('areas'), hasLength(Areas.starters().length));
     final friends = s.list('areas').firstWhere((a) => a['name'] == 'Friends');
     expect(Areas.zone(friends), isNot('focus'));
-    final from = t.getCenter(find.text('Friends'));
+    final from = t.getCenter(find.text('Friends').first);
     final mid = t.getCenter(find.ancestor(of: find.text('Life'), matching: find.byType(Stack)).first);
     await t.dragFrom(from, mid - from);
     await t.pumpAndSettle();
     expect(Areas.zone(s.byId('areas', friends['id'] as int)!), 'focus');
     expect(find.textContaining('Plan my day places its tasks first'), findsOneWidget);
-    await t.tap(find.text('Friends'));
+    await t.tap(find.text('Friends').first);
     await t.pumpAndSettle();
     expect(find.text('Words that mean this area'), findsOneWidget);
   });
