@@ -632,7 +632,8 @@ class Brain {
       'untilDone': p['untilDone'] == true && when != null && p['time'] != null,
     };
     // The Life map area the AI picked for it ("area": "Health"); otherwise its words decide later.
-    if (p['area'] is String && Areas.named(s.list('areas'), p['area'] as String) case final a?) extra['area'] = a['id'];
+    final area = p['area'] is String ? Areas.named(s.list('areas'), p['area'] as String) : null;
+    if (area != null) extra['area'] = area['id'];
     // A task that costs money ("buy lotion 450"): its price, so ticking it done offers to log the expense.
     if (type == 'task' && p['amount'] is num && (p['amount'] as num) > 0) extra['cost'] = p['amount'];
     final nag = extra['untilDone'] == true ? ', every day until done' : '';
