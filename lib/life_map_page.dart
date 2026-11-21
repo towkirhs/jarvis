@@ -159,6 +159,10 @@ class _LifeMapPageState extends State<LifeMapPage> {
         // Claims the touch at once, so dragging a bubble never scrolls the page; a touch that barely moves is a tap.
         child: RawGestureDetector(
           gestures: {
+            TapGestureRecognizer: GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
+              TapGestureRecognizer.new,
+              (g) => g.onTap = () => _edit(a),
+            ),
             ImmediateMultiDragGestureRecognizer: GestureRecognizerFactoryWithHandlers<ImmediateMultiDragGestureRecognizer>(
               ImmediateMultiDragGestureRecognizer.new,
               (g) => g.onStart = (_) {
