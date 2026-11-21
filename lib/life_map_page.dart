@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import 'areas.dart';
@@ -153,23 +154,37 @@ class _LifeMapPageState extends State<LifeMapPage> {
       top: at.dy * size - r,
       child: Semantics(
         button: true,
+        onTap: () => _edit(a),
         label: '${a['name']}, ${Areas.zones[Areas.zone(a)]}, ${Areas.hm(minutes)} this week',
-        child: GestureDetector(
-          onTap: () => _edit(a),
-          onPanUpdate: (d) => setState(() {
-            final p = (_drag[id] ?? at) + Offset(d.delta.dx / size, d.delta.dy / size);
-            _drag[id] = Offset(p.dx.clamp(0.04, 0.96), p.dy.clamp(0.04, 0.96));
-          }),
-          onPanEnd: (_) async {
-            final p = _drag[id];
-            if (p == null) return;
-            Haptics.tap();
-            await s.updateRec('areas', a, 'Moved ${a['name']}', (x) {
-              x['x'] = (p.dx * 1000).round() / 1000;
-              x['y'] = (p.dy * 1000).round() / 1000;
-            });
-            _drag.remove(id);
-            if (mounted) setState(() => _said = _whatItDoes(a, minutes));
+        // Claims the touch at once, so dragging a bubble never scrolls the page; a touch that barely moves is a tap.
+        child: RawGestureDetector(
+          gestures: {
+            ImmediateMultiDragGestureRecognizer: GestureRecognizerFactoryWithHandlers<ImmediateMultiDragGestureRecognizer>(
+              ImmediateMultiDragGestureRecognizer.new,
+              (g) => g.onStart = (_) {
+                var moved = 0.0;
+                return _BubbleDrag(
+                  (d) => setState(() {
+                    moved += d.delta.distance;
+                    final p = (_drag[id] ?? at) + Offset(d.delta.dx / size, d.delta.dy / size);
+                    _drag[id] = Offset(p.dx.clamp(0.04, 0.96), p.dy.clamp(0.04, 0.96));
+                  }),
+                  () async {
+                    final p = _drag.remove(id);
+                    if (moved < 8 || p == null) {
+                      if (mounted) setState(() {});
+                      return _edit(a);
+                    }
+                    Haptics.tap();
+                    await s.updateRec('areas', a, 'Moved ${a['name']}', (x) {
+                      x['x'] = (p.dx * 1000).round() / 1000;
+                      x['y'] = (p.dy * 1000).round() / 1000;
+                    });
+                    if (mounted) setState(() => _said = _whatItDoes(a, minutes));
+                  },
+                );
+              },
+            ),
           },
           child: Container(
             width: r * 2,
@@ -390,6 +405,21 @@ class _LifeMapPageState extends State<LifeMapPage> {
       ),
     );
   }
+}
+
+class _BubbleDrag extends Drag {
+  _BubbleDrag(this.onUpdate, this.onEnd);
+  final void Function(DragUpdateDetails) onUpdate;
+  final Future<void> Function() onEnd;
+
+  @override
+  void update(DragUpdateDetails details) => onUpdate(details);
+
+  @override
+  void end(DragEndDetails details) => onEnd();
+
+  @override
+  void cancel() {}
 }
 
 /// The target: three rings, the middle washed with the accent, and a line between life and work.
