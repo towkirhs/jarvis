@@ -29,6 +29,7 @@ class Sections {
     Section('cards', 'Flashcards', ['cards']),
     Section('day', 'Your day', ['log', 'acts']),
     Section('media', 'Movies and books', ['media']),
+    Section('areas', 'Life map', ['areas']),
   ];
 
   static Section? byKey(String key) => all.where((x) => x.key == key).firstOrNull;

@@ -84,7 +84,7 @@ class Store extends ChangeNotifier {
   static const _collections = [
     'captures', 'items', 'habits', 'promises', 'decisions', 'inbox', 'actions', 'countdowns', 'focus', 'tx', 'entries',
     'rooms', 'rentPays', 'roomBills', 'houseCosts', 'clocks', 'places', 'memories', 'loanPeople', 'loans', 'cards', 'rules', 'words', 'profile', 'goals', 'incomes', 'incomePays',
-    'log', 'appAlarms', 'acts', 'bugs', 'media',
+    'log', 'appAlarms', 'acts', 'bugs', 'media', 'areas',
   ];
 
   Future<void> load() async {
@@ -211,6 +211,7 @@ class Store extends ChangeNotifier {
     _runRules();
     syncNeeds();
     syncCashCheck();
+    syncLifeWeek();
   }
 
   /// A money line to show as a SnackBar: a budget warning, or "Paid ৳450 for X?" with [payFor] the task.
@@ -240,6 +241,35 @@ class Store extends ChangeNotifier {
     // Not awaited: save() stays quick, and a phone without the native side (tests, web) just skips it.
     Native.schedule(id: cashCheckId, millis: t.millisecondsSinceEpoch, kind: 'cash', label: label, repeatDaily: true)
         .catchError((Object _) {});
+  }
+
+  static const lifeWeekId = 1650000000;
+  String? _weekArmed;
+
+  /// The Sunday check: a notification on Sunday at 8 pm to look at the Life map's week, while you have areas.
+  void syncLifeWeek() {
+    final on = list('areas').isNotEmpty;
+    final now = DateTime.now();
+    var t = DateTime(now.year, now.month, now.day + (DateTime.sunday - now.weekday) % 7, 20);
+    if (!t.isAfter(now)) t = t.add(const Duration(days: 7));
+    final key = on ? '${t.millisecondsSinceEpoch}' : null;
+    if (key == _weekArmed) return;
+    _weekArmed = key;
+    if (!on) {
+      Native.cancel(lifeWeekId).catchError((Object _) {});
+      return;
+    }
+    Native.schedule(id: lifeWeekId, millis: t.millisecondsSinceEpoch, kind: 'week', label: 'Your week on the Life map: see where your time went.', repeatDaily: false)
+        .catchError((Object _) {});
+  }
+
+  /// Adds an area to the Life map (one Undo).
+  Rec addArea(String name, {double x = 0.3, double y = 0.5, List<String> words = const []}) {
+    final a = {'id': nextId(), 'name': name.trim(), 'words': words, 'x': x, 'y': y};
+    list('areas').add(a);
+    logAction('Added area ${a['name']}', [{'op': 'rm', 'col': 'areas', 'id': a['id']}]);
+    save();
+    return a;
   }
 
   /// How long things usually take you, by name (lower case): the middle of the last 10 times, from finished

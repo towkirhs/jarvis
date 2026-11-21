@@ -25,6 +25,7 @@ class Arrange {
     Screen('habits', 'Habits', Icons.local_fire_department_outlined),
     Screen('planDay', 'Plan my day', Icons.auto_awesome_motion, short: 'Plan day'),
     Screen('day', 'Your day', Icons.timeline, short: 'Day'),
+    Screen('lifemap', 'Life map', Icons.track_changes, short: 'Map'),
     Screen('clock', 'Clock', Icons.alarm),
     Screen('inbox', 'Review inbox', Icons.inbox_outlined, short: 'Inbox'),
     Screen('promises', 'Promises', Icons.handshake_outlined),

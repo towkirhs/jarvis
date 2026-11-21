@@ -9,6 +9,7 @@ import 'item_moves.dart';
 import 'place_picker.dart';
 import 'day_planner.dart';
 import 'needs_editor.dart';
+import 'areas.dart';
 import 'store.dart';
 import 'theme.dart' show accents;
 
@@ -65,6 +66,8 @@ class _TaskFormPageState extends State<TaskFormPage> {
   late var span = ((item?['span'] as num?)?.toInt() ?? 1).clamp(1, 366).toInt();
   late var kind = (item?['kind'] as String?) ?? widget.newKind ?? 'task';
   late var priority = (item?['priority'] as int?) ?? 0;
+  // The Life map area you chose; null = found by its words.
+  late int? area = item?['area'] as int?;
   late var repeat = item?['repeat'] as String?;
   // A new event starts with your usual reminder (Settings); you can change it here.
   late var lead = item != null ? ((item!['lead'] as num?)?.toInt() ?? 0) : ((widget.newKind ?? 'task') == 'event' ? Lead.defaultFor(s.settings) : 0);
@@ -189,6 +192,7 @@ class _TaskFormPageState extends State<TaskFormPage> {
       'chunk': isTask && !_quick && chunk > 0 && (mins ?? 0) > chunk ? chunk : null,
       'needs': needs,
       'doneIf': isTask ? doneIf : null,
+      'area': area,
     };
     final old = item;
     if (old == null) {
@@ -304,6 +308,23 @@ class _TaskFormPageState extends State<TaskFormPage> {
   List<Widget> _moreOptions(ColorScheme scheme) => [
         _title('Details'),
         TextField(controller: desc, maxLines: 4, minLines: 1, textCapitalization: TextCapitalization.sentences, decoration: const InputDecoration(labelText: 'Notes')),
+        if (s.list('areas').isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Text('Life map area', style: Theme.of(context).textTheme.labelLarge),
+          const SizedBox(height: 6),
+          Wrap(spacing: 8, runSpacing: 4, children: [
+            ChoiceChip(
+              label: Text(switch (Areas.ofText(s.list('areas'), '${title.text} ${desc.text}')) {
+                final a? => 'By its words: ${a['name']}',
+                _ => 'By its words',
+              }),
+              selected: area == null,
+              onSelected: (_) => setState(() => area = null),
+            ),
+            for (final a in s.list('areas'))
+              ChoiceChip(label: Text('${a['name']}'), selected: area == a['id'], onSelected: (_) => setState(() => area = a['id'] as int)),
+          ]),
+        ],
         if (kind == 'task') ...[
           const SizedBox(height: 12),
           TextField(

@@ -92,7 +92,7 @@ class AlarmReceiver : BroadcastReceiver() {
         val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(context, channelId)
         else Notification.Builder(context).setSound(sound)
         // Reminders on the full screen: the notification asks for it (for a locked phone) and it is opened directly too.
-        val full = !isAlarm && AlarmPrefs.fullNotice(context)
+        val full = !isAlarm && kind != "week" && AlarmPrefs.fullNotice(context)
         if (full) {
             val screen = RingActivity.noticeIntent(context, id, kind, label)
             builder.setFullScreenIntent(

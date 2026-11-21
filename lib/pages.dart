@@ -43,7 +43,7 @@ class _MoreScreenState extends State<MoreScreen> {
 
   /// More's groups: each screen sits in one; inside, they keep your order (More → Arrange).
   static const _groups = [
-    ('Plan and time', Icons.event_note_outlined, ['plan', 'planDay', 'day', 'clock', 'countdowns', 'promises', 'phoneCal', 'ics']),
+    ('Plan and time', Icons.event_note_outlined, ['plan', 'lifemap', 'planDay', 'day', 'clock', 'countdowns', 'promises', 'phoneCal', 'ics']),
     ('Money and habits', Icons.savings_outlined, ['money', 'habits', 'media']),
     ('Notes and learning', Icons.menu_book_outlined, ['journal', 'inbox', 'cards', 'decisions', 'insights']),
     ('You and Jarvis', Icons.psychology_outlined, ['memory', 'aboutMe', 'rules', 'voice', 'drive']),

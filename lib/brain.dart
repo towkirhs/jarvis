@@ -18,6 +18,7 @@ import 'decide.dart';
 import 'destination.dart';
 import 'habit_core.dart';
 import 'local_parser.dart';
+import 'areas.dart';
 import 'media_page.dart' show Media;
 import 'memory.dart';
 import 'native.dart';
@@ -630,6 +631,8 @@ class Brain {
       // Rings at this time every day until it is marked done.
       'untilDone': p['untilDone'] == true && when != null && p['time'] != null,
     };
+    // The Life map area the AI picked for it ("area": "Health"); otherwise its words decide later.
+    if (p['area'] is String && Areas.named(s.list('areas'), p['area'] as String) case final a?) extra['area'] = a['id'];
     // A task that costs money ("buy lotion 450"): its price, so ticking it done offers to log the expense.
     if (type == 'task' && p['amount'] is num && (p['amount'] as num) > 0) extra['cost'] = p['amount'];
     final nag = extra['untilDone'] == true ? ', every day until done' : '';
@@ -861,6 +864,30 @@ class Brain {
       }
       if (leaves is num) return '$account now ${s.money(leaves)}. Spent ${s.money(amount)}: $title';
       return '${kind == 'income' ? 'Income' : (kind == 'transfer' ? 'Transfer' : 'Spent')}: ${s.money(amount)} $title';
+    }
+    if (type == 'area') {
+      if (title.isEmpty) return null;
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final old = Areas.named(s.list('areas'), title);
+      final a = old ?? {'id': s.nextId(), 'name': title, 'words': <String>[], 'x': 0.3, 'y': 0.5, 'at': now};
+      if (old != null) {
+        undo.add({'op': 'put', 'col': 'areas', 'rec': copyRec(old)});
+      } else {
+        s.list('areas').add(a);
+        undo.add({'op': 'rm', 'col': 'areas', 'id': a['id']});
+      }
+      final zone = p['zone'] as String?;
+      final work = p['side'] == 'work' ? true : (p['side'] == 'life' ? false : null);
+      if (Areas.zones.containsKey(zone) || work != null) {
+        final at = Areas.place(a, Areas.zones.containsKey(zone) ? zone! : Areas.zone(a), work: work);
+        a['x'] = at.x;
+        a['y'] = at.y;
+      }
+      if (Areas.statuses.containsKey(p['status'])) a['status'] = p['status'];
+      final more = [for (final w in (p['words'] as List?) ?? const []) '$w'.toLowerCase().trim()].where((w) => w.isNotEmpty);
+      a['words'] = {...((a['words'] as List?) ?? const []).map((w) => '$w'), ...more}.toList();
+      if ((p['description'] as String?)?.isNotEmpty ?? false) a['note'] = p['description'];
+      return 'Life map: ${a['name']} is ${Areas.zones[Areas.zone(a)]!.toLowerCase()}${a['status'] == null ? '' : ', ${Areas.statuses[a['status']]!.toLowerCase()}'}';
     }
     if (type == 'media') {
       if (title.isEmpty) return null;
@@ -1130,9 +1157,12 @@ class Brain {
       return allDay ? dayKey(d) : '${dayKey(d)} ${two(d.hour)}:${two(d.minute)}';
     }
 
+    final areas = s.list('areas');
+    final lifeMap = Areas.forAi(areas, Areas.minutes(areas,
+        log: s.list('log'), items: s.list('items'), from: now.subtract(const Duration(days: 7)), to: now, now: now));
     final open = s.list('items').where((i) => i['status'] == 'open').toList()
       ..sort((a, b) => ((a['when'] as int?) ?? 1 << 52).compareTo((b['when'] as int?) ?? 1 << 52));
-    final lines = <String>['Open items (id, kind, title, when):'];
+    final lines = <String>[if (lifeMap.isNotEmpty) lifeMap, 'Open items (id, kind, title, when):'];
     for (final i in open.take(40)) {
       final w = i['when'] as int?;
       final late = w != null && w < nowMs && !(i['allDay'] == true && DayStart.itemDay(i) == today);
@@ -1255,7 +1285,7 @@ Return ONLY JSON in this shape:
 "topics": 1 to 4 lowercase single words about what the note covers.
 "reply": what you say back to the person, one or two short sentences, warm and direct, like a real assistant. If they asked a question, answer it using ONLY the data above (say so if the data does not tell). If a note they saved before is about the same thing ("want to go to the hospital" and a saved note on how to get there), the reply first tells them what that note says; then add a task only if they asked for one or gave a time. Otherwise say what you did and connect it to the rest of their life when it helps: what is next today, a clash with something already planned, a streak, how much they have spent on that this week, a promise or countdown it relates to. Never invent facts.
 "mood": 1 (awful) to 5 (great) if the note says how they feel, otherwise null.
-"type" is one of: task, event, alarm, delay, complete, cancel, habit_log, habit_new, countdown, money, money_delete, account, promise, decision, rule, note, ignore.
+"type" is one of: task, event, alarm, area, delay, complete, cancel, habit_log, habit_new, countdown, money, money_delete, account, promise, decision, rule, note, ignore.
 "date" is YYYY-MM-DD and "time" is HH:MM in 24 hours, both local. For a promise, "date" is the deadline.
 "target" is, for delay, complete and cancel, the existing open item or promise it refers to, written as its id like "#123". "habit" is, for habit_log, the tracked habit name, and for habit_new, a short name for the new habit. "done" is, for habit_log, true if they did it and false if they say they skipped it; "amount" is, for habit_log of a measured habit, how much they did (litres, km, minutes, reps, a rating), in the habit's unit. "times" and "per" are, for habit_new, the target, like 3 per week or 12 per month ("daily" = 7 per week); "time" is its reminder time if one was said. "person" is, for a promise, who it was made to. "reason" is, for a decision, why the person decided.
 "category" is one lowercase word for the kind of work, such as report, email, call, errand.
@@ -1269,6 +1299,7 @@ ${events ? '- A meeting or appointment at a time is "event".' : '- Never use "ev
 - "countdown" is a date to count down to or remember every year: a birthday, an anniversary, a holiday, or an exam or trip the person wants a countdown for. "category" is "birthday", "anniversary", "holiday" or "countdown", and "date" is required.
 - A thing still TO BUY or pay ("buy lotion 450", "need to pay internet 1200") is a "task" with "amount": its price. It is not money yet: do not add a command for it; Jarvis asks when it is done.
 - A money goal to save for ("save 20000 for Eid"): {"type":"goal","title","amount": target, "date": due YYYY-MM-DD}; or instead of "date", "countdown": a countdown's title and "daysBefore": days before it. Make a countdown only if they ask for one.
+- The Life map above is what matters to them this season. When they ask what to do, or plan, favour main-focus areas and keep maintenance ones to their habits; when they skip something in a main-focus area, say so kindly. Give a task, event or habit "area": the name of one of their areas when it clearly fits. To add or move an area ("put friends in the middle this month", "health is going badly"): {"type":"area","title": area name,"zone": "focus"|"side"|"maintenance","side": "life"|"work","status": "good"|"ok"|"bad","words": words that mean this area,"description": a note}; only the fields they said.
 - A movie, series or book watched, being read/watched, or wanted: {"type":"media","title","category": "movie"|"series"|"book","status": "done"|"now"|"want","rating": 1-5 if given,"description": a short note}.
 - "Turn off all alarms": {"type":"alarms_off"}. Never say alarms were changed without this item.
 - MONEY GOES IN "commands", not items: spending, income, a balance, deleting an entry or a new account. One line each, and Jarvis does every sum itself: "<account>: <what the account HAS now> [where the rest went]" ("I have 1687, rest on transport" → "cash: 1687 transport"; no account named means cash), "spent: <amount> <what> [from <account>]" ("juice 150+480" → "spent: 630 juice"), "got: <amount> <what> [to <account>]" ("8000 tuition fee from Naomi" → "got: 8000 tuition Naomi"), "delete: <what> <amount>", "account: <name>". Never do a balance sum yourself. Your "reply" must not say a money change was made: Jarvis shows what really happened under it.

@@ -250,6 +250,13 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    tabs); Plan and Day log are `PlanDayPage`/`DayPage` with `embedded: true` (their own buttons, no outer FAB). Plan my day
    gives a task without a length the usual one (`Store.usualMinutes`: median of the last 10 from finished tasks' `actual` and
    Your day stretches with the same name). Untested on a phone.
+   Life map (build after 303; `lib/areas.dart` pure, `lib/life_map_page.dart`, collection `areas` {name, words, x, y 0..1, status good|ok|bad, note}):
+   a target board (left life, right work; centre = this season's focus, edge = maintenance; nothing ranked). `Areas.of` gives any record's
+   area: its own `area` id (task form "Life map area", AI `"area"`), else the longest matching word or name. Bubble size = minutes this
+   week (`Areas.minutes`: Your day blocks, app time, finished tasks' `actual`; sleep excluded). Plan my day sorts by focus after urgency
+   and priority (`DayPlanner.plan(focus:)`, `Areas.focusOf`). The AI gets `Areas.forAi` in `Brain.world` and writes `type: area` items
+   (add/move/status/words). `Areas.notes`: centre area under 2 h this week, maintenance area over 30%, no time in 3 weeks. Sunday 8 pm
+   notification (kind `week`, id 1.65e9, `Store.syncLifeWeek`, never full screen). Untested on a phone.
 5. Groq web answers show no source links (response shape unconfirmed).
 6. Calendar, deferred: custom repeats, find free time, global search, weekly review, what-if planning.
 7. Known limits: imported times with a named time zone are read as local.

@@ -160,6 +160,8 @@ class DayPlanner {
   /// blocks are placed one by one, as many as fit, less what its parts (items with `partOf`) already cover.
   /// [needs] says where each linked piece stands (by item id): one that follows other pieces starts after
   /// them; a fallback (standby) or one whose condition does not hold (off) gets no time.
+  /// [focus] (by piece id, 10..100) is each piece's Life map area: after urgency and priority, the nearer
+  /// the centre the earlier it is placed.
   static DayPlan plan({
     required DateTime now,
     DateTime? day,
@@ -168,6 +170,7 @@ class DayPlanner {
     Map<String, double> ratios = const {},
     Map<int, PlanEdit> edits = const {},
     Map<int, NeedResult> needs = const {},
+    Map<int, int> focus = const {},
     int dayStartHour = 8,
     int dayEndHour = 22,
     int dayShift = 0,
@@ -273,6 +276,9 @@ class DayPlanner {
         if (r != 0) return r;
         final p = pri(b).compareTo(pri(a));
         if (p != 0) return p;
+        // Then the Life map: pieces of areas nearer its centre first.
+        final f = (focus[pieceId(b)] ?? 0).compareTo(focus[pieceId(a)] ?? 0);
+        if (f != 0) return f;
         final wa = when(a);
         final wb = when(b);
         if (wa != null && wb != null) return wa.compareTo(wb);

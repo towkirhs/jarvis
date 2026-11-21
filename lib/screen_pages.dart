@@ -13,6 +13,7 @@ import 'health_page.dart';
 import 'ics_page.dart';
 import 'items_screen.dart';
 import 'journal_screen.dart' show JournalScreen;
+import 'life_map_page.dart';
 import 'media_page.dart';
 import 'memory_page.dart';
 import 'money.dart';
@@ -53,6 +54,7 @@ Widget pageFor(String key, Store s) => switch (key) {
       'settings' => SettingsPage(store: s),
       'bugs' => BugsPage(store: s),
       'media' => MediaPage(store: s),
+      'lifemap' => LifeMapPage(store: s),
       'more' => MoreScreen(store: s),
       _ => const SizedBox.shrink(),
     };

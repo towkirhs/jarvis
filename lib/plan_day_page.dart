@@ -4,6 +4,7 @@ import 'cal_index.dart';
 import 'cal_quick.dart';
 import 'day_log.dart';
 import 'day_page.dart';
+import 'areas.dart';
 import 'day_planner.dart';
 import 'focus_screen.dart';
 import 'habit_core.dart';
@@ -138,6 +139,7 @@ class _PlanDayPageState extends State<PlanDayPage> {
           i['cat'] as String: store.estimateSuggestion(i['cat'] as String, 60)!.ratio,
     };
     final edits = {...kept, ...pins, ..._edits};
+    final focus = Areas.focusOf(store.list('areas'), [...open, ...habits], habits: store.list('habits'));
     DayPlan run(Map<int, NeedResult> needs) => DayPlanner.plan(
           now: now,
           day: d,
@@ -146,6 +148,7 @@ class _PlanDayPageState extends State<PlanDayPage> {
           ratios: ratios,
           edits: edits,
           needs: needs,
+          focus: focus,
           dayShift: store.dayShift,
         );
     // Links: first see which pieces the day holds, then where each linked piece stands among them.
