@@ -76,6 +76,40 @@ void main() {
     expect(find.textContaining('9:10 am – 9:40 am'), findsOneWidget);
   });
 
+  testWidgets('a habit\'s length is picked in its sheet and kept for every day', (t) async {
+    final s = await _store(t);
+    s.list('habits').add({'id': 5, 'name': 'Read', 'type': 'yesno', 'start': '2026-01-01', 'sched': {'kind': 'once'}, 'logs': <String, dynamic>{}});
+    await t.pumpWidget(MaterialApp(home: PlanDayPage(store: s, day: _day)));
+    await t.pumpAndSettle();
+    await t.tap(find.text('Habits 1'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('Read'));
+    await t.pumpAndSettle();
+    expect(find.textContaining('8:00 am – 8:30 am'), findsOneWidget);
+    await t.tap(find.text('Read'));
+    await t.pumpAndSettle();
+    await t.ensureVisible(find.text('1h').last);
+    await t.tap(find.text('1h').last);
+    await t.pumpAndSettle();
+    expect(s.byId('habits', 5)!['planMin'], 60);
+    expect(find.textContaining('8:00 am – 9:00 am'), findsOneWidget);
+  });
+
+  testWidgets('a habit tapped in the tray joins the day even when the calendar holds an old entry for it', (t) async {
+    final s = await _store(t);
+    s.list('habits').add({'id': 7, 'name': 'Ety', 'type': 'yesno', 'start': '2026-01-01', 'sched': {'kind': 'once'}, 'logs': <String, dynamic>{}});
+    s.list('items').add({..._task(8, 'Ety tuition'), 'planHabit': 7, 'habitDay': dayKey(_day), 'status': 'cancelled'});
+    s.list('items').add({'id': 9, 'kind': 'event', 'title': 'Ety class', 'status': 'open', 'habitId': 7, 'when': _at(20), 'tags': <String>[], 'list': 'Habits'});
+    await t.pumpWidget(MaterialApp(home: PlanDayPage(store: s, day: _day)));
+    await t.pumpAndSettle();
+    await t.tap(find.text('Habits 1'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('Ety'));
+    await t.pumpAndSettle();
+    expect(find.text('Habits 0'), findsOneWidget);
+    expect(find.text('Ety'), findsOneWidget); // now in the day
+  });
+
   testWidgets('dragging one piece onto another links them: it comes after, and says so', (t) async {
     final s = await _store(t);
     s.list('items').addAll([{..._task(1, 'Revise', est: 60), 'priority': 3}, _task(2, 'Class notes', est: 60)]);

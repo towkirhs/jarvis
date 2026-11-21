@@ -620,15 +620,19 @@ class _PlanDayPageState extends State<PlanDayPage> {
                     ]),
                     // A habit: say once whether it takes time (it then gets a block every day it is due) or is quick.
                     if (store.byId('habits', id < 0 ? -id : (it?['planHabit'] as int? ?? 0)) case final h?) ...[
-                      const SizedBox(height: 12),
-                      TextButton.icon(
-                        icon: Icon(timed ? Icons.bolt : Icons.hourglass_empty),
-                        label: Text(timed ? 'Quick, no time needed (every day)' : 'It takes time (30 min, every day)'),
-                        onPressed: () {
-                          store.updateRec('habits', h, '${h['name']}: ${timed ? 'quick' : 'takes time'}', (r) => r['planMin'] = timed ? 0 : 30);
-                          Navigator.pop(ctx);
-                        },
-                      ),
+                      label('Every day it is due'),
+                      Wrap(spacing: 8, runSpacing: 8, children: [
+                        for (final m in {0, 15, 30, 45, 60, 90, 120, DayPlanner.habitMinutes(h)})
+                          ChoiceChip(
+                            label: Text(m == 0 ? 'Quick, no time' : fmtMinutes(m)),
+                            selected: DayPlanner.habitMinutes(h) == m,
+                            onSelected: (_) {
+                              _edits.remove(id); // the new length shows on this day too
+                              store.updateRec('habits', h, '${h['name']}: ${m == 0 ? 'quick' : fmtMinutes(m)}', (r) => r['planMin'] = m);
+                              Navigator.pop(ctx);
+                            },
+                          ),
+                      ]),
                     ],
                     const SizedBox(height: 16),
                     SizedBox(width: double.infinity, child: FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('Done'))),

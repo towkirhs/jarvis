@@ -438,14 +438,15 @@ class _HabitEditorState extends State<HabitEditor> {
           ),
           const SizedBox(height: 6),
           Wrap(spacing: 8, runSpacing: 8, children: [
-            ChoiceChip(
-              label: Text(_type == 'duration' ? 'Target' : 'Off'),
-              selected: _planMin == null,
-              onSelected: (_) => setState(() => _planMin = null),
-            ),
-            if (_type == 'duration') ChoiceChip(label: const Text('Off'), selected: _planMin == 0, onSelected: (_) => setState(() => _planMin = 0)),
+            if (_type == 'duration') ChoiceChip(label: const Text('Target'), selected: _planMin == null, onSelected: (_) => setState(() => _planMin = null)),
+            ChoiceChip(label: const Text('Quick, no time'), selected: _planMin == 0, onSelected: (_) => setState(() => _planMin = 0)),
+            // No length of its own is half an hour (a count like water is quick), so that chip shows as chosen.
             for (final m in [15, 30, 45, 60, 90, 120])
-              ChoiceChip(label: Text(fmtMinutes(m)), selected: _planMin == m, onSelected: (_) => setState(() => _planMin = m)),
+              ChoiceChip(
+                label: Text(fmtMinutes(m)),
+                selected: _planMin == m || (_planMin == null && _type != 'duration' && _type != 'quantity' && m == 30),
+                onSelected: (_) => setState(() => _planMin = m),
+              ),
           ]),
           label('Reminder'),
           SwitchListTile(

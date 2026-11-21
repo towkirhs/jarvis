@@ -102,6 +102,11 @@ class DayPlanner {
     return _quickVerbs.contains(first);
   }
 
+  /// How long a habit takes in a plan: its own length (`planMin`; 0 = quick), else a duration habit's
+  /// target, else half an hour (a count spread over the day, like water, is quick).
+  static int habitMinutes(Map<String, dynamic> h) =>
+      ((h['planMin'] as num?) ?? (h['type'] == 'duration' ? (h['target'] as num?) : null) ?? (h['type'] == 'quantity' ? 0 : 30)).round();
+
   /// Habits for the day, as pieces for the plan. Their id is minus the habit's id.
   /// A habit that takes time (`planMin` minutes, or a duration habit's target) gets a block; one with no
   /// length is a quick piece, ticked off any time. Habits in [extra] (as minus their id) were added by hand:
@@ -113,17 +118,17 @@ class DayPlanner {
     final tomorrow = today.add(const Duration(days: 1)).millisecondsSinceEpoch;
     bool onCalendar(Map<String, dynamic> h) => items.any((i) =>
         (i['planHabit'] == h['id'] || i['habitId'] == h['id']) &&
-        i['status'] != 'done' &&
+        i['status'] == 'open' &&
         i['when'] is int &&
         (i['when'] as int) >= today.millisecondsSinceEpoch &&
         (i['when'] as int) < tomorrow);
     // A habit takes time unless you said it is quick (planMin 0) or it is a count spread over the day (water):
     // its own length, else its duration target, else half an hour.
-    int minutes(Map<String, dynamic> h) =>
-        ((h['planMin'] as num?) ?? (h['type'] == 'duration' ? (h['target'] as num?) : null) ?? (h['type'] == 'quantity' ? 0 : 30)).round();
+    final minutes = habitMinutes;
     return [
       for (final h in habits)
-        if (h['archived'] != true && !HabitCore.done(h, today) && !onCalendar(h))
+        // One you added by hand comes even when the calendar holds an entry for it that the plan does not show.
+        if (h['archived'] != true && !HabitCore.done(h, today) && (!onCalendar(h) || extra.contains(-(h['id'] as int))))
           if (extra.contains(-(h['id'] as int)) || HabitCore.scheduled(h, today))
             {
               'id': -(h['id'] as int),
