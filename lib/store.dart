@@ -344,6 +344,33 @@ class Store extends ChangeNotifier {
     notifyListeners();
   }
 
+  static int _hhmm(Object? v, int fallback) {
+    final m = RegExp(r'^(\d{1,2}):(\d{2})$').firstMatch('${v ?? ''}');
+    return m == null ? fallback : int.parse(m[1]!) * 60 + int.parse(m[2]!);
+  }
+
+  /// When you wake up, in minutes after midnight (Plan my day starts here). Default 8 am.
+  int get wakeMin => _hhmm(settings['wakeAt'], 480);
+
+  /// When you go to sleep, in minutes after the day's midnight: past 1440 when it is after midnight
+  /// (3 am = 1620), which needs "Day starts at 5 am"; never past the day's end. Default 10 pm.
+  int get sleepMin {
+    var m = _hhmm(settings['sleepAt'], 1320);
+    if (m <= wakeMin) m += 1440;
+    return m.clamp(wakeMin + 60, 1440 + dayShift);
+  }
+
+  /// Saves your waking hours. Sleeping after midnight turns "Day starts at 5 am" on, so the night stays
+  /// part of the same day; it is capped at 4:59 am.
+  Future<void> setMyDay({required int wake, required int sleep}) async {
+    String hm(int m) => '${two((m ~/ 60) % 24)}:${two(m % 60)}';
+    if (sleep % 1440 < wake && sleep % 1440 >= 300) sleep = 299; // after 5 am would be the next day
+    settings['wakeAt'] = hm(wake);
+    settings['sleepAt'] = hm(sleep);
+    if (sleep % 1440 < wake && dayShift == 0) await setDayShift(true);
+    save();
+  }
+
   Future<void> setDayShift(bool on) async {
     await setLocal('dayStart5', on ? '1' : '0');
     DayStart.minutes = dayShift;

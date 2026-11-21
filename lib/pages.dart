@@ -796,6 +796,7 @@ class _SettingsPageState extends State<SettingsPage> {
               onTap: () => _open(HealthPage(store: s)),
             ),
             DayStartSwitch(store: s),
+            MyDayTile(store: s),
             ListTile(
               leading: const Icon(Icons.notifications_active_outlined),
               title: const Text('Alarms and reminders'),

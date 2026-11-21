@@ -171,8 +171,8 @@ class DayPlanner {
     Map<int, PlanEdit> edits = const {},
     Map<int, NeedResult> needs = const {},
     Map<int, int> focus = const {},
-    int dayStartHour = 8,
-    int dayEndHour = 22,
+    int dayStartMinute = 480,
+    int dayEndMinute = 1320,
     int dayShift = 0,
     int buffer = 10,
     int defaultMinutes = 30,
@@ -331,11 +331,14 @@ class DayPlanner {
     }
 
     // Start at the next 5 minutes from now (today) or at the start of the day, end at the end of the day.
-    final startOfDay = today.add(Duration(hours: dayStartHour));
+    // The waking hours: [dayStartMinute] to [dayEndMinute] after the day's midnight; an end past 1440 is
+    // after midnight, still the same day (with a 5 am day start), and never past the day's end.
+    final startOfDay = today.add(Duration(minutes: dayStartMinute));
     var cursor = isToday && !now.isBefore(startOfDay)
         ? DateTime(now.year, now.month, now.day, now.hour, (now.minute ~/ 5 + 1) * 5)
         : startOfDay;
-    var dayEnd = today.add(Duration(hours: dayEndHour));
+    var dayEnd = today.add(Duration(minutes: dayEndMinute));
+    if (dayEnd.isAfter(dayTo)) dayEnd = dayTo;
     // Late at night on a day that starts at 5 am: there is time until the day ends.
     if (dayShift > 0 && isToday && now.isAfter(dayEnd)) dayEnd = dayTo;
 

@@ -571,6 +571,10 @@ class Brain {
         ? DateTime(now.year, now.month, now.day, h, mi)
         : DateTime(d.year, d.month, d.day, h, mi);
     if (d == null && !t.isAfter(now)) t = DateTime(now.year, now.month, now.day + 1, h, mi);
+    // With a 5 am day start, "today at 1 am" is tonight: the small hours after today's date, not the night before.
+    if (d != null && time != null && DayStart.minutes > 0 && h * 60 + mi < DayStart.minutes && dayKey(d) == DayStart.today() && !t.isAfter(now)) {
+      t = DateTime(d.year, d.month, d.day + 1, h, mi);
+    }
     return t.millisecondsSinceEpoch;
   }
 

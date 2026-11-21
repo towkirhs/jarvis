@@ -257,6 +257,11 @@ I install releases with Obtainium or in-app (More → Settings → Update). I de
    and priority (`DayPlanner.plan(focus:)`, `Areas.focusOf`). The AI gets `Areas.forAi` in `Brain.world` and writes `type: area` items
    (add/move/status/words). `Areas.notes`: centre area under 2 h this week, maintenance area over 30%, no time in 3 weeks. Sunday 8 pm
    notification (kind `week`, id 1.65e9, `Store.syncLifeWeek`, never full screen). Untested on a phone.
+   My day hours (build after 309): `settings.wakeAt`/`sleepAt` ('HH:MM'); `Store.wakeMin`/`sleepMin` (sleep past 1440 = after
+   midnight, same day, capped at the day's end); `setMyDay` turns "Day starts at 5 am" on for a bedtime after midnight. Plan my day
+   plans wake → sleep (`DayPlanner.plan(dayStartMinute:, dayEndMinute:)`, was 8 am–10 pm). Sheet `showMyDaySheet` (Plan my day's
+   "Planning … – …" button and ⋮, Settings → Everyday). `Brain.whenFrom`: with the 5 am day, today's date with a time before 5 am that
+   has passed means tonight (the next calendar date). Untested on a phone.
 5. Groq web answers show no source links (response shape unconfirmed).
 6. Calendar, deferred: custom repeats, find free time, global search, weekly review, what-if planning.
 7. Known limits: imported times with a named time zone are read as local.

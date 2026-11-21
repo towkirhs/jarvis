@@ -6,6 +6,7 @@ import 'day_log.dart';
 import 'day_page.dart';
 import 'areas.dart';
 import 'day_planner.dart';
+import 'day_start_menu.dart';
 import 'focus_screen.dart';
 import 'habit_core.dart';
 import 'haptics.dart';
@@ -150,6 +151,8 @@ class _PlanDayPageState extends State<PlanDayPage> {
           needs: needs,
           focus: focus,
           dayShift: store.dayShift,
+          dayStartMinute: store.wakeMin,
+          dayEndMinute: store.sleepMin,
         );
     // Links: first see which pieces the day holds, then where each linked piece stands among them.
     final linked = [...open, ...habits].where((i) => i['kind'] == 'task').toList();
@@ -1229,9 +1232,10 @@ class _PlanDayPageState extends State<PlanDayPage> {
                   tooltip: 'Options',
                   onSelected: (v) => v == 'day'
                       ? Navigator.push(context, MaterialPageRoute(builder: (_) => DayPage(store: store)))
-                      : store.setDayShift(store.dayShift == 0),
+                      : (v == 'hours' ? showMyDaySheet(context, store) : store.setDayShift(store.dayShift == 0)),
                   itemBuilder: (_) => [
                     CheckedPopupMenuItem(value: 'dayStart', checked: store.dayShift > 0, child: const Text('Day starts at 5 am')),
+                    const PopupMenuItem(value: 'hours', child: Text('When I wake and sleep')),
                     const PopupMenuItem(value: 'day', child: Text('Your day so far')),
                   ],
                 ),
@@ -1269,6 +1273,14 @@ class _PlanDayPageState extends State<PlanDayPage> {
                         Expanded(child: Text(n)),
                       ]),
                     ),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      icon: const Icon(Icons.wb_twilight, size: 18),
+                      label: Text(myDayLabel(store)),
+                      onPressed: () => showMyDaySheet(context, store),
+                    ),
+                  ),
                   _topStrip(plan),
                   if (_replan) _changes(plan),
                   if (_isToday && !_replan) _behind(context),
