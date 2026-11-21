@@ -118,7 +118,8 @@ class DayPlanner {
     final tomorrow = today.add(const Duration(days: 1)).millisecondsSinceEpoch;
     bool onCalendar(Map<String, dynamic> h) => items.any((i) =>
         (i['planHabit'] == h['id'] || i['habitId'] == h['id']) &&
-        i['status'] == 'open' &&
+        i['status'] != 'done' &&
+        i['status'] != 'cancelled' &&
         i['when'] is int &&
         (i['when'] as int) >= today.millisecondsSinceEpoch &&
         (i['when'] as int) < tomorrow);
